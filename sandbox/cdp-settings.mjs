@@ -81,8 +81,22 @@ await send('Page.navigate', { url: targetUrl })
 await ready()
 await openTaskSettings()
 const before = await snapshot()
-await evaluate(`([...document.querySelectorAll('.dbt-settings-font-option')].find((node) => node.textContent === '14px'))?.click()`)
+const todoBefore = before.switches.find((item) => /Todo/.test(item.label))
+const goalBefore = before.switches.find((item) => /Goal/.test(item.label))
+if (!todoBefore || !goalBefore) throw new Error('Todo or Goal setting is missing')
+const toggledTodoValue = todoBefore.checked === 'true' ? 'false' : 'true'
+await evaluate(`([...document.querySelectorAll('.dbt-settings-switch')].find((node) => /Todo/.test(node.getAttribute('aria-label') || '')))?.click()`)
+const afterTodoToggle = await retry(async () => {
+  const value = await snapshot()
+  const todo = value.switches.find((item) => /Todo/.test(item.label))
+  const goal = value.switches.find((item) => /Goal/.test(item.label))
+  if (todo?.checked !== toggledTodoValue) throw new Error('Todo did not toggle independently')
+  if (goal?.checked !== goalBefore.checked) throw new Error('Todo toggle changed Goal')
+  return value
+})
 await retry(async () => {
+  await evaluate(`([...document.querySelectorAll('.dbt-settings-font-option')].find((node) => node.textContent === '14px'))?.click()`)
+  await new Promise((resolve) => setTimeout(resolve, 100))
   const selected = await evaluate(`document.querySelector('.dbt-settings-font-option[aria-pressed="true"]')?.textContent`)
   if (selected !== '14px') throw new Error('14px did not become selected')
 })
@@ -91,17 +105,26 @@ await send('Page.reload', { ignoreCache: true })
 await ready()
 await openTaskSettings()
 const persisted = await snapshot()
-await evaluate(`([...document.querySelectorAll('.dbt-settings-font-option')].find((node) => node.textContent === '13px'))?.click()`)
+await evaluate(`([...document.querySelectorAll('.dbt-settings-font-option')].find((node) => node.textContent === ${JSON.stringify(before.selectedFont)}))?.click()`)
 await retry(async () => {
-  const selected = await evaluate(`document.querySelector('.dbt-settings-font-option[aria-pressed="true"]')?.textContent`)
-  if (selected !== '13px') throw new Error('13px default was not restored')
+  await evaluate(`(() => {
+    const todo = [...document.querySelectorAll('.dbt-settings-switch')].find((node) => /Todo/.test(node.getAttribute('aria-label') || ''))
+    if (todo?.getAttribute('aria-checked') !== ${JSON.stringify(todoBefore.checked)}) todo?.click()
+  })()`)
+  await new Promise((resolve) => setTimeout(resolve, 100))
+  const value = await snapshot()
+  const todo = value.switches.find((item) => /Todo/.test(item.label))
+  if (value.selectedFont !== before.selectedFont) throw new Error('original font was not restored')
+  if (todo?.checked !== todoBefore.checked) throw new Error('original Todo default was not restored')
 })
 await new Promise((resolve) => setTimeout(resolve, 300))
-const report = { before, persisted, errors }
+const report = { before, afterTodoToggle, persisted, errors }
 console.log(JSON.stringify(report, null, 2))
 if (before.fontOptions !== 6 || before.switches.length !== 3 || before.disabled !== 0) process.exitCode = 2
-if (!before.switches.some((item) => /Goal/.test(item.label) && item.checked === 'false')) process.exitCode = 3
+if (!goalBefore || goalBefore.checked !== 'false') process.exitCode = 3
 if (persisted.selectedFont !== '14px') process.exitCode = 4
-if (errors.length > 0) process.exitCode = 5
+if (persisted.switches.find((item) => /Todo/.test(item.label))?.checked !== toggledTodoValue) process.exitCode = 5
+if (persisted.switches.find((item) => /Goal/.test(item.label))?.checked !== goalBefore.checked) process.exitCode = 6
+if (errors.length > 0) process.exitCode = 7
 await send('Page.close').catch(() => {})
 socket.close()

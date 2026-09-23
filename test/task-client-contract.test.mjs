@@ -22,8 +22,8 @@ test('task view renders only the Host pin order', async () => {
   assert.doesNotMatch(source, /cursor:grab|cursor:grabbing/)
   assert.match(source, /\.dbt-task-card\{[^}]*cursor:pointer/)
   assert.match(source, /\.dbt-task-unpin\{[^}]*width:24px[^}]*height:24px[^}]*padding:0/)
-  assert.match(source, /\.dbt-task-unpin svg\{width:20px;height:20px;flex:none\}/)
-  assert.match(source, /renderTaskPinIcon\(20\)/)
+  assert.match(source, /\.dbt-task-unpin svg\{width:14px;height:14px;flex:none\}/)
+  assert.match(source, /renderTaskPinIcon\(14\)/)
 })
 
 test('running title reuses the native ongoing StateDot unchanged', async () => {

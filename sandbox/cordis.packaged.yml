@@ -1,0 +1,22 @@
+# Package-mode sandbox overlay. All Better Tasks rows resolve from the profile's
+# installed immutable tgz dependencies; no row points at the development checkout.
+# Cindy Host stays disabled so this composition cannot affect mobile/P2P state.
+- id: dsh-cindy-host
+  disabled: true
+- id: ui-layout
+  disabled: true
+- id: ui-sidebar
+  disabled: true
+- id: ui-workspace
+  disabled: true
+- id: ui-user-questions
+  disabled: true
+- insert:
+    - id: ui-layout-dbt
+      name: '@deepseek-ai/dsh-client-ui-layout'
+    - id: ui-workspace-dbt
+      name: '@deepseek-ai/dsh-client-ui-workspace'
+    - id: ui-user-questions-dbt
+      name: '@deepseek-ai/dsh-client-ui-user-questions'
+    - id: better-tasks-sidebar
+      name: dsh-better-tasks

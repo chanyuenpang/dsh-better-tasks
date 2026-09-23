@@ -1,6 +1,6 @@
 {
   "name": "dsh-better-tasks",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "A compositional DSH sidebar with a Host-persisted pinned-task queue.",
@@ -10,6 +10,11 @@
     "./client": "./lib/client.js",
     "./package.json": "./package.json"
   },
+  "files": [
+    "src/**/*.js",
+    "src/**/*.mjs",
+    "lib/client.js"
+  ],
   "dsh": {
     "client": {
       "platform": "web",

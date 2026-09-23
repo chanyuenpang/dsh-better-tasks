@@ -14,6 +14,16 @@ A compositional DSH sidebar replacement with a Host-global pinned-task queue and
 - The Tasks view renders that exact queue order. Cards are whole-card drag surfaces and selection targets without a grab cursor, with a hover-only top-right unpin action, native `relativeTime`, the unchanged native running `StateDot`, persistent read-only Goal/Todo disclosures, and `block > running > idle` card backgrounds. Empty or completed Goal projections and unavailable Todo projections are disabled. Goal and Todo default to collapsed and never affect one another. Final defaults to expanded for each new idle cycle; manual choices survive tab switches and refreshes for the same lifecycle. Its bounded safe payload and cycle marker are cached, and the icon-free detail uses the full card width.
 - The native Settings panel has a Better Tasks section backed by the Host `better-tasks-ui` settings namespace. It configures 11–16px projection detail text, independent Todo/Goal/Final default expansion, and `auto / single / double` task columns. Auto preserves the strict `>528px` boundary; both two-column modes use independent index-interleaved vertical flows.
 
+## Package
+
+The Host/Client package is published publicly as [`@veewo/dsh-better-tasks`](https://www.npmjs.com/package/@veewo/dsh-better-tasks):
+
+```bash
+npm install @veewo/dsh-better-tasks
+```
+
+The complete sidebar composition also requires the three version-locked compatibility forks. Use the immutable assets and package-name composition described in [`docs/release.md`](docs/release.md); do not point a real DSH Profile at the development checkout.
+
 ## Commands
 
 ```bash

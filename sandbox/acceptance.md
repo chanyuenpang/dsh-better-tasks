@@ -25,7 +25,7 @@ dsh --profile better-tasks-sandbox --from-default-profile web `
 
 The isolated Host reached `http://127.0.0.1:3081/` successfully with a dedicated `DSH_HOME` and Cindy Host disabled. Edge CDP confirmed the root layout, Better Sidebar, native Session/Workspace surface, Tasks tab, collapse rail, and zero browser runtime/console errors. It also opened the native Better Tasks settings section, verified six font choices, independent Todo/Goal/Final switches (`false / false / true`), Auto columns, persisted `14px` across a reload, then restored `13px`. The empty isolated profile intentionally had no real task rows; data-dependent task assertions were covered separately by model/contract tests.
 
-The final gate repeated that cold start using only four installed tgz dependencies and `sandbox/cordis.packaged.yml`; no composition row referenced the development checkout. Profile `node_modules` entries were ordinary installed directories rather than links to the source tree. The packaged settings persistence probe and core browser smoke produced the same result with zero browser errors, and port 3081 was removed afterward.
+The final gate repeated that cold start using the scoped `@veewo/dsh-better-tasks@0.2.0` tgz plus three exact-fork tgz dependencies and `sandbox/cordis.packaged.yml`; no composition row referenced the development checkout. Profile `node_modules` entries were ordinary installed directories rather than links to the source tree. The scoped-package settings persistence probe and core browser smoke produced the same result with zero browser errors, and port 3081 was removed afterward.
 
 ## Automated evidence
 
@@ -55,11 +55,11 @@ Behavioral evidence includes:
 
 ## Real profile and ledger recovery
 
-The real patch disables shipped `ui-layout`, `ui-sidebar`, `ui-workspace`, and `ui-user-questions`, then mounts exactly one local owner for each plus `better-tasks-sidebar`.
+The real patch disables shipped `ui-layout`, `ui-sidebar`, `ui-workspace`, and `ui-user-questions`, then mounts exactly one installed package owner for each plus `better-tasks-sidebar`; it contains no Better Tasks development-checkout path.
 
 A later `LEDGER_LOCKED` was traced to `${DSH_HOME:-$HOME/.dsh}/assistant-session-bridge/receipts/operation.lock`, owned by dead PID `62372`. After confirming the PID was absent, only that stale lock was removed. Three confirmed stale test profiles on ports 3095–3097 were stopped. `session_manage projects` and `session_manage list` then succeeded, proving the bridge ledger was available again. Port 3081 had no listener; only real port 3080 remained.
 
-The latest real cold start completed as PID `9140` on port 3080 with the persisted exact-fork composition. Real Edge CDP held each Host POST open while measuring DOM feedback: optimistic Unpin completed in 27.5ms and Pin in 28.7ms on the first run, then 7.1ms and 5.3ms on the warm run; membership was restored and persisted after each measurement. The same run verified 12px projection detail text, icon-free full-width Final (`display:block`), and zero browser errors. Integrated appearance data, disabled non-ready projections, whole-card guards, independent columns, and zero horizontal overflow remain covered by the broader real regression.
+The package-mode real cold start completed on port 3080 and a later live profile refresh is serving as PID `57740`. Real Edge opened the native Better Tasks settings section, verified 13px and `Todo=false / Goal=false / Final=true / Auto`, persisted 14px across reload, restored 13px, and recorded zero browser errors. The preceding optimistic Pin/Unpin regression held Host POSTs open while DOM feedback completed in 27.5–28.7ms initially and 5.3–7.1ms warm; membership was restored after every measurement. Integrated appearance, full-width Final, disabled non-ready projections, whole-card guards, independent columns, and zero horizontal overflow remain covered by the broader regression.
 
 ## Failures caught and rules added
 
@@ -68,3 +68,4 @@ The latest real cold start completed as PID `9140` on port 3080 with the persist
 3. Final auto-open originally used component-memory transition state, so a tab remount reopened a manually collapsed Final. The idle-cycle marker is now persisted by `sessionId → updatedAt`.
 4. Final content originally lived only in React memory. The bounded safe projection is now cached in browser storage and invalidated only when the Session `updatedAt` changes.
 5. The first settings browser probe treated the injected external store as a raw `hooks` prop, but Slots materializes it as `useTaskPreferences`. The cold-started core stayed healthy, while opening the page surfaced the render failure; the component now consumes the generated hook prop, and the second cold-start plus persistence probe passed with zero browser errors.
+6. The first scoped npm candidate kept the old unscoped browser loader ID, so DSH correctly rejected `@veewo/dsh-better-tasks` as “loaded without registering.” The builder and bundle smoke test now require the scoped loader ID; a clean reinstall and cold start then passed.

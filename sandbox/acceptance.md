@@ -27,7 +27,7 @@ The isolated Host reached `http://127.0.0.1:3081/` successfully. Edge CDP confir
 
 ## Automated evidence
 
-- `npm test`: **58/58 passed**.
+- `npm test`: **63/63 passed**.
 - `npm run check`: passed.
 - Exact fork replay passed for:
   - `@deepseek-ai/dsh-client-ui-workspace@0.1.5-rc.2`
@@ -42,9 +42,10 @@ Behavioral evidence includes:
 - 528px remains one column; 529px becomes two independent vertical flows.
 - At viewport 1600px the ceiling is 840px; at 2000px it is 1000px.
 - Responsive narrowing preserves the 1000px preference and widening restores it.
-- Whole-card click/drag guards, 20px unpin glyph in a 24px hover-only container, no horizontal overflow, and zero browser errors.
-- Durable Final extraction, 4,000-code-point bound, cache validation, one-auto-open-per-idle-cycle semantics, and same-cycle manual collapse persistence.
-- Completed goals project as unavailable; active/paused/blocked goals retain their normal projection.
+- Whole-card click/drag guards, a Session-matched 14px pinned glyph in a 24px hover-only unpin container, no horizontal overflow, and zero browser errors.
+- Pin/Unpin publishes optimistic membership and pending state synchronously while writes remain confirmed-revision CAS operations; queued refresh, concurrent intents, 409 retry, and failed-write rollback have direct tests.
+- Durable Final extraction, 4,000-code-point bound, cache validation, one-auto-open-per-idle-cycle semantics, same-cycle manual collapse persistence, and icon-free full-width 12px detail text.
+- Completed goals project as unavailable; a new active Goal ID auto-expands once, manual collapse survives remounts, completion clears its cycle, and active/paused/blocked goals retain their normal projection.
 - Restored current Sessions are opened during cold navigation so Goal actions have a binding without requiring a preliminary chat message.
 - Every New Session route uses the single `uiWorkspace.onSessionCreated` auto-pin seam.
 - `questionSurface` is optional to Better Tasks, preventing service-wait startup deadlocks.
@@ -55,7 +56,7 @@ The real patch disables shipped `ui-layout`, `ui-sidebar`, `ui-workspace`, and `
 
 A later `LEDGER_LOCKED` was traced to `${DSH_HOME:-$HOME/.dsh}/assistant-session-bridge/receipts/operation.lock`, owned by dead PID `62372`. After confirming the PID was absent, only that stale lock was removed. Three confirmed stale test profiles on ports 3095–3097 were stopped. `session_manage projects` and `session_manage list` then succeeded, proving the bridge ledger was available again. Port 3081 had no listener; only real port 3080 remained.
 
-The final real cold start completed as PID `61496` on port 3080 with the persisted exact-fork composition. Real Edge CDP verified integrated appearance data (11 records, 191 icons), disabled non-ready projections, durable Final content, whole-card selection/drag guards, independent columns, zero horizontal overflow, and zero browser errors. The user reported no remaining issue after this restart.
+The latest real cold start completed as PID `9140` on port 3080 with the persisted exact-fork composition. Real Edge CDP held each Host POST open while measuring DOM feedback: optimistic Unpin completed in 27.5ms and Pin in 28.7ms on the first run, then 7.1ms and 5.3ms on the warm run; membership was restored and persisted after each measurement. The same run verified 12px projection detail text, icon-free full-width Final (`display:block`), and zero browser errors. Integrated appearance data, disabled non-ready projections, whole-card guards, independent columns, and zero horizontal overflow remain covered by the broader real regression.
 
 ## Failures caught and rules added
 

@@ -1,0 +1,22 @@
+{
+  "package": "@deepseek-ai/dsh-client-ui-user-questions",
+  "version": "0.1.5-rc.2",
+  "registryIntegrity": "sha512-vJzqgAIAlGX7oth3a4qVq3pyyBRc4paL7ENOnt1kfmY+XoPTGF+/CUXwe/Lep5Xjo+95K2HPq7tMxeryKJj72g==",
+  "registryShasum": "0aa1691bd1bd91429b127cf0c5ad64364d2e6a0d",
+  "sourceTag": "dsh-v0.1.5-rc.2",
+  "sourceCommit": "fb2c4b9e698e30edb738bca4cf0618587db7d203",
+  "sha256": {
+    "tarball": "2af25cedd88bdc48547ff6c5f72b0d4ba3535ec5475eb7411faab513290305f4",
+    "publishedPackageTree": "4dbdc668f3091644ce161d149ac2262ca016169f87994e3488e10ef2dc1c11b0",
+    "publishedClient": "232a66c60ab295db19336fbe37ab3b0c326b38a17c9d1d0cf23371b8b4664df6",
+    "installedBehaviorBaseline": "232a66c60ab295db19336fbe37ab3b0c326b38a17c9d1d0cf23371b8b4664df6",
+    "featurePatch": "27ea4473dc680ef4d5a3b5a09dcd00429169b700b94099e2edea9b8ef01f32e4",
+    "typesPatch": "bb769024809c66e5ce481a8cfb6dcab3993a1c905ac272168a41368734f5ba13",
+    "forkPackageTree": "1efbfff8ee72043b7724fd9ed7966d0f719f7309daa97d3cf6ca5e0ba7e324f8",
+    "forkClient": "82cac65a09c0a5c39f25a868e1ad531f701730c00c9c0f24496dc4203b8611b7"
+  },
+  "patchedFiles": [
+    "lib/client.js",
+    "lib/types/client/index.d.ts"
+  ]
+}

@@ -1,0 +1,8 @@
+# Isolated activation overlay for dsh-better-tasks.
+# This file is passed with `dsh --profile web --patch ...` to a separate process/port;
+# it is never copied into the real Web profile before the sandbox gate passes.
+- id: ui-sidebar
+  disabled: true
+- insert:
+    - id: better-tasks-sidebar
+      name: "file:///G:/Projects/dsh-better-tasks/src/index.js"

@@ -1,0 +1,86 @@
+[
+  {
+    "id": "@deepseek-ai/dsh-client-ui-user-questions@0.1.5-rc.2",
+    "name": "@deepseek-ai/dsh-client-ui-user-questions",
+    "version": "0.1.5-rc.2",
+    "size": 22146,
+    "unpackedSize": 72086,
+    "shasum": "0aa1691bd1bd91429b127cf0c5ad64364d2e6a0d",
+    "integrity": "sha512-vJzqgAIAlGX7oth3a4qVq3pyyBRc4paL7ENOnt1kfmY+XoPTGF+/CUXwe/Lep5Xjo+95K2HPq7tMxeryKJj72g==",
+    "filename": "deepseek-ai-dsh-client-ui-user-questions-0.1.5-rc.2.tgz",
+    "files": [
+      {
+        "path": "LICENSE",
+        "size": 1065,
+        "mode": 420
+      },
+      {
+        "path": "README.i18n.yaml",
+        "size": 443,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 6536,
+        "mode": 420
+      },
+      {
+        "path": "README.zh.md",
+        "size": 6014,
+        "mode": 420
+      },
+      {
+        "path": "lib/client.js",
+        "size": 42837,
+        "mode": 420
+      },
+      {
+        "path": "lib/index.js",
+        "size": 496,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/contract/slots.d.ts",
+        "size": 5324,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/draft-store.d.ts",
+        "size": 1483,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/index.d.ts",
+        "size": 1781,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/locales.d.ts",
+        "size": 1213,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/PlanReviewPanel.d.ts",
+        "size": 672,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/QuestionComposer.d.ts",
+        "size": 1352,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/index.d.ts",
+        "size": 497,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 2373,
+        "mode": 420
+      }
+    ],
+    "entryCount": 14,
+    "bundled": []
+  }
+]

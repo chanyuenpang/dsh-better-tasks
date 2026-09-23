@@ -1,0 +1,336 @@
+===================================================================
+--- a/lib/client.js
++++ b/lib/client.js
+@@ -188,6 +188,73 @@
+ 				}
+ 			});
+ 		}
++		/** Shared per-request draft store and one-way settlement gate for every UI surface. */
++		var QuestionSurfaceRegistry = class {
++			#records = /* @__PURE__ */ new Map();
++			record(pending) {
++				const id = `${pending.sessionId}:${pending.key}`;
++				let record = this.#records.get(id);
++				if (record !== void 0 && record.pending === pending) return record;
++				const store = createQuestionDraftStore().create();
++				record = {
++					id,
++					pending,
++					store,
++					locked: false,
++					error: null,
++					version: 0,
++					listeners: /* @__PURE__ */ new Set()
++				};
++				this.#records.set(id, record);
++				return record;
++			}
++			subscribe(record, listener) {
++				record.listeners.add(listener);
++				return () => record.listeners.delete(listener);
++			}
++			lock(record) {
++				if (record.locked) return false;
++				record.locked = true;
++				record.error = null;
++				record.version += 1;
++				for (const listener of record.listeners) listener();
++				return true;
++			}
++			fail(record, cause) {
++				record.error = cause instanceof Error ? cause.message : String(cause);
++				record.version += 1;
++				for (const listener of record.listeners) listener();
++			}
++			guard(record) {
++				const settle = (operation) => {
++					if (!this.lock(record)) return Promise.reject(new Error(`pending question ${record.pending.key} is already settling`));
++					try {
++						return Promise.resolve(operation()).catch((error) => {
++							this.fail(record, error);
++							throw error;
++						});
++					} catch (error) {
++						this.fail(record, error);
++						return Promise.reject(error);
++					}
++				};
++				return Object.freeze({
++					sessionId: record.pending.sessionId,
++					kind: record.pending.kind,
++					key: record.pending.key,
++					questions: record.pending.questions,
++					answer: (answer) => settle(() => record.pending.answer(answer)),
++					cancel: () => settle(() => record.pending.cancel())
++				});
++			}
++			forget(pending) {
++				const id = `${pending.sessionId}:${pending.key}`;
++				if (this.#records.get(id)?.pending === pending) this.#records.delete(id);
++			}
++			dispose() {
++				this.#records.clear();
++			}
++		};
+ 		//#endregion
+ 		//#region ../../../node_modules/.pnpm/clsx@2.1.1/node_modules/clsx/dist/clsx.mjs
+ 		function r(e) {
+@@ -243,7 +310,7 @@
+ 		* @param props - the question domain face, the narrowed plan review, and `t`.
+ 		* @returns The plan-review takeover for this request.
+ 		*/
+-		function PlanReviewPanel({ pending, review, t }) {
++		function PlanReviewPanel({ pending, review, t, locked = false, sharedError = null }) {
+ 			const markdownLabels = (0, react.useMemo)(() => ({
+ 				code: {
+ 					copyLabel: t("copy"),
+@@ -292,7 +359,7 @@
+ 							children: [(0, react_jsx_runtime.jsx)("div", {
+ 								className: PlanReviewPanel_module_css_default.feedback,
+ 								role: "status",
+-								children: error
++								children: error ?? sharedError
+ 							}), (0, react_jsx_runtime.jsxs)("div", {
+ 								className: PlanReviewPanel_module_css_default.actions,
+ 								children: [
+@@ -300,7 +367,7 @@
+ 										variant: "ghost",
+ 										className: PlanReviewPanel_module_css_default.discuss,
+ 										icon: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconEditOutline16, { size: 14 }),
+-										disabled: busy,
++										disabled: busy || locked,
+ 										onClick: () => {
+ 											settle(() => pending.cancel());
+ 										},
+@@ -309,7 +376,7 @@
+ 									decline !== void 0 && (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+ 										variant: "outline",
+ 										...tooltip(decline.description),
+-										disabled: busy,
++										disabled: busy || locked,
+ 										onClick: () => {
+ 											decide(decline.label);
+ 										},
+@@ -318,7 +385,7 @@
+ 									(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+ 										variant: "primary",
+ 										...tooltip(review.approve.description),
+-										disabled: busy,
++										disabled: busy || locked,
+ 										onClick: () => {
+ 											decide(review.approve.label);
+ 										},
+@@ -450,20 +517,14 @@
+ 		* @returns The question flow, or the intent's own surface, for this request.
+ 		*/
+ 		function QuestionComposer(props) {
+-			const question = props.matched;
+-			const review = (0, react.useMemo)(() => planReviewOf(question.questions), [question]);
+-			return review === void 0 ? (0, react_jsx_runtime.jsx)(QuestionFlow, {
+-				pending: question,
++			return (0, react_jsx_runtime.jsx)(QuestionSurface, {
++				pending: props.matched,
+ 				t: props.t,
+-				useStore: props.useStore,
+-				actions: props.actions
+-			}, question.key) : (0, react_jsx_runtime.jsx)(PlanReviewPanel, {
+-				pending: question,
+-				review,
+-				t: props.t
+-			}, question.key);
++				registry: props.registry,
++				variant: "composer"
++			}, props.matched.key);
+ 		}
+-		function QuestionFlow({ pending, t, useStore, actions }) {
++		function QuestionFlow({ pending, t, useStore, actions, locked = false, sharedError = null }) {
+ 			const questions = pending.questions;
+ 			const markdownLabels = (0, react.useMemo)(() => ({
+ 				code: {
+@@ -619,7 +680,7 @@
+ 								"aria-label": t(minimized ? "nav.maximize" : "nav.minimize"),
+ 								title: t(minimized ? "nav.maximize" : "nav.minimize"),
+ 								"aria-expanded": !minimized,
+-								disabled: busy !== null,
++								disabled: busy !== null || locked,
+ 								onClick: () => {
+ 									setMinimized((current) => !current);
+ 								},
+@@ -629,7 +690,7 @@
+ 								className: QuestionComposer_module_css_default.iconButton,
+ 								"aria-label": t("nav.cancel"),
+ 								title: t("nav.cancel"),
+-								disabled: busy !== null,
++								disabled: busy !== null || locked,
+ 								onClick: cancelFlow,
+ 								children: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconCloseOutline16, {})
+ 							})]
+@@ -655,7 +716,7 @@
+ 									role: question.multiSelect === true ? "checkbox" : "radio",
+ 									"aria-checked": selected,
+ 									"aria-label": display.label,
+-									disabled: busy !== null,
++									disabled: busy !== null || locked,
+ 									onClick: () => {
+ 										choose(option.label);
+ 									},
+@@ -705,7 +766,7 @@
+ 								}), (0, react_jsx_runtime.jsx)(AnswerField, {
+ 									variant: "inline",
+ 									value: draft.custom,
+-									disabled: busy !== null,
++									disabled: busy !== null || locked,
+ 									placeholder: t("custom.placeholder"),
+ 									onChange: draftCustom,
+ 									onKeyDown: continueFromCustom
+@@ -714,7 +775,7 @@
+ 								autoFocus: !focusedQuestions.current.has(index),
+ 								variant: "block",
+ 								value: draft.custom,
+-								disabled: busy !== null,
++								disabled: busy !== null || locked,
+ 								placeholder: t("custom.placeholder"),
+ 								onFocus: () => {
+ 									focusedQuestions.current.add(index);
+@@ -733,7 +794,7 @@
+ 										type: "button",
+ 										className: QuestionComposer_module_css_default.iconButton,
+ 										"aria-label": t("nav.prev"),
+-										disabled: index === 0 || busy !== null,
++										disabled: index === 0 || busy !== null || locked,
+ 										onClick: () => {
+ 											replaceProgress(index - 1, drafts);
+ 											setError(null);
+@@ -752,7 +813,7 @@
+ 										type: "button",
+ 										className: QuestionComposer_module_css_default.iconButton,
+ 										"aria-label": t("nav.next"),
+-										disabled: index === questions.length - 1 || busy !== null,
++										disabled: index === questions.length - 1 || busy !== null || locked,
+ 										onClick: () => {
+ 											replaceProgress(index + 1, drafts);
+ 											setError(null);
+@@ -764,18 +825,18 @@
+ 							(0, react_jsx_runtime.jsx)("div", {
+ 								className: QuestionComposer_module_css_default.feedback,
+ 								role: "status",
+-								children: error === null ? null : "key" in error ? t(error.key) : error.text
++								children: error === null ? sharedError : "key" in error ? t(error.key) : error.text
+ 							}),
+ 							(0, react_jsx_runtime.jsxs)("div", {
+ 								className: QuestionComposer_module_css_default.footerActions,
+ 								children: [(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+ 									variant: "outline",
+-									disabled: busy !== null,
++									disabled: busy !== null || locked,
+ 									onClick: skipQuestion,
+ 									children: t("action.skip")
+ 								}), (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+ 									variant: "primary",
+-									disabled: busy !== null || !answered(draft),
++									disabled: busy !== null || locked || !answered(draft),
+ 									onClick: continueFlow,
+ 									children: busy === "answer" ? t("submitting") : index === questions.length - 1 ? t("submit") : t("action.next")
+ 								})]
+@@ -785,6 +846,38 @@
+ 				})
+ 			});
+ 		}
++		/** Render the canonical question router in the composer or another local surface. */
++		function QuestionSurface({ pending, t, registry, variant = "composer" }) {
++			const record = (0, react.useMemo)(() => registry.record(pending), [registry, pending, pending.key]);
++			const snapshot = (0, react.useSyncExternalStore)((listener) => record.store.subscribe(listener), () => record.store.getSnapshot(), () => record.store.getSnapshot());
++			(0, react.useSyncExternalStore)((listener) => registry.subscribe(record, listener), () => record.version, () => record.version);
++			const locked = record.locked;
++			const sharedError = record.error;
++			const guarded = (0, react.useMemo)(() => registry.guard(record), [registry, record]);
++			const review = (0, react.useMemo)(() => planReviewOf(guarded.questions), [guarded]);
++			const useStore = (selector) => selector(snapshot);
++			const content = review === void 0 ? (0, react_jsx_runtime.jsx)(QuestionFlow, {
++				pending: guarded,
++				t,
++				useStore,
++				actions: record.store.actions,
++				locked,
++				sharedError
++			}, guarded.key) : (0, react_jsx_runtime.jsx)(PlanReviewPanel, {
++				pending: guarded,
++				review,
++				t,
++				locked,
++				sharedError
++			}, guarded.key);
++			return (0, react_jsx_runtime.jsx)("div", {
++				"data-question-surface": variant,
++				"data-question-key": guarded.key,
++				"data-no-card-drag": variant === "task-card" ? true : void 0,
++				onDragStart: variant === "task-card" ? (event) => event.preventDefault() : void 0,
++				children: content
++			});
++		}
+ 		//#endregion
+ 		//#region lib/types/client/locales.js
+ 		/** `question` namespace dictionaries. */
+@@ -837,7 +930,7 @@
+ 			"locale"
+ 		];
+ 		/** Present one request until the user answers, cancels, or its lifetime ends. */
+-		async function answerQuestion(ctx, owner, request, next, registerPendingInteraction) {
++		async function answerQuestion(ctx, owner, request, next, registerPendingInteraction, registry) {
+ 			const sessionId = ctx.sessions.scopeOf(owner);
+ 			if (sessionId === void 0) return next();
+ 			const pending = new PendingQuestion(sessionId, request.questions, request.signal);
+@@ -856,6 +949,7 @@
+ 			} finally {
+ 				remove();
+ 				completed.resolve();
++				registry.forget(pending);
+ 			}
+ 		}
+ 		/**
+@@ -869,16 +963,43 @@
+ 				zh,
+ 				en
+ 			}), "ui-user-questions: dictionaries");
++			const registry = new QuestionSurfaceRegistry();
++			const t = ctx.locale.bind(NS);
++			const questionSurface = Object.freeze({
++				isSupported: (pending) => pending instanceof PendingQuestion,
++				render: (pending, variant = "task-card") => pending instanceof PendingQuestion ? (0, react_jsx_runtime.jsx)(QuestionSurface, {
++					pending,
++					t,
++					registry,
++					variant
++				}, pending.key) : null
++			});
++			ctx.effect(() => {
++				const dispose = ctx.reflect.provide("questionSurface", questionSurface);
++				return () => {
++					dispose();
++					registry.dispose();
++				};
++			}, "ui-user-questions: shared surface");
++			ctx.effect(() => {
++				const style = document.createElement("style");
++				style.dataset.plugin = "@deepseek-ai/dsh-client-ui-user-questions";
++				style.dataset.pluginCss = "@deepseek-ai/dsh-client-ui-user-questions/task-card";
++				style.textContent = `[data-question-surface="task-card"]{min-width:0;max-width:100%;overflow:hidden}[data-question-surface="task-card"] .${QuestionComposer_module_css_default.frame},[data-question-surface="task-card"] .${PlanReviewPanel_module_css_default.frame}{display:block;padding:4px 0 0}[data-question-surface="task-card"] .${QuestionComposer_module_css_default.card},[data-question-surface="task-card"] .${PlanReviewPanel_module_css_default.card}{width:100%;min-width:0;max-width:none;max-height:min(55vh,420px);border-radius:10px;box-shadow:none}[data-question-surface="task-card"] .${QuestionComposer_module_css_default.header}{gap:6px;padding:9px 8px 6px 10px}[data-question-surface="task-card"] .${QuestionComposer_module_css_default.title}{overflow-wrap:anywhere;font-size:13px}[data-question-surface="task-card"] .${QuestionComposer_module_css_default.body},[data-question-surface="task-card"] .${PlanReviewPanel_module_css_default.body}{min-width:0;padding:8px 10px 2px}[data-question-surface="task-card"] .${QuestionComposer_module_css_default.footer},[data-question-surface="task-card"] .${PlanReviewPanel_module_css_default.footer}{min-width:0;flex-wrap:wrap;gap:7px;padding:7px 10px 9px}[data-question-surface="task-card"] .${QuestionComposer_module_css_default.footerActions},[data-question-surface="task-card"] .${PlanReviewPanel_module_css_default.actions}{min-width:0;flex-wrap:wrap}[data-question-surface="task-card"] .${QuestionComposer_module_css_default.option}{min-width:0;padding:8px 9px}[data-question-surface="task-card"] .${QuestionComposer_module_css_default.optionLabel},[data-question-surface="task-card"] .${QuestionComposer_module_css_default.description}{overflow-wrap:anywhere}`;
++				document.head.appendChild(style);
++				return () => style.remove();
++			}, "ui-user-questions: task-card styles");
+ 			const questionDraftStore = createQuestionDraftStore();
++			const registeredComposer = (props) => (0, react_jsx_runtime.jsx)(QuestionComposer, { ...props, registry });
+ 			const registerPendingInteraction = ctx.uiSession.registerPendingInteraction((pending) => pending.kind === "plan-review" ? 2 : 1);
+ 			ctx.slots.inject("conversation.composer", () => ctx.slots.register({
+ 				name: "conversation.composer",
+ 				select: ({ pendingInteraction }) => pendingInteraction instanceof PendingQuestion ? pendingInteraction : null,
+ 				locale: NS,
+ 				store: questionDraftStore
+-			}, QuestionComposer));
++			}, registeredComposer));
+ 			ctx.remote.$on("user-questions/request", function(request, next) {
+-				return answerQuestion(ctx, this, request, next, registerPendingInteraction);
++				return answerQuestion(ctx, this, request, next, registerPendingInteraction, registry);
+ 			});
+ 		}
+ 		//#endregion

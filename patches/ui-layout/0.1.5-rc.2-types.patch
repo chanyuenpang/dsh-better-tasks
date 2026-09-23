@@ -1,0 +1,34 @@
+diff --git a/third_party/ui-layout/0.1.5-rc.2/package/lib/types/client/columns.d.ts b/forks/ui-layout/lib/types/client/columns.d.ts
+index 5b21a81..5e241c9 100644
+--- a/third_party/ui-layout/0.1.5-rc.2/package/lib/types/client/columns.d.ts
++++ b/forks/ui-layout/lib/types/client/columns.d.ts
+@@ -13,8 +13,8 @@ export interface Columns {
+ export declare const CENTER_MIN = 400;
+ /** Sidebar drag clamp floor. */
+ export declare const SIDEBAR_MIN = 264;
+-/** Sidebar drag clamp ceiling. */
+-export declare const SIDEBAR_MAX = 420;
++/** Sidebar drag clamp ceiling floor; actual ceiling is max(840px, 50% viewport). */
++export declare const SIDEBAR_MAX = 840;
+ /** Sidebar width before any user drag. */
+ export declare const SIDEBAR_DEFAULT = 280;
+ /** Closed-sidebar rail: a 24px icon column between 16px horizontal paddings. */
+diff --git a/third_party/ui-layout/0.1.5-rc.2/package/lib/types/client/stores.d.ts b/forks/ui-layout/lib/types/client/stores.d.ts
+index 33d1dd6..1531b15 100644
+--- a/third_party/ui-layout/0.1.5-rc.2/package/lib/types/client/stores.d.ts
++++ b/forks/ui-layout/lib/types/client/stores.d.ts
+@@ -59,10 +59,10 @@ type LayoutActions = {
+     closeRightbar: (draft: LayoutState) => void;
+ };
+ /**
+- * Create the layout panel store handle. For the sidebar the preference IS the
+- * width, so closing it forgets its drag width — reopening restores the contract
+- * default. The right panel initializes at 45% of the frame on first opening
+- * and keeps that px preference across resizes and close. Drag writes clamp to
++ * Create the layout panel store handle. The sidebar persists its last positive
++ * width in this layout owner, so closing preserves it and reopening or refreshing
++ * restores the clamped preference. The right panel initializes at 45% of the
++ * frame on first opening and keeps that px preference across resizes and close. Drag writes clamp to
+  * the current frame's range. Narrow sidebar toggles change only the expansion
+  * override; opening the right panel clears that override.
+  * @returns the store handle (spec + type + identity + factory in one).

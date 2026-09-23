@@ -1,0 +1,21 @@
+# Isolated sandbox overlay. Never mount this into the live profile before gates pass.
+# Cindy Host is always disabled here so sandbox boots cannot affect mobile/P2P state.
+- id: dsh-cindy-host
+  disabled: true
+- id: ui-layout
+  disabled: true
+- id: ui-sidebar
+  disabled: true
+- id: ui-workspace
+  disabled: true
+- id: ui-user-questions
+  disabled: true
+- insert:
+    - id: ui-layout-dbt
+      name: "file:///G:/Projects/dsh-better-tasks/forks/ui-layout/lib/index.js"
+    - id: ui-workspace-dbt
+      name: "file:///G:/Projects/dsh-better-tasks/forks/ui-workspace/lib/index.js"
+    - id: ui-user-questions-dbt
+      name: "file:///G:/Projects/dsh-better-tasks/forks/ui-user-questions/lib/index.js"
+    - id: better-tasks-sidebar
+      name: "file:///G:/Projects/dsh-better-tasks/src/index.js"

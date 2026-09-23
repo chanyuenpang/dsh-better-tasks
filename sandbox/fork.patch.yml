@@ -1,0 +1,12 @@
+# Incremental isolated overlay for the version-locked ui-layout/ui-workspace forks.
+# Apply only to a base composition where the corresponding local rows are absent.
+- id: ui-layout
+  disabled: true
+- insert:
+    - id: ui-layout-dbt
+      name: "file:///G:/Projects/dsh-better-tasks/forks/ui-layout/lib/index.js"
+- id: ui-workspace
+  disabled: true
+- insert:
+    - id: ui-workspace-dbt
+      name: "file:///G:/Projects/dsh-better-tasks/forks/ui-workspace/lib/index.js"

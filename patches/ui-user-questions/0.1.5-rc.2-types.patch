@@ -1,0 +1,26 @@
+===================================================================
+--- a/lib/types/client/index.d.ts
++++ b/lib/types/client/index.d.ts
+@@ -13,9 +13,22 @@
+  * choice lives inside this entry — see QuestionComposer.
+  */
+ import type { Context as ClientContext } from '@deepseek-ai/cordis';
++import type { ReactNode } from 'react';
++import type { PendingQuestion as PendingQuestionValue } from './contract/slots.ts';
+ import { type QuestionKey } from './locales.ts';
+ export type { PendingQuestion, PlanReview, QuestionAnswer, QuestionComposerProps, QuestionWait, } from './contract/slots.ts';
+ export type { QuestionKey } from './locales.ts';
++export type QuestionSurfaceVariant = 'composer' | 'task-card';
++/** Surface-neutral owner of the official question router and request-scoped state. */
++export interface IQuestionSurface {
++    isSupported(pending: unknown): pending is PendingQuestionValue;
++    render(pending: PendingQuestionValue, variant?: QuestionSurfaceVariant): ReactNode;
++}
++declare module '@deepseek-ai/cordis' {
++    interface Context {
++        questionSurface: IQuestionSurface;
++    }
++}
+ declare module '@deepseek-ai/dsh-client-ui-slots' {
+     interface LocaleNamespaceMap {
+         /** The question composer's copy. */

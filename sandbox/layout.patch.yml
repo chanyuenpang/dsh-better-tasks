@@ -1,0 +1,6 @@
+# Incremental layout-only overlay for testing against the currently installed Better Tasks profile.
+- id: ui-layout
+  disabled: true
+- insert:
+    - id: ui-layout-dbt
+      name: "file:///G:/Projects/dsh-better-tasks/forks/ui-layout/lib/index.js"

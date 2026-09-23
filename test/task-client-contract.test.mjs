@@ -1,0 +1,87 @@
+import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import test from 'node:test'
+
+const sourceUrl = new URL('../src/client.js', import.meta.url)
+
+test('task view renders only the Host pin order', async () => {
+  const source = await readFile(sourceUrl, 'utf8')
+  const taskView = source.slice(source.indexOf('function TaskSwimlane'), source.indexOf('function SidebarRegion'))
+  assert.match(taskView, /derivePinnedTasks\(\{[\s\S]*?pinnedSessionIds: taskPins\.queue\.sessionIds/)
+  assert.doesNotMatch(taskView, /deriveRecentTasks\(/)
+  assert.doesNotMatch(taskView, /activityRange|dbt-activity-range/)
+  assert.match(taskView, /moveTaskBefore\(sessionId, beforeSessionId\)/)
+  assert.match(taskView, /draggable: !pendingMoves\.has\(task\.id\)/)
+  assert.match(taskView, /event\.target\?\.closest\?\.\('\[data-no-card-drag\]'\)/)
+  assert.match(taskView, /onClick: \(event\) => \{[\s\S]*?dragClickGuard\.current === task\.id[\s\S]*?openSession\(task\.id\)/)
+  assert.match(taskView, /onKeyDown: \(event\) => \{[\s\S]*?\['Enter', ' '\][\s\S]*?openSession\(task\.id\)/)
+  assert.match(taskView, /dragClickGuard\.current = task\.id[\s\S]*?window\.setTimeout/)
+  assert.match(taskView, /className: 'dbt-task-unpin'/)
+  assert.match(taskView, /unpinTask\(task\.id\)/)
+  assert.doesNotMatch(taskView, /dbt-task-drag|tasks\.drag|IconQueueOutline14/)
+  assert.doesNotMatch(source, /cursor:grab|cursor:grabbing/)
+  assert.match(source, /\.dbt-task-card\{[^}]*cursor:pointer/)
+})
+
+test('running title reuses the native ongoing StateDot unchanged', async () => {
+  const source = await readFile(sourceUrl, 'utf8')
+  assert.match(source, /task\.session\.status === 'running' \? element\(StateDot, \{ state: 'ongoing' \}\) : null/)
+  assert.match(source, /'data-state': task\.session\.status/)
+  assert.match(source, /task\.session\.status === 'block'[\s\S]*?task\.session\.status === 'running'/)
+  assert.match(source, /\.dbt-task-card\[data-state="idle"\]/)
+  assert.match(source, /\.dbt-task-card\[data-state="running"\]/)
+  assert.match(source, /\.dbt-task-card\[data-state="block"\]\{[^}]*--dbt-block-yellow:#d2aa00[^}]*18%/)
+  assert.match(source, /\.dbt-task-unpin\{width:24px;height:24px;[^}]*border:1px solid transparent[^}]*opacity:0;pointer-events:none/)
+  assert.match(source, /\.dbt-task-card:hover \.dbt-task-unpin,\.dbt-task-card:focus-within \.dbt-task-unpin/)
+  assert.match(source, /\.dbt-task-card\[data-current="true"\]\{border-color:var\(--dbt-task-border-selected\);box-shadow:none\}/)
+  assert.match(source, /\.dbt-task-list\{[^}]*flex:1;[^}]*overflow-y:auto;overflow-x:hidden/)
+  assert.doesNotMatch(source, /data-current="true"[^}]*box-shadow:(?!none)/)
+})
+
+test('every New Session flow auto-pins through the uiWorkspace lifecycle hook', async () => {
+  const source = await readFile(sourceUrl, 'utf8')
+  assert.match(source, /ctx\.effect\(\(\) => ctx\.uiWorkspace\.onSessionCreated\(\(sessionId\) => taskPins\.pinCreated\(sessionId\)\)/)
+  assert.match(source, /const startNewSession = \(\) => startSession\(\)/)
+  assert.match(source, /startSession: \(workspaceId, beforeOpen\) => ctx\.uiWorkspace\.startSession\(workspaceId, beforeOpen\)/)
+  assert.doesNotMatch(source, /view === 'tasks' \?.*pin/)
+})
+
+test('Goal and non-empty Todo are expandable only when their projections are ready', async () => {
+  const source = await readFile(sourceUrl, 'utf8')
+  assert.match(source, /tasks\.expandGoal/)
+  assert.match(source, /tasks\.expandTodo/)
+  assert.match(source, /IconGoalOutline16/)
+  assert.match(source, /IconChecklistOutline14/)
+  assert.match(source, /task\.todos\.items\.map/)
+  assert.match(source, /disabled: !goalAvailable/)
+  assert.match(source, /disabled: !todoAvailable/)
+  assert.match(source, /const todoVisible = !todoAvailable \|\| task\.todos\.total > 0/)
+  assert.match(source, /todoVisible \? element\('button'/)
+  assert.match(source, /if \(goalAvailable\) toggleProjection\(task\.id, 'goal'\)/)
+  assert.match(source, /if \(todoAvailable\) toggleProjection\(task\.id, 'todo'\)/)
+  assert.match(source, /useStoredExpansion\('dsh-better-tasks\.projection-expansion\.v1'\)/)
+  assert.doesNotMatch(source, /setPinned\([^)]*true[^)]*\)/)
+})
+
+test('question interactions use an optional fork surface without delaying core UI', async () => {
+  const source = await readFile(sourceUrl, 'utf8')
+  assert.match(source, /export const inject = \['slots', 'layout', 'locale'\]/)
+  assert.match(source, /pendingInteraction\?\.kind === 'question' \|\| pendingInteraction\?\.kind === 'plan-review'/)
+  assert.match(source, /renderQuestion: \(pending\) => ctx\.get\('questionSurface'\)\?\.render\(pending, 'task-card'\) \?\? null/)
+  assert.match(source, /className: 'dbt-question-surface',[\s\S]*?'data-no-card-drag': true,[\s\S]*?draggable: false/)
+  assert.doesNotMatch(source, /pendingInteraction\.answer\(|pendingInteraction\.cancel\(/)
+})
+
+test('idle Final disclosure lazily reads a minimal no-store Host projection', async () => {
+  const source = await readFile(sourceUrl, 'utf8')
+  assert.match(source, /task\.session\.status === 'idle' && expanded\[`\$\{task\.id\}:final`\]/)
+  assert.match(source, /\/api\/better-tasks\/final-message\?sessionId=/)
+  assert.match(source, /cache: 'no-store', signal: controller\.signal/)
+  assert.match(source, /dsh-better-tasks\.final-message-cache\.v1/)
+  assert.match(source, /cached\?\.status !== 'ready' \|\| cached\.updatedAt !== task\.updatedAt/)
+  assert.match(source, /dsh-better-tasks\.final-auto-open-cycle\.v1/)
+  assert.match(source, /finalAutoCycles\[task\.id\] !== task\.updatedAt/)
+  assert.match(source, /task\.session\.status !== 'idle' \? null : element\('button'/)
+  assert.match(source, /controller\.abort\(\)/)
+  assert.match(source, /className: 'dbt-final-copy'/)
+})

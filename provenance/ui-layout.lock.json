@@ -1,0 +1,18 @@
+{
+  "package": "@deepseek-ai/dsh-client-ui-layout",
+  "version": "0.1.5-rc.2",
+  "registryIntegrity": "sha512-N5+kH1W6UjzOuagJEKDenm/Gbs8Y2sz6btdmVKW5dypEEUgVWsQGV0auTC37gsWKWDaWGpfYOpeAa3Ybk6DYbQ==",
+  "registryShasum": "8ad4773e7c1c02d0f4b3ef7f46587de2f96caec2",
+  "sourceTag": "dsh-v0.1.5-rc.2",
+  "sourceCommit": "fb2c4b9e698e30edb738bca4cf0618587db7d203",
+  "sha256": {
+    "tarball": "f8824f16e03e47f7227cfcf3f5596ca7ef0d7032456942dd846973ec0651bf7b",
+    "publishedClient": "930c10a9bed1094e7bca6242276c22ba7020fd58bac47d70a0fef174544508ef",
+    "installedBehaviorBaseline": "930c10a9bed1094e7bca6242276c22ba7020fd58bac47d70a0fef174544508ef",
+    "betterTasksPatch": "b696925816cf09b4eacc5dae42fd465fd3e9201ddc16b9c7a35cf88b7ea6d41f",
+    "typesPatch": "7df06c156cc8c471fab32ae7237ac6f35d39507ef3e8ec8fe83744a5eff5c6a8",
+    "forkClient": "d0bc9cc148d6f9f7f96298f16c18b7b2d86d0ab3e827e8aa424738798b1a4fea",
+    "forkColumnsTypes": "5be852236b5383801069d688bfa7f5f312779cbab129eded5518871b66a51023",
+    "forkStoresTypes": "4150bcacee255f76da3ac9dc677db16effcf18de10e6b9a9f00ec45de9664ccf"
+  }
+}

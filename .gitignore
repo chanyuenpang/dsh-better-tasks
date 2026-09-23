@@ -1,0 +1,17 @@
+node_modules/
+npm-debug.log*
+
+# Browser and isolated DSH runtime profiles (large, local, and may contain credentials).
+sandbox/.edge-final/
+sandbox/edge-fork-profile/
+sandbox/dsh-home/
+
+# claw-kit transient state; keep project plans, Truth, and reports.
+.claw/runtime/
+.claw/logs/
+.claw/memory.sqlite*
+.claw/tasks/
+
+# Generated composition dumps and screenshots are machine-specific evidence.
+sandbox/*-composed.yml
+sandbox/*.png

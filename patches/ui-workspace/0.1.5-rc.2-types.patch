@@ -1,0 +1,190 @@
+===================================================================
+--- a/third_party/ui-workspace/0.1.5-rc.2/package/lib/types/client/locales.d.ts
++++ b/forks/ui-workspace/lib/types/client/locales.d.ts
+@@ -16,6 +16,12 @@
+     'orderBy.label': string;
+     'orderBy.manual': string;
+     'orderBy.updated': string;
++    'activityRange.label': string;
++    'activityRange.all': string;
++    'activityRange.1d': string;
++    'activityRange.3d': string;
++    'activityRange.7d': string;
++    'activityRange.14d': string;
+     'sessions.expand': string;
+     'sessions.collapse': string;
+     'empty.none': string;
+@@ -49,6 +55,8 @@
+     'actions.workspace.aria': string;
+     'actions.session.aria': string;
+     'actions.newSession.aria': string;
++    'pin.add': string;
++    'pin.remove': string;
+     'status.running': string;
+     'status.subagentsRunning.one': string;
+     'status.subagentsRunning.other': string;
+@@ -84,6 +92,12 @@
+     'orderBy.label': string;
+     'orderBy.manual': string;
+     'orderBy.updated': string;
++    'activityRange.label': string;
++    'activityRange.all': string;
++    'activityRange.1d': string;
++    'activityRange.3d': string;
++    'activityRange.7d': string;
++    'activityRange.14d': string;
+     'sessions.expand': string;
+     'sessions.collapse': string;
+     'empty.none': string;
+@@ -117,6 +131,8 @@
+     'actions.workspace.aria': string;
+     'actions.session.aria': string;
+     'actions.newSession.aria': string;
++    'pin.add': string;
++    'pin.remove': string;
+     'status.running': string;
+     'status.subagentsRunning.one': string;
+     'status.subagentsRunning.other': string;
+===================================================================
+--- a/third_party/ui-workspace/0.1.5-rc.2/package/lib/types/client/navigation.d.ts
++++ b/forks/ui-workspace/lib/types/client/navigation.d.ts
+@@ -12,6 +12,11 @@
+      */
+     openSession(sessionId: SessionId): void;
+     /**
++     * Observe every Session selected by a New Session flow, including a reusable blank Session.
++     * The returned disposer removes only this listener.
++     */
++    onSessionCreated(listener: (sessionId: SessionId) => void | Promise<void>): () => void;
++    /**
+      * Connect a Workspace and open its Session unless a later navigation supersedes it.
+      * @param workspaceId - target Workspace.
+      * @param beforeOpen - optional synchronous preparation for the selected Session, skipped after supersession.
+@@ -34,7 +39,7 @@
+      * Start a New Session flow and navigate to its Session.
+      * @param workspaceId - explicit target; absent inherits the current or most recent Workspace.
+      */
+-    startSession(workspaceId?: WorkspaceId): void;
++    startSession(workspaceId?: WorkspaceId, beforeOpen?: (sessionId: SessionId) => void): void;
+     /**
+      * Archive a Session and clear it when it is the current selection.
+      * @param sessionId - Session to archive.
+@@ -79,6 +84,7 @@
+     private readonly workspaces;
+     private readonly sessions;
+     private readonly connecting;
++    private readonly sessionCreatedListeners;
+     private readonly lifetime;
+     /**
+      * @param ctx - Client root Context.
+@@ -89,9 +95,11 @@
+     constructor(ctx: Context, directoryPicker: ClientRemote['directoryPicker'], workspaces: IWorkspaces, sessions: ISessions);
+     connectWorkspace(workspaceId: WorkspaceId): Promise<SessionId>;
+     openSession(sessionId: SessionId): void;
++    onSessionCreated(listener: (sessionId: SessionId) => void | Promise<void>): () => void;
++    private notifySessionCreated;
+     openWorkspace(workspaceId: WorkspaceId, beforeOpen?: (sessionId: SessionId) => void): Promise<void>;
+     forkSession(sessionId: SessionId): Promise<void>;
+-    startSession(workspaceId?: WorkspaceId): void;
++    startSession(workspaceId?: WorkspaceId, beforeOpen?: (sessionId: SessionId) => void): void;
+     archiveSession(sessionId: SessionId): Promise<void>;
+     pickDirectory(): Promise<string | null>;
+     listDirectory(path?: string, signal?: AbortSignal): Promise<DirectoryListing>;
+===================================================================
+--- a/third_party/ui-workspace/0.1.5-rc.2/package/lib/types/client/stores.d.ts
++++ b/forks/ui-workspace/lib/types/client/stores.d.ts
+@@ -12,10 +12,13 @@
+ export type SessionGroupBy = 'workspace' | 'flat';
+ /** Session order: user-arranged only, or user-arranged plus activity promotion. */
+ export type SessionOrderBy = 'manual' | 'updated';
++/** Activity range applied only to the rendered Session projection. */
++export type SessionActivityRange = 'all' | '1d' | '3d' | '7d' | '14d';
+ /** Workspace browser viewing state persisted across surface remounts and reloads. */
+ type WorkspaceViewState = {
+     groupBy: SessionGroupBy;
+     orderBy: SessionOrderBy;
++    activityRange: SessionActivityRange;
+     /** Explicit zero-or-five-session state keyed by Workspace group identity. */
+     groupExpansion: Record<string, boolean>;
+     /** Shared editable order per Workspace group plus the browser-local flat-list account. */
+@@ -30,6 +33,7 @@
+ type WorkspaceViewActions = {
+     setGroupBy: (draft: WorkspaceViewState, mode: SessionGroupBy) => void;
+     setOrderBy: (draft: WorkspaceViewState, mode: SessionOrderBy) => void;
++    setActivityRange: (draft: WorkspaceViewState, range: SessionActivityRange) => void;
+     setGroupExpanded: (draft: WorkspaceViewState, key: string, expanded: boolean) => void;
+     retainAccountKeys: (draft: WorkspaceViewState, workspaceKeys: readonly string[]) => void;
+     syncSessionOrderAccount: (draft: WorkspaceViewState, accountKey: string, order: string[], updatedAt: Record<string, number>) => void;
+===================================================================
+--- a/third_party/ui-workspace/0.1.5-rc.2/package/lib/types/client/rows/Rows.d.ts
++++ b/forks/ui-workspace/lib/types/client/rows/Rows.d.ts
+@@ -83,7 +83,7 @@
+  * @param props.t - the browser root's locale seat.
+  * @returns the session row.
+  */
+-export declare function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork, onArchive, onReveal, drag, flat, t, }: {
++export declare function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork, onArchive, onReveal, onSetPinned, pinned, pinPending, drag, flat, t, }: {
+     node: SessionNode;
+     currentId: string | undefined;
+     now: number;
+@@ -96,6 +96,9 @@
+     onArchive: (id: SessionNode['id']) => void;
+     /** Scroll this row into view after search navigation, then acknowledge it. */
+     onReveal?: (() => void) | undefined;
++    onSetPinned: (id: SessionNode['id'], pinned: boolean) => Promise<unknown>;
++    pinned?: boolean | undefined;
++    pinPending?: boolean | undefined;
+     /** Present only on draggable rows (workspace-group sessions outside search). */
+     drag?: RowDragProps | undefined;
+     /** The row is rendered without a parent Workspace header. */
+===================================================================
+--- a/third_party/ui-workspace/0.1.5-rc.2/package/lib/types/client/rows/WorkspaceBrowser.d.ts
++++ b/forks/ui-workspace/lib/types/client/rows/WorkspaceBrowser.d.ts
+@@ -4,5 +4,5 @@
+  * @param props - composed slot props (shell owner share + store + injected actions).
+  * @returns the region element tree.
+  */
+-export declare function WorkspaceBrowser({ wide, usePanelInfo, expandSidebar, useSessions, useSessionPendingInteraction, useWorkspaces, useStore, actions, startSession, open, renameSession, forkSession, renameWorkspace, deleteWorkspace, insertWorkspaceBefore, archiveSession, insertSessionBefore, createWorkspace, searchSessions, searchResultLimit, useDirectoryFlow, useHostInfo, renderSlot, t, }: WorkspaceBrowserProps): import("react").JSX.Element;
++export declare function WorkspaceBrowser({ wide, usePanelInfo, expandSidebar, useSessions, useSessionPendingInteraction, useWorkspaces, useTaskPins, useStore, actions, startSession, open, renameSession, forkSession, renameWorkspace, deleteWorkspace, insertWorkspaceBefore, archiveSession, insertSessionBefore, createWorkspace, searchSessions, searchResultLimit, setTaskPinned, useDirectoryFlow, useHostInfo, renderSlot, t, }: WorkspaceBrowserProps): import("react").JSX.Element;
+ //# sourceMappingURL=WorkspaceBrowser.d.ts.map
+\ No newline at end of file
+===================================================================
+--- a/third_party/ui-workspace/0.1.5-rc.2/package/lib/types/client/contract/slots.d.ts
++++ b/forks/ui-workspace/lib/types/client/contract/slots.d.ts
+@@ -83,6 +83,12 @@
+  * Data reads use the global framework hooks; these are the Host actions the
+  * browsing region drives.
+  */
++export interface BetterTaskPinsSnapshot {
++    phase: 'loading' | 'ready' | 'error';
++    queue: { schemaVersion: 1; revision: number; sessionIds: readonly string[]; updatedAt: string };
++    pendingSessionIds: readonly string[];
++    error: string | null;
++}
+ export type WorkspaceBrowserInjected = {
+     hooks: DirectoryPickingInjected['hooks'] & {
+         /**
+@@ -92,13 +98,14 @@
+          * saw. Select the field the surface needs (`info => info.home`).
+          */
+         hostInfo: HostObservable<RemoteHostFacts>;
++        taskPins: HostObservable<BetterTaskPinsSnapshot>;
+     };
+     /**
+      * Start a New Session in a Workspace: reuse-or-create its blank session and
+      * open it; without an explicit workspace, inherit the current Session
+      * Workspace, then the recent Workspace, or clear into the New Session view.
+      */
+-    startSession: (workspaceId?: WorkspaceId) => void;
++    startSession: (workspaceId?: WorkspaceId, beforeOpen?: (sessionId: SessionId) => void) => void;
+     /** Open a real Session. */
+     open: (sessionId: SessionId) => void;
+     /**
+@@ -111,6 +118,7 @@
+     }>;
+     /** Maximum number of merged rows rendered for one search. */
+     searchResultLimit: number;
++    setTaskPinned: (sessionId: SessionId, pinned: boolean) => Promise<unknown>;
+     /** Rename a Session (explicit user title; resolves on host acceptance). */
+     renameSession: (sessionId: SessionId, title: string) => Promise<void>;
+     /** Fork a Session at its last completed turn and open the child. */

@@ -1,0 +1,91 @@
+[
+  {
+    "id": "@deepseek-ai/dsh-client-ui-layout@0.1.5-rc.2",
+    "name": "@deepseek-ai/dsh-client-ui-layout",
+    "version": "0.1.5-rc.2",
+    "size": 20742,
+    "unpackedSize": 59374,
+    "shasum": "8ad4773e7c1c02d0f4b3ef7f46587de2f96caec2",
+    "integrity": "sha512-N5+kH1W6UjzOuagJEKDenm/Gbs8Y2sz6btdmVKW5dypEEUgVWsQGV0auTC37gsWKWDaWGpfYOpeAa3Ybk6DYbQ==",
+    "filename": "deepseek-ai-dsh-client-ui-layout-0.1.5-rc.2.tgz",
+    "files": [
+      {
+        "path": "LICENSE",
+        "size": 1065,
+        "mode": 420
+      },
+      {
+        "path": "README.i18n.yaml",
+        "size": 435,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 7191,
+        "mode": 420
+      },
+      {
+        "path": "README.zh.md",
+        "size": 6241,
+        "mode": 420
+      },
+      {
+        "path": "lib/client.js",
+        "size": 24259,
+        "mode": 420
+      },
+      {
+        "path": "lib/index.js",
+        "size": 180,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/AppFrame.d.ts",
+        "size": 675,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/columns.d.ts",
+        "size": 2209,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/DocumentTitle.d.ts",
+        "size": 678,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/index.d.ts",
+        "size": 5362,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/service.d.ts",
+        "size": 3733,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/stores.d.ts",
+        "size": 3203,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/theme-presenter.d.ts",
+        "size": 2185,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/index.d.ts",
+        "size": 174,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 1784,
+        "mode": 420
+      }
+    ],
+    "entryCount": 15,
+    "bundled": []
+  }
+]

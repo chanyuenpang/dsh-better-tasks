@@ -1,0 +1,106 @@
+[
+  {
+    "id": "@deepseek-ai/dsh-client-ui-workspace@0.1.5-rc.2",
+    "name": "@deepseek-ai/dsh-client-ui-workspace",
+    "version": "0.1.5-rc.2",
+    "size": 51123,
+    "unpackedSize": 196429,
+    "shasum": "314686c018e92f569c014cf8f9f425850281437c",
+    "integrity": "sha512-BRe/RDIJJblCECYLwVroy8h4+cXrf3eXSfLjJ6BdpnW2fI3CBJuEKlFaBPGtKAFTTain0rQ+dP6SscZNrXm5Gw==",
+    "filename": "deepseek-ai-dsh-client-ui-workspace-0.1.5-rc.2.tgz",
+    "files": [
+      {
+        "path": "LICENSE",
+        "size": 1065,
+        "mode": 420
+      },
+      {
+        "path": "README.i18n.yaml",
+        "size": 438,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 10646,
+        "mode": 420
+      },
+      {
+        "path": "README.zh.md",
+        "size": 9850,
+        "mode": 420
+      },
+      {
+        "path": "lib/client.js",
+        "size": 130113,
+        "mode": 420
+      },
+      {
+        "path": "lib/index.js",
+        "size": 453,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/contract/slots.d.ts",
+        "size": 8995,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/index.d.ts",
+        "size": 2333,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/locales.d.ts",
+        "size": 4493,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/navigation.d.ts",
+        "size": 4930,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/rows/Rows.d.ts",
+        "size": 5012,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/rows/WorkspaceBrowser.d.ts",
+        "size": 726,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/stores.d.ts",
+        "size": 2481,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/subagent-lineage.d.ts",
+        "size": 867,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/tree.d.ts",
+        "size": 7358,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/WorkspacePicker.d.ts",
+        "size": 3485,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/index.d.ts",
+        "size": 452,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 2732,
+        "mode": 420
+      }
+    ],
+    "entryCount": 18,
+    "bundled": []
+  }
+]

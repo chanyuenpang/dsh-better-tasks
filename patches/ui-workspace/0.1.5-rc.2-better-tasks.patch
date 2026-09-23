@@ -1,0 +1,497 @@
+===================================================================
+--- a/third_party/ui-workspace/0.1.5-rc.2/installed-client.js
++++ b/forks/ui-workspace/lib/client.js
+@@ -27,6 +27,7 @@
+ 			workspaces;
+ 			sessions;
+ 			connecting = /* @__PURE__ */ new Map();
++			sessionCreatedListeners = /* @__PURE__ */ new Set();
+ 			lifetime = new AbortController();
+ 			/**
+ 			* @param ctx - Client root Context.
+@@ -62,11 +63,25 @@
+ 				this.sessions.open(sessionId);
+ 				this.ctx.layout.selectPanel(null);
+ 			}
++			onSessionCreated(listener) {
++				this.sessionCreatedListeners.add(listener);
++				return () => this.sessionCreatedListeners.delete(listener);
++			}
++			notifySessionCreated(sessionId) {
++				for (const listener of this.sessionCreatedListeners) {
++					try {
++						Promise.resolve(listener(sessionId)).catch((reason) => console.warn("new session hook failed:", reason));
++					} catch (reason) {
++						console.warn("new session hook failed:", reason);
++					}
++				}
++			}
+ 			async openWorkspace(workspaceId, beforeOpen) {
+ 				const navigation = AbortSignal.any([this.ctx.layout.beginNavigation(), this.lifetime.signal]);
+ 				const isCurrent = () => !navigation.aborted;
+ 				const sessionId = await this.connectWorkspace(workspaceId);
+ 				if (!isCurrent()) return;
++				this.notifySessionCreated(sessionId);
+ 				beforeOpen?.(sessionId);
+ 				if (isCurrent()) this.openSession(sessionId);
+ 			}
+@@ -78,7 +93,7 @@
+ 				});
+ 				if (!navigation.aborted) this.openSession(childId);
+ 			}
+-			startSession(workspaceId) {
++			startSession(workspaceId, beforeOpen) {
+ 				const workspace = this.workspaces.list.getSnapshot();
+ 				const sessions = this.sessions.list.getSnapshot();
+ 				const current = sessions.current;
+@@ -90,7 +105,7 @@
+ 					this.ctx.layout.selectPanel(null);
+ 					return;
+ 				}
+-				this.openWorkspace(target).catch((reason) => {
++				this.openWorkspace(target, beforeOpen).catch((reason) => {
+ 					console.warn("new session failed:", reason);
+ 				});
+ 			}
+@@ -122,6 +137,7 @@
+ 					const sessions = this.sessions.list.getSnapshot();
+ 					if (workspace.phase !== "ready" || sessions.phase !== "ready") return;
+ 					if (sessions.current !== void 0) {
++						if (this.sessions.binding(sessions.current) === void 0) this.sessions.open(sessions.current);
+ 						initial = "done";
+ 						return;
+ 					}
+@@ -146,6 +162,7 @@
+ 				reconcile();
+ 				return () => {
+ 					this.lifetime.abort();
++					this.sessionCreatedListeners.clear();
+ 					disposeSessions();
+ 					disposeWorkspaces();
+ 				};
+@@ -196,6 +213,7 @@
+ 				init: () => ({
+ 					groupBy: "workspace",
+ 					orderBy: "updated",
++					activityRange: "all",
+ 					groupExpansion: {},
+ 					sessionOrderByAccount: {},
+ 					sessionUpdatedAtByAccount: {}
+@@ -208,6 +226,9 @@
+ 					setOrderBy: (d, mode) => {
+ 						d.orderBy = mode;
+ 					},
++					setActivityRange: (d, range) => {
++						d.activityRange = range;
++					},
+ 					setGroupExpanded: (d, key, expanded) => {
+ 						d.groupExpansion[key] = expanded;
+ 					},
+@@ -978,6 +999,20 @@
+ 				})]
+ 			});
+ 		}
++		function TaskPinIcon({ size = 14 }) {
++			return (0, react_jsx_runtime.jsxs)("svg", {
++				viewBox: "0 0 24 24",
++				width: size,
++				height: size,
++				fill: "none",
++				stroke: "currentColor",
++				strokeWidth: 2,
++				strokeLinecap: "round",
++				strokeLinejoin: "round",
++				"aria-hidden": "true",
++				children: [(0, react_jsx_runtime.jsx)("path", { d: "M15 4.5l-4 4l-4 1.5l-1.5 1.5l7 7l1.5 -1.5l1.5 -4l4 -4" }), (0, react_jsx_runtime.jsx)("path", { d: "M9 15l-4.5 4.5" }), (0, react_jsx_runtime.jsx)("path", { d: "M14.5 4l5.5 5.5" })]
++			});
++		}
+ 		/**
+ 		* One top-level 34px session row: status dot (pending user interaction outranks
+ 		* own or descendant activity), title, relative time, and the row actions menu.
+@@ -994,7 +1029,7 @@
+ 		* @param props.t - the browser root's locale seat.
+ 		* @returns the session row.
+ 		*/
+-		function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork, onArchive, onReveal, drag, flat = false, t }) {
++		function SessionNodeItem({ node, currentId, now, onOpen, onRename, onFork, onArchive, onReveal, onSetPinned, pinned = false, pinPending = false, drag, flat = false, t }) {
+ 			const row = node;
+ 			const title = displayTitle(node, t);
+ 			const selected = node.id === currentId;
+@@ -1066,9 +1101,27 @@
+ 							className: Rows_module_css_default.time,
+ 							children: timeLabel(row.updatedAt, now, t)
+ 						}),
+-						!row.blank && (0, react_jsx_runtime.jsx)("span", {
++						!row.blank && (0, react_jsx_runtime.jsxs)("span", {
+ 							className: Rows_module_css_default.rowActions,
+-							children: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
++							children: [(0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
++								label: t(pinned ? "pin.remove" : "pin.add"),
++								delayMs: 500,
++								children: (0, react_jsx_runtime.jsx)("button", {
++									type: "button",
++									className: Rows_module_css_default.iconButton,
++									style: pinned ? { color: "var(--dsw-alias-brand-primary)", background: "color-mix(in srgb,var(--dsw-alias-brand-primary) 10%,transparent)" } : void 0,
++									"aria-label": t(pinned ? "pin.remove" : "pin.add"),
++									"aria-pressed": pinned,
++									disabled: pinPending,
++									onPointerDown: (e) => { e.stopPropagation(); },
++									onDragStart: (e) => { e.preventDefault(); e.stopPropagation(); },
++									onClick: (e) => {
++										e.stopPropagation();
++										onSetPinned(node.id, !pinned).catch((reason) => { console.warn("task pin rejected:", reason); });
++									},
++									children: (0, react_jsx_runtime.jsx)(TaskPinIcon, {})
++								})
++							}), (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
+ 								open: menuOpen,
+ 								onClose: () => {
+ 									setMenuOpen(false);
+@@ -1092,7 +1145,7 @@
+ 									},
+ 									children: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconEllipsisOutline16, {})
+ 								})
+-							})
++							})]
+ 						})
+ 					]
+ 				}),
+@@ -1350,6 +1403,13 @@
+ 		const SEARCH_QUERY_MAX_CODE_UNITS = 500;
+ 		/** Session rows visible per Workspace before the local overflow control. */
+ 		const COLLAPSED_SESSION_LIMIT = 5;
++		const ACTIVITY_RANGE_DAYS = Object.freeze({ all: null, "1d": 1, "3d": 3, "7d": 7, "14d": 14 });
++		const ACTIVITY_DAY_MS = 864e5;
++		function sessionInActivityRange(session, activityRange, now) {
++			if (session?.blank === true || activityRange === "all") return true;
++			const days = ACTIVITY_RANGE_DAYS[activityRange];
++			return typeof days === "number" && typeof session?.updatedAt === "number" && session.updatedAt >= now - days * ACTIVITY_DAY_MS;
++		}
+ 		/** Fold one Workspace without charging its provisional New Session against the ordinary-row limit. */
+ 		function collapsedSessionRows(sessions) {
+ 			let ordinaryCount = 0;
+@@ -1454,7 +1514,7 @@
+ 			};
+ 		}
+ 		/** Grouping and ordering menu; own open state so it resets with the wide chrome. */
+-		function ViewOptionsMenu({ groupBy, orderBy, onGroupPick, onOrderPick, t }) {
++		function ViewOptionsMenu({ groupBy, orderBy, activityRange, onGroupPick, onOrderPick, onActivityPick, t }) {
+ 			const [open, setOpen] = (0, react.useState)(false);
+ 			return (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
+ 				open,
+@@ -1491,12 +1551,23 @@
+ 					{
+ 						id: "updated",
+ 						label: t("orderBy.updated")
+-					}
++					},
++					{
++						type: "separator",
++						id: "activity-range-separator"
++					},
++					{
++						type: "label",
++						id: "activity-range",
++						text: t("activityRange.label")
++					},
++					...Object.keys(ACTIVITY_RANGE_DAYS).map((id) => ({ id: `activity:${id}`, label: t(`activityRange.${id}`) }))
+ 				],
+-				selectedIds: [groupBy, orderBy],
++				selectedIds: [groupBy, orderBy, `activity:${activityRange}`],
+ 				onSelect: (id) => {
+ 					if (id === "workspace" || id === "flat") onGroupPick(id);
+ 					else if (id === "manual" || id === "updated") onOrderPick(id);
++					else if (id.startsWith("activity:")) onActivityPick(id.slice("activity:".length));
+ 					setOpen(false);
+ 				},
+ 				align: "end",
+@@ -1524,12 +1595,16 @@
+ 			return e.clientY < rect.top + rect.height / 2 ? "before" : "after";
+ 		}
+ 		/** The scrolling session tree; unmounting drops the sessions subscription and expand-all state. */
+-		function SessionTree({ useSessions, useSessionPendingInteraction, startSession, open, forkSession, workspaces, archivedSessionIds, workspaceReady, usePanelInfo, onRenameRequest, onDeleteRequest, onSessionRename, onSessionArchive, insertWorkspaceBefore, insertSessionBefore, orderBy, groupExpansion, setGroupExpanded, sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, home, t, revealSessionId, onSessionRevealed }) {
++		function SessionTree({ useSessions, useSessionPendingInteraction, useTaskPins, setTaskPinned, activityRange, startSession, open, forkSession, workspaces, archivedSessionIds, workspaceReady, usePanelInfo, onRenameRequest, onDeleteRequest, onSessionRename, onSessionArchive, insertWorkspaceBefore, insertSessionBefore, orderBy, groupExpansion, setGroupExpanded, sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, home, t, revealSessionId, onSessionRevealed }) {
+ 			const panelActive = usePanelInfo((info) => info.activePanelId !== null);
+ 			const list = useSessions((s) => s);
+ 			const pendingInteractions = useSessionPendingInteraction((s) => s);
++			const taskPins = useTaskPins((s) => s);
++			const pinnedIds = new Set(taskPins.queue.sessionIds);
++			const pendingPinIds = new Set(taskPins.pendingSessionIds);
+ 			const appearances = useProjectAppearances();
+ 			const current = panelActive ? void 0 : list.current;
++			const now = Date.now();
+ 			const revealGroup = revealSessionId === void 0 || !workspaceReady ? void 0 : owningGroupKey(workspaces, revealSessionId);
+ 			const [expandedSessionGroups, setExpandedSessionGroups] = (0, react.useState)([]);
+ 			const [drag, setDrag] = (0, react.useState)(null);
+@@ -1596,7 +1671,7 @@
+ 				});
+ 			}, [sessionOrderByAccount, workspaces]);
+ 			const orderedUngroupedSessionIds = (0, react.useMemo)(() => reconciledSessionOrder(ungroupedSessionIds, sessionOrderByAccount[""]), [sessionOrderByAccount, ungroupedSessionIds]);
+-			const groups = (0, react.useMemo)(() => deriveGroups(list, orderedWorkspaces, archivedSessionIds, pendingInteractions, {
++			const allGroups = (0, react.useMemo)(() => deriveGroups(list, orderedWorkspaces, archivedSessionIds, pendingInteractions, {
+ 				expandedGroups,
+ 				...sessionOrderByAccount[""] === void 0 ? {} : { ungroupedOrder: sessionOrderByAccount[""] }
+ 			}), [
+@@ -1607,6 +1682,10 @@
+ 				expandedGroups,
+ 				sessionOrderByAccount
+ 			]);
++			const groups = (0, react.useMemo)(() => allGroups.map((group) => ({
++				...group,
++				sessions: group.sessions.filter((session) => sessionInActivityRange(session, activityRange, now))
++			})), [allGroups, activityRange, now]);
+ 			(0, react.useEffect)(() => {
+ 				if (revealGroup === void 0 || groupExpansion[revealGroup] === true) return;
+ 				setGroupExpanded(revealGroup, true);
+@@ -1626,7 +1705,6 @@
+ 				revealGroup,
+ 				revealSessionId
+ 			]);
+-			const now = Date.now();
+ 			const commitSessionDrag = (activeDrag, over) => {
+ 				if (sessionDropCommitted.current) return;
+ 				sessionDropCommitted.current = true;
+@@ -1825,6 +1903,9 @@
+ 											onRename: onSessionRename,
+ 											onFork: forkSession,
+ 											onArchive: onSessionArchive,
++											onSetPinned: setTaskPinned,
++											pinned: pinnedIds.has(node.id),
++											pinPending: pendingPinIds.has(node.id),
+ 											onReveal: node.id === revealSessionId && group.key === revealGroup ? () => {
+ 												onSessionRevealed(node.id);
+ 											} : void 0,
+@@ -1850,11 +1931,15 @@
+ 			});
+ 		}
+ 		/** The flat "In one list" body: every session is one draggable top-level row. */
+-		function FlatList({ useSessions, useSessionPendingInteraction, open, forkSession, onSessionRename, onSessionArchive, archivedSessionIds, workspaces, usePanelInfo, orderBy, sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, revealSessionId, onSessionRevealed, t }) {
++		function FlatList({ useSessions, useSessionPendingInteraction, useTaskPins, setTaskPinned, activityRange, open, forkSession, onSessionRename, onSessionArchive, archivedSessionIds, workspaces, usePanelInfo, orderBy, sessionOrderByAccount, sessionUpdatedAtByAccount, syncSessionOrderAccount, setSessionOrder, revealSessionId, onSessionRevealed, t }) {
+ 			const panelActive = usePanelInfo((info) => info.activePanelId !== null);
+ 			const appearances = useProjectAppearances();
+ 			const list = useSessions((s) => s);
+ 			const pendingInteractions = useSessionPendingInteraction((s) => s);
++			const taskPins = useTaskPins((s) => s);
++			const pinnedIds = new Set(taskPins.queue.sessionIds);
++			const pendingPinIds = new Set(taskPins.pendingSessionIds);
++			const now = Date.now();
+ 			const baseRows = (0, react.useMemo)(() => deriveFlat(list, archivedSessionIds, pendingInteractions, workspaces, appearances), [
+ 				list,
+ 				archivedSessionIds,
+@@ -1887,7 +1972,7 @@
+ 				sessionIds,
+ 				syncSessionOrderAccount
+ 			]);
+-			const rows = (0, react.useMemo)(() => {
++			const orderedRows = (0, react.useMemo)(() => {
+ 				const byId = new Map(baseRows.map((row) => [row.id, row]));
+ 				return reconciledSessionOrder(sessionIds, sessionOrderByAccount[FLAT_SESSION_ORDER_KEY]).flatMap((id) => {
+ 					const row = byId.get(id);
+@@ -1898,6 +1983,7 @@
+ 				sessionOrderByAccount,
+ 				sessionIds
+ 			]);
++			const rows = (0, react.useMemo)(() => orderedRows.filter((row) => sessionInActivityRange(row, activityRange, now)), [orderedRows, activityRange, now]);
+ 			const [drag, setDrag] = (0, react.useState)(null);
+ 			const dropCommitted = (0, react.useRef)(false);
+ 			useNativeDragAcceptance(drag !== null);
+@@ -1912,12 +1998,11 @@
+ 				const sourceIndex = rows.findIndex((row) => row.id === activeDrag.sessionId);
+ 				const anchorIndex = anchor === void 0 ? rows.length : rows.findIndex((row) => row.id === anchor);
+ 				if (sourceIndex !== -1 && (anchorIndex === sourceIndex || anchorIndex === sourceIndex + 1)) return;
+-				const nextOrder = rows.map((row) => row.id).filter((id) => id !== activeDrag.sessionId);
++				const nextOrder = orderedRows.map((row) => row.id).filter((id) => id !== activeDrag.sessionId);
+ 				const insertAt = anchor === void 0 ? nextOrder.length : nextOrder.indexOf(anchor);
+ 				nextOrder.splice(insertAt === -1 ? nextOrder.length : insertAt, 0, activeDrag.sessionId);
+ 				setSessionOrder(FLAT_SESSION_ORDER_KEY, nextOrder.map((id) => id));
+ 			};
+-			const now = Date.now();
+ 			return (0, react_jsx_runtime.jsxs)("div", {
+ 				className: clsx(WorkspaceBrowser_module_css_default.treeBody, WorkspaceBrowser_module_css_default.wide),
+ 				children: [(0, react_jsx_runtime.jsxs)("div", {
+@@ -1937,6 +2022,9 @@
+ 							onRename: onSessionRename,
+ 							onFork: forkSession,
+ 							onArchive: onSessionArchive,
++							onSetPinned: setTaskPinned,
++							pinned: pinnedIds.has(node.id),
++							pinPending: pendingPinIds.has(node.id),
+ 							onReveal: node.id === revealSessionId ? () => {
+ 								onSessionRevealed(node.id);
+ 							} : void 0,
+@@ -1980,7 +2068,7 @@
+ 			});
+ 		}
+ 		/** Flat search body: local metadata matches plus the current Host result page. */
+-		function SearchResults({ useSessions, useSessionPendingInteraction, open, workspaces, archivedSessionIds, query, remote, resultLimit, usePanelInfo, t }) {
++		function SearchResults({ useSessions, useSessionPendingInteraction, activityRange, open, workspaces, archivedSessionIds, query, remote, resultLimit, usePanelInfo, t }) {
+ 			const panelActive = usePanelInfo((info) => info.activePanelId !== null);
+ 			const list = useSessions((s) => s);
+ 			const pendingInteractions = useSessionPendingInteraction((s) => s);
+@@ -1990,14 +2078,22 @@
+ 				items: [],
+ 				hasMore: false
+ 			};
+-			const results = (0, react.useMemo)(() => deriveSearchResults(list, workspaces, query, archivedSessionIds, pendingInteractions, currentRemote, resultLimit), [
++			const results = (0, react.useMemo)(() => {
++				const all = deriveSearchResults(list, workspaces, query, archivedSessionIds, pendingInteractions, currentRemote, resultLimit);
++				const now = Date.now();
++				return {
++					...all,
++					items: all.items.filter((item) => sessionInActivityRange(list.byId[item.id], activityRange, now))
++				};
++			}, [
+ 				list,
+ 				workspaces,
+ 				query,
+ 				archivedSessionIds,
+ 				pendingInteractions,
+ 				currentRemote,
+-				resultLimit
++				resultLimit,
++				activityRange
+ 			]);
+ 			const pending = currentRemote.status === "loading";
+ 			const failed = currentRemote.status === "error";
+@@ -2044,7 +2140,7 @@
+ 		* @param props - composed slot props (shell owner share + store + injected actions).
+ 		* @returns the region element tree.
+ 		*/
+-		function WorkspaceBrowser({ wide, usePanelInfo, expandSidebar, useSessions, useSessionPendingInteraction, useWorkspaces, useStore, actions, startSession, open, renameSession, forkSession, renameWorkspace, deleteWorkspace, insertWorkspaceBefore, archiveSession, insertSessionBefore, createWorkspace, searchSessions, searchResultLimit, useDirectoryFlow, useHostInfo, renderSlot, t }) {
++		function WorkspaceBrowser({ wide, usePanelInfo, expandSidebar, useSessions, useSessionPendingInteraction, useWorkspaces, useTaskPins, useStore, actions, startSession, open, renameSession, forkSession, renameWorkspace, deleteWorkspace, insertWorkspaceBefore, archiveSession, insertSessionBefore, createWorkspace, searchSessions, searchResultLimit, setTaskPinned, useDirectoryFlow, useHostInfo, renderSlot, t }) {
+ 			const home = useHostInfo((info) => info.home);
+ 			const workspaces = useWorkspaces((state) => state.items);
+ 			const workspacePhase = useWorkspaces((state) => state.phase);
+@@ -2053,6 +2149,7 @@
+ 			const directoryFlowAvailable = useDirectoryFlow((occupied) => occupied);
+ 			const groupBy = useStore((s) => s.groupBy);
+ 			const orderBy = useStore((s) => s.orderBy);
++			const activityRange = useStore((s) => s.activityRange ?? "all");
+ 			const groupExpansion = useStore((s) => s.groupExpansion);
+ 			const sessionOrderByAccount = useStore((s) => s.sessionOrderByAccount);
+ 			const sessionUpdatedAtByAccount = useStore((s) => s.sessionUpdatedAtByAccount);
+@@ -2363,12 +2460,16 @@
+ 								children: [wide && (0, react_jsx_runtime.jsx)(ViewOptionsMenu, {
+ 									groupBy,
+ 									orderBy,
++									activityRange,
+ 									onGroupPick: (mode) => {
+ 										actions.setGroupBy(mode);
+ 									},
+ 									onOrderPick: (mode) => {
+ 										actions.setOrderBy(mode);
+ 									},
++									onActivityPick: (range) => {
++										actions.setActivityRange(range);
++									},
+ 									t
+ 								}), directoryFlowAvailable && (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
+ 									label: t("workspace.add"),
+@@ -2429,6 +2530,7 @@
+ 							usePanelInfo,
+ 							useSessions,
+ 							useSessionPendingInteraction,
++							activityRange,
+ 							open: openSearchResult,
+ 							workspaces,
+ 							archivedSessionIds,
+@@ -2440,6 +2542,9 @@
+ 							usePanelInfo,
+ 							useSessions,
+ 							useSessionPendingInteraction,
++							useTaskPins,
++							setTaskPinned,
++							activityRange,
+ 							open,
+ 							forkSession,
+ 							onSessionRename,
+@@ -2458,6 +2563,9 @@
+ 							usePanelInfo,
+ 							useSessions,
+ 							useSessionPendingInteraction,
++							useTaskPins,
++							setTaskPinned,
++							activityRange,
+ 							onSessionRename,
+ 							onSessionArchive,
+ 							forkSession,
+@@ -2649,6 +2757,12 @@
+ 			"orderBy.label": "排序方式",
+ 			"orderBy.manual": "手动排序",
+ 			"orderBy.updated": "最近更新",
++			"activityRange.label": "活动范围",
++			"activityRange.all": "不限",
++			"activityRange.1d": "1天",
++			"activityRange.3d": "3天",
++			"activityRange.7d": "7天",
++			"activityRange.14d": "14天",
+ 			"sessions.expand": "展开其余 {n} 个会话",
+ 			"sessions.collapse": "收起",
+ 			"empty.none": "暂无会话",
+@@ -2682,6 +2796,8 @@
+ 			"actions.workspace.aria": "工作区“{name}”的操作",
+ 			"actions.session.aria": "会话“{name}”的操作",
+ 			"actions.newSession.aria": "在“{name}”中新建会话",
++			"pin.add": "Pin 到任务",
++			"pin.remove": "从任务移除",
+ 			"status.running": "进行中",
+ 			"status.subagentsRunning.one": "{n} 个子代理运行中",
+ 			"status.subagentsRunning.other": "{n} 个子代理运行中",
+@@ -2715,6 +2831,12 @@
+ 			"orderBy.label": "Order by",
+ 			"orderBy.manual": "Manual",
+ 			"orderBy.updated": "Last updated",
++			"activityRange.label": "Activity range",
++			"activityRange.all": "Any time",
++			"activityRange.1d": "1 day",
++			"activityRange.3d": "3 days",
++			"activityRange.7d": "7 days",
++			"activityRange.14d": "14 days",
+ 			"sessions.expand": "Show {n} more sessions",
+ 			"sessions.collapse": "Show less",
+ 			"empty.none": "No sessions yet",
+@@ -2748,6 +2870,8 @@
+ 			"actions.workspace.aria": "Workspace actions for {name}",
+ 			"actions.session.aria": "Session actions for {name}",
+ 			"actions.newSession.aria": "New session in {name}",
++			"pin.add": "Pin to tasks",
++			"pin.remove": "Remove from tasks",
+ 			"status.running": "Running",
+ 			"status.subagentsRunning.one": "{n} subagent running",
+ 			"status.subagentsRunning.other": "{n} subagents running",
+@@ -2787,7 +2911,8 @@
+ 			"locale",
+ 			"remote",
+ 			"remote.directoryPicker",
+-			"layout"
++			"layout",
++			"betterTaskPins"
+ 		];
+ 		/**
+ 		* Register the browser and picker once their slot declarations are on the
+@@ -2798,6 +2923,7 @@
+ 		function apply(ctx) {
+ 			const sessions = ctx.get("sessions");
+ 			const workspaces = ctx.get("workspaces");
++			const taskPins = ctx.get("betterTaskPins");
+ 			const uiWorkspace = new UiWorkspaceService(ctx, ctx.remote.directoryPicker, workspaces, sessions);
+ 			ctx.slots.provideRoot({ hooks: { workspaces: workspaces.list } });
+ 			ctx.effect(() => ctx.locale.register(NS, {
+@@ -2829,6 +2955,7 @@
+ 				open: openSession,
+ 				searchSessions,
+ 				searchResultLimit: sessions.searchResultLimit,
++				setTaskPinned: (sessionId, pinned) => taskPins.setPinned(sessionId, pinned),
+ 				renameSession: async (sessionId, title) => {
+ 					const session = sessions.binding(sessionId)?.session;
+ 					if (session === void 0) throw new Error(`unknown session "${sessionId}"`);
+@@ -2856,7 +2983,8 @@
+ 				createWorkspace: (input) => workspaces.create(input),
+ 				hooks: {
+ 					directoryFlow: browserFlowSource,
+-					hostInfo
++					hostInfo,
++					taskPins: taskPins.source
+ 				}
+ 			});
+ 			const pickerInjected = () => ({

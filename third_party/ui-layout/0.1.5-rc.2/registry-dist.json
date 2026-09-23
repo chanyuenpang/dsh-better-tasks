@@ -1,0 +1,13 @@
+{
+  "shasum": "8ad4773e7c1c02d0f4b3ef7f46587de2f96caec2",
+  "tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-client-ui-layout/-/dsh-client-ui-layout-0.1.5-rc.2.tgz",
+  "fileCount": 15,
+  "integrity": "sha512-N5+kH1W6UjzOuagJEKDenm/Gbs8Y2sz6btdmVKW5dypEEUgVWsQGV0auTC37gsWKWDaWGpfYOpeAa3Ybk6DYbQ==",
+  "signatures": [
+    {
+      "sig": "MEUCIQCUvNxSOrUl/PVksyt/8fx0ztI2zGibk2yF7GYfxVkuiQIgG67YDN8vyBvyfhKxf+gYpRGgoama+sW7KkfrYG7X7Hs=",
+      "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+    }
+  ],
+  "unpackedSize": 59374
+}

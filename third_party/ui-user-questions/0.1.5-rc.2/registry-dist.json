@@ -1,0 +1,13 @@
+{
+  "shasum": "0aa1691bd1bd91429b127cf0c5ad64364d2e6a0d",
+  "tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-client-ui-user-questions/-/dsh-client-ui-user-questions-0.1.5-rc.2.tgz",
+  "fileCount": 14,
+  "integrity": "sha512-vJzqgAIAlGX7oth3a4qVq3pyyBRc4paL7ENOnt1kfmY+XoPTGF+/CUXwe/Lep5Xjo+95K2HPq7tMxeryKJj72g==",
+  "signatures": [
+    {
+      "sig": "MEUCIQD43vTFk8o3QBfC3fhSfYi7CK5hxjZ9OSNAcOBrgoHYXAIgTZjP1g9TgtKLK2a4vnqP1IUIeh6g394tPTg72l+0LeM=",
+      "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+    }
+  ],
+  "unpackedSize": 72086
+}

@@ -1,0 +1,28 @@
+{
+  "version": "0.2.39",
+  "id": "dsh-better-tasks",
+  "name": "dsh-better-tasks",
+  "maxTasksToKeep": 9,
+  "planning": true,
+  "autoUpdate": true,
+  "goalMode": true,
+  "knowledgeWriter": {
+    "externalSkills": [],
+    "model": null,
+    "reasoningEffort": "medium",
+    "datedSectionsToKeep": 6
+  },
+  "externalPlanningSkill": null,
+  "defaultPlanTemplate": null,
+  "contextPaths": [],
+  "memory": {
+    "enabled": true,
+    "autoUpdate": true,
+    "externalDocPaths": [],
+    "embedding": {
+      "provider": "local",
+      "model": "jinaai/jina-embeddings-v2-base-zh"
+    }
+  },
+  "gitnexus": false
+}

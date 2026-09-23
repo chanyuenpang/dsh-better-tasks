@@ -165,7 +165,8 @@ const css = `
 .dbt-task-time{flex:none;font-size:10px;color:var(--dsw-alias-label-tertiary)}
 .dbt-project-icon{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;flex:none;border:0;border-radius:8px;background:var(--dsw-alias-bg-layer-2);cursor:pointer}
 .dbt-project-icon:disabled{cursor:default;opacity:.72}
-.dbt-task-unpin{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;flex:none;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--dsw-alias-brand-primary);cursor:pointer;opacity:0;pointer-events:none;transition:opacity .12s ease,background .12s ease,border-color .12s ease}
+.dbt-task-unpin{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;flex:none;padding:0;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--dsw-alias-brand-primary);cursor:pointer;opacity:0;pointer-events:none;transition:opacity .12s ease,background .12s ease,border-color .12s ease}
+.dbt-task-unpin svg{width:20px;height:20px;flex:none}
 .dbt-task-card:hover .dbt-task-unpin,.dbt-task-card:focus-within .dbt-task-unpin,.dbt-task-unpin:focus-visible{opacity:1;pointer-events:auto}
 .dbt-task-unpin:hover{background:color-mix(in srgb,var(--dsw-alias-brand-primary) 15%,transparent);border-color:color-mix(in srgb,var(--dsw-alias-brand-primary) 36%,transparent)}
 .dbt-task-unpin:disabled{cursor:default;opacity:.45}

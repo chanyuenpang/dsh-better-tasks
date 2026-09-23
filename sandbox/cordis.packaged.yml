@@ -19,4 +19,4 @@
     - id: ui-user-questions-dbt
       name: '@deepseek-ai/dsh-client-ui-user-questions'
     - id: better-tasks-sidebar
-      name: dsh-better-tasks
+      name: '@veewo/dsh-better-tasks'

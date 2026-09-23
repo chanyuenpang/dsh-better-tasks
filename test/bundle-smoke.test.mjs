@@ -23,7 +23,7 @@ test('generated browser bundle registers and materializes without executing UI g
     Error,
   }
   vm.runInNewContext(source, context, { filename: 'lib/client.js' })
-  assert.equal(registration.id, 'dsh-better-tasks')
+  assert.equal(registration.id, '@veewo/dsh-better-tasks')
   const plugin = registration.factory((request) => {
     throw new Error(`unexpected eager module request: ${request}`)
   })

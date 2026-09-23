@@ -22,7 +22,7 @@ const clientSource = stripExports(rawClientSource
   .replace(/^import\s*\{[\s\S]*?\}\s*from\s*['"]\.\/pin-client\.mjs['"]\s*;?\s*/m, '')
   .replace(/^import\s*\{[\s\S]*?\}\s*from\s*['"]\.\/task-preferences\.mjs['"]\s*;?\s*/m, ''))
 
-const output = `window.__ModuleLoader__.load({\n  id: "dsh-better-tasks",\n  factory: requireModule => {\n${indent(pinClientSource, 4)}\n${indent(preferencesSource, 4)}
+const output = `window.__ModuleLoader__.load({\n  id: "@veewo/dsh-better-tasks",\n  factory: requireModule => {\n${indent(pinClientSource, 4)}\n${indent(preferencesSource, 4)}
 ${indent(modelSource, 4)}\n${indent(clientSource, 4)}\n    return { name, inject, apply, contract }\n  },\n})\n`
 
 await mkdir(dirname(outputPath), { recursive: true })

@@ -1,9 +1,15 @@
 {
-  "name": "dsh-better-tasks",
+  "name": "@veewo/dsh-better-tasks",
   "version": "0.2.0",
-  "private": true,
   "type": "module",
   "description": "A compositional DSH sidebar with a Host-persisted pinned-task queue.",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chanyuenpang/dsh-better-tasks.git"
+  },
   "main": "./src/index.js",
   "exports": {
     ".": "./src/index.js",

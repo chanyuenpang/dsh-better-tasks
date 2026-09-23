@@ -6,7 +6,7 @@
 
 每个版本发布四个 tgz：
 
-- `dsh-better-tasks-<version>.tgz`
+- `veewo-dsh-better-tasks-<version>.tgz`（同时发布为 npm public package `@veewo/dsh-better-tasks`）
 - `deepseek-ai-dsh-client-ui-layout-0.1.5-rc.2.tgz`
 - `deepseek-ai-dsh-client-ui-workspace-0.1.5-rc.2.tgz`
 - `deepseek-ai-dsh-client-ui-user-questions-0.1.5-rc.2.tgz`
@@ -45,7 +45,7 @@ Sandbox 必须使用独立 `DSH_HOME`，并禁用 Cindy Host：
 ```powershell
 $env:DSH_HOME = Join-Path $PWD 'sandbox\dsh-home'
 dsh plugin --profile better-tasks-sandbox add `
-  "$release\dsh-better-tasks-0.2.0.tgz" `
+  "$release\veewo-dsh-better-tasks-0.2.0.tgz" `
   "$release\deepseek-ai-dsh-client-ui-layout-0.1.5-rc.2.tgz" `
   "$release\deepseek-ai-dsh-client-ui-workspace-0.1.5-rc.2.tgz" `
   "$release\deepseek-ai-dsh-client-ui-user-questions-0.1.5-rc.2.tgz"
@@ -66,14 +66,26 @@ dsh --profile better-tasks-sandbox `
     - id: ui-user-questions-dbt
       name: '@deepseek-ai/dsh-client-ui-user-questions'
     - id: better-tasks-sidebar
-      name: dsh-better-tasks
+      name: '@veewo/dsh-better-tasks'
 ```
 
 通过条件：Host 成功监听、核心页面激活、设置页交互与跨刷新持久化通过、浏览器错误为 0。结束后必须停止并确认 `:3081` 无监听。
 
-## 4. 安装到正式 Profile
+## 4. 发布到 npm
 
-先把 tgz 复制到项目目录外的版本化发布库，再从发布库安装：
+主包使用 public scope `@veewo/dsh-better-tasks`。确认 npm 身份属于 `veewo` organization、版本尚未存在，然后发布并回读 registry：
+
+```powershell
+npm whoami
+npm publish --access public
+npm view '@veewo/dsh-better-tasks@0.2.0' name version dist.integrity --json
+```
+
+npm 版本不可覆盖；任何内容变化都必须提升版本并重走 sandbox 门禁。三个 exact fork 不发布到不属于本项目的 `@deepseek-ai` scope，它们继续作为本仓库 release assets 安装。
+
+## 5. 安装到正式 Profile
+
+先把 exact-fork tgz 复制到项目目录外的版本化发布库；主包从 npm registry 安装：
 
 ```powershell
 $version = '0.2.0'
@@ -83,7 +95,7 @@ New-Item -ItemType Directory -Force $releaseRoot | Out-Null
 Copy-Item "$source\*" $releaseRoot -Force
 
 dsh plugin --profile web add `
-  "$releaseRoot\dsh-better-tasks-$version.tgz" `
+  '@veewo/dsh-better-tasks@0.2.0' `
   "$releaseRoot\deepseek-ai-dsh-client-ui-layout-0.1.5-rc.2.tgz" `
   "$releaseRoot\deepseek-ai-dsh-client-ui-workspace-0.1.5-rc.2.tgz" `
   "$releaseRoot\deepseek-ai-dsh-client-ui-user-questions-0.1.5-rc.2.tgz"
@@ -93,7 +105,7 @@ dsh plugin --profile web add `
 
 由于 Profile 可启用 live patch reload，写 patch 前必须已通过 package-mode sandbox；写入后仍要按正常流程取得明确确认，再以 grace period 重启正式 `dsh web`。
 
-## 5. 正式回归
+## 6. 正式回归
 
 重启后检查：
 

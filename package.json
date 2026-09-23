@@ -23,7 +23,7 @@
   "scripts": {
     "build:fork": "node scripts/verify-ui-workspace-fork.mjs --write && node scripts/verify-ui-layout-fork.mjs --write && node scripts/verify-ui-user-questions-fork.mjs --write",
     "build": "npm run build:fork && node scripts/build-client.mjs",
-    "check": "npm run build && node --check src/index.js && node --check src/pin-client.mjs && node --check src/pin-model.mjs && node --check src/task-model.mjs && node --check src/final-message.mjs && node --check src/project-appearance.mjs && node --check src/project-icon-catalog.mjs && node --check src/client.js && node --check lib/client.js && node --check forks/ui-workspace/lib/client.js && node --check forks/ui-layout/lib/client.js && node --check forks/ui-user-questions/lib/client.js",
+    "check": "npm run build && node --check src/index.js && node --check src/pin-client.mjs && node --check src/pin-model.mjs && node --check src/task-preferences.mjs && node --check src/task-model.mjs && node --check src/final-message.mjs && node --check src/project-appearance.mjs && node --check src/project-icon-catalog.mjs && node --check src/client.js && node --check lib/client.js && node --check forks/ui-workspace/lib/client.js && node --check forks/ui-layout/lib/client.js && node --check forks/ui-user-questions/lib/client.js",
     "test": "npm run build && node --test"
   },
   "keywords": [
@@ -40,6 +40,7 @@
   "dependencies": {
     "@deepseek-ai/dsh-session-query": "0.1.5-rc.2",
     "@deepseek-ai/dsh-storage-domain": "^0.1.5-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {

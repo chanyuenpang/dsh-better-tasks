@@ -1,54 +1,63 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { expandFinalForIdleCycles, parseFinalMessageCache, reconcileGoalExpansionCycles, serializeFinalMessageCache } from '../src/client.js'
+import { expandFinalForIdleCycles, isProjectionExpanded, parseFinalMessageCache, reconcileGoalExpansionCycles, serializeFinalMessageCache } from '../src/client.js'
 
 const idle = (id, updatedAt) => ({ id, updatedAt })
 
-test('Final auto-expands once for the first observed idle cycle', () => {
-  const existing = { 'session-a:goal': true }
+test('a new idle cycle clears only the prior Final override and uses the configured default', () => {
+  const existing = { 'session-a:goal': true, 'session-a:final': false }
   const result = expandFinalForIdleCycles({}, [idle('session-a', 10), idle('session-b', 20)], existing)
-  assert.deepEqual(result.expanded, {
-    'session-a:goal': true,
-    'session-a:final': true,
-    'session-b:final': true,
-  })
+  assert.deepEqual(result.expanded, { 'session-a:goal': true })
   assert.deepEqual(result.cycles, { 'session-a': 10, 'session-b': 20 })
+  assert.equal(isProjectionExpanded(result.expanded, 'session-a:final', true), true)
+  assert.equal(isProjectionExpanded(result.expanded, 'session-b:final', false), false)
 })
 
-test('manual collapse survives remounts during the same idle cycle', () => {
-  const collapsed = {}
+test('manual Final collapse survives remounts during the same idle cycle', () => {
+  const collapsed = { 'session-a:final': false }
   const cycles = { 'session-a': 10 }
   const result = expandFinalForIdleCycles(cycles, [idle('session-a', 10)], collapsed)
   assert.equal(result.expanded, collapsed)
   assert.equal(result.cycles, cycles)
+  assert.equal(isProjectionExpanded(result.expanded, 'session-a:final', true), false)
+})
+
+test('a later idle cycle forgets the prior manual Final override', () => {
+  const result = expandFinalForIdleCycles({ 'session-a': 10 }, [idle('session-a', 11)], { 'session-a:final': false })
   assert.equal(result.expanded['session-a:final'], undefined)
-})
-
-test('a later idle cycle reopens Final', () => {
-  const result = expandFinalForIdleCycles({ 'session-a': 10 }, [idle('session-a', 11)], {})
-  assert.equal(result.expanded['session-a:final'], true)
   assert.equal(result.cycles['session-a'], 11)
+  assert.equal(isProjectionExpanded(result.expanded, 'session-a:final', true), true)
 })
 
-test('Goal auto-expands once and manual collapse survives the same goal lifecycle', () => {
+test('Goal defaults to collapsed and a manual choice survives the same goal lifecycle', () => {
   const first = reconcileGoalExpansionCycles({}, [{ id: 'session-a', goalId: 'goal-1' }], [], {})
-  assert.equal(first.expanded['session-a:goal'], true)
+  assert.equal(first.expanded['session-a:goal'], undefined)
+  assert.equal(isProjectionExpanded(first.expanded, 'session-a:goal', false), false)
   assert.equal(first.cycles['session-a'], 'goal-1')
 
-  const collapsed = {}
-  const remount = reconcileGoalExpansionCycles(first.cycles, [{ id: 'session-a', goalId: 'goal-1' }], [], collapsed)
-  assert.equal(remount.expanded, collapsed)
+  const opened = { 'session-a:goal': true }
+  const remount = reconcileGoalExpansionCycles(first.cycles, [{ id: 'session-a', goalId: 'goal-1' }], [], opened)
+  assert.equal(remount.expanded, opened)
   assert.equal(remount.cycles, first.cycles)
 })
 
-test('Goal completion clears its cycle and a later Goal opens again', () => {
+test('Goal completion and a new Goal clear the previous projection override', () => {
   const ended = reconcileGoalExpansionCycles({ 'session-a': 'goal-1' }, [], ['session-a'], { 'session-a:goal': true })
   assert.deepEqual(ended.cycles, {})
   assert.deepEqual(ended.expanded, {})
 
-  const next = reconcileGoalExpansionCycles(ended.cycles, [{ id: 'session-a', goalId: 'goal-2' }], [], ended.expanded)
-  assert.equal(next.expanded['session-a:goal'], true)
+  const next = reconcileGoalExpansionCycles({ 'session-a': 'goal-1' }, [{ id: 'session-a', goalId: 'goal-2' }], [], { 'session-a:goal': true })
+  assert.equal(next.expanded['session-a:goal'], undefined)
   assert.equal(next.cycles['session-a'], 'goal-2')
+  assert.equal(isProjectionExpanded(next.expanded, 'session-a:goal', false), false)
+})
+
+test('Todo and Goal defaults resolve independently', () => {
+  const value = { 'session-a:goal': false, 'session-a:todo': true }
+  assert.equal(isProjectionExpanded(value, 'session-a:goal', true), false)
+  assert.equal(isProjectionExpanded(value, 'session-a:todo', false), true)
+  assert.equal(isProjectionExpanded({}, 'session-a:goal', false), false)
+  assert.equal(isProjectionExpanded({}, 'session-a:todo', true), true)
 })
 
 test('Final cache round-trips only ready bounded text projections', () => {

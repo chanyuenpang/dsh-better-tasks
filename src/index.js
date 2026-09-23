@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer'
 import { z } from 'zod'
+import Schema from '@deepseek-ai/schemastery'
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
 import {
   PIN_QUEUE_KEY,
@@ -15,6 +16,21 @@ import { createFinalMessageHttpHandler } from './final-message.mjs'
 
 export const name = 'dsh-better-tasks'
 export const inject = ['storageDomain', 'sessionController', 'sessionQuery', 'workspaceRegistry', 'webServer']
+export const TASK_SETTINGS_NAMESPACE = 'better-tasks-ui'
+export const TASK_SETTINGS_DEFAULTS = Object.freeze({
+  detailFontSize: 13,
+  defaultTodoExpanded: false,
+  defaultGoalExpanded: false,
+  defaultFinalExpanded: true,
+  columnLayout: 'auto',
+})
+export const TaskSettingsSchema = Schema.object({
+  detailFontSize: Schema.number().step(1).min(11).max(16).default(13),
+  defaultTodoExpanded: Schema.boolean().default(false),
+  defaultGoalExpanded: Schema.boolean().default(false),
+  defaultFinalExpanded: Schema.boolean().default(true),
+  columnLayout: Schema.union(['auto', 'single', 'double']).default('auto'),
+})
 
 const pinQueueRecord = z.object({
   schemaVersion: z.literal(PIN_QUEUE_SCHEMA_VERSION),
@@ -89,6 +105,9 @@ export function createPinQueueHttpHandler({ current, eligibleSessionIds, retaine
 }
 
 export async function apply(ctx) {
+  ctx.inject(['settings'], (settingsCtx) => {
+    settingsCtx.settings.register(TASK_SETTINGS_NAMESPACE, TaskSettingsSchema)
+  })
   await installProjectAppearance(ctx)
   const domain = await ctx.storageDomain.open(pinQueueDomain)
   const queues = domain.table('queues')

@@ -23,11 +23,11 @@ dsh --profile better-tasks-sandbox --from-default-profile web `
   --no-open --port 3081
 ```
 
-The isolated Host reached `http://127.0.0.1:3081/` successfully. Edge CDP confirmed the root layout, Better Sidebar, native Session/Workspace surface, Tasks tab, collapse rail, and zero browser runtime/console errors. The empty isolated profile intentionally had no real task rows; data-dependent task assertions were covered separately by model/contract tests.
+The isolated Host reached `http://127.0.0.1:3081/` successfully with a dedicated `DSH_HOME` and Cindy Host disabled. Edge CDP confirmed the root layout, Better Sidebar, native Session/Workspace surface, Tasks tab, collapse rail, and zero browser runtime/console errors. It also opened the native Better Tasks settings section, verified six font choices, independent Todo/Goal/Final switches (`false / false / true`), Auto columns, persisted `14px` across a reload, then restored `13px`. The empty isolated profile intentionally had no real task rows; data-dependent task assertions were covered separately by model/contract tests.
 
 ## Automated evidence
 
-- `npm test`: **63/63 passed**.
+- `npm test`: **71/71 passed**.
 - `npm run check`: passed.
 - Exact fork replay passed for:
   - `@deepseek-ai/dsh-client-ui-workspace@0.1.5-rc.2`
@@ -44,8 +44,9 @@ Behavioral evidence includes:
 - Responsive narrowing preserves the 1000px preference and widening restores it.
 - Whole-card click/drag guards, a Session-matched 14px pinned glyph in a 24px hover-only unpin container, no horizontal overflow, and zero browser errors.
 - Pin/Unpin publishes optimistic membership and pending state synchronously while writes remain confirmed-revision CAS operations; queued refresh, concurrent intents, 409 retry, and failed-write rollback have direct tests.
-- Durable Final extraction, 4,000-code-point bound, cache validation, one-auto-open-per-idle-cycle semantics, same-cycle manual collapse persistence, and icon-free full-width 12px detail text.
-- Completed goals project as unavailable; a new active Goal ID auto-expands once, manual collapse survives remounts, completion clears its cycle, and active/paused/blocked goals retain their normal projection.
+- Durable Final extraction, 4,000-code-point bound, cache validation, configurable per-idle-cycle default, same-cycle manual override persistence, and icon-free full-width detail text.
+- Goal defaults to collapsed; Todo, Goal, and Final resolve independent configurable defaults, preserve manual overrides for the same lifecycle, and clear only their own override when a new lifecycle begins.
+- The Host-backed Better Tasks settings section configures 11–16px detail text (13px default) and Auto/Single/Double columns; optimistic UI changes roll back on rejected writes.
 - Restored current Sessions are opened during cold navigation so Goal actions have a binding without requiring a preliminary chat message.
 - Every New Session route uses the single `uiWorkspace.onSessionCreated` auto-pin seam.
 - `questionSurface` is optional to Better Tasks, preventing service-wait startup deadlocks.
@@ -64,3 +65,4 @@ The latest real cold start completed as PID `9140` on port 3080 with the persist
 2. A sandbox reused real DSH storage and competed for the ledger. Sandboxes now require a dedicated `DSH_HOME` and disabled Cindy Host.
 3. Final auto-open originally used component-memory transition state, so a tab remount reopened a manually collapsed Final. The idle-cycle marker is now persisted by `sessionId → updatedAt`.
 4. Final content originally lived only in React memory. The bounded safe projection is now cached in browser storage and invalidated only when the Session `updatedAt` changes.
+5. The first settings browser probe treated the injected external store as a raw `hooks` prop, but Slots materializes it as `useTaskPreferences`. The cold-started core stayed healthy, while opening the page surfaced the render failure; the component now consumes the generated hook prop, and the second cold-start plus persistence probe passed with zero browser errors.

@@ -12,6 +12,7 @@ import {
   summarizeTodos,
 } from './task-model.mjs'
 import { createTaskPinsClient } from './pin-client.mjs'
+import { TASK_SETTINGS_NAMESPACE, createTaskPreferencesStore } from './task-preferences.mjs'
 
 export const name = 'dsh-better-tasks'
 // The shared question surface is optional: older/native question packages keep
@@ -59,6 +60,25 @@ const dictionaries = {
     'tasks.iconSearch': '搜索图标',
     'tasks.cancel': '取消',
     'tasks.save': '保存',
+    'settings.nav': '任务视图',
+    'settings.title': '任务视图',
+    'settings.description': '自定义任务卡投影的显示方式。修改会立即生效。',
+    'settings.fontSize': '详情正文字号',
+    'settings.fontSizeHint': '仅影响 Todo、Goal 和 Final 的展开正文。',
+    'settings.defaultExpansion': '默认展开',
+    'settings.todoExpanded': 'Todo',
+    'settings.goalExpanded': 'Goal',
+    'settings.finalExpanded': 'Final',
+    'settings.expansionHint': '各项互相独立；手动展开或折叠在当前生命周期内保持。',
+    'settings.columns': '任务列布局',
+    'settings.columns.auto': '自动',
+    'settings.columns.single': '单列',
+    'settings.columns.double': '双列',
+    'settings.columnsHint': '自动模式在侧边栏宽度大于 528px 时使用双列。',
+    'settings.loading': '正在读取设置…',
+    'settings.unavailable': '设置暂不可用，当前使用默认值。',
+    'settings.readOnly': '当前连接只读。',
+    'settings.writeFailed': '保存失败，已恢复 Host 设置。',
     'time.now': '刚刚',
     'time.minutes': '{n}分钟',
     'time.hours': '{n}小时',
@@ -102,6 +122,25 @@ const dictionaries = {
     'tasks.iconSearch': 'Search icons',
     'tasks.cancel': 'Cancel',
     'tasks.save': 'Save',
+    'settings.nav': 'Task View',
+    'settings.title': 'Task View',
+    'settings.description': 'Customize how task-card projections are displayed. Changes apply immediately.',
+    'settings.fontSize': 'Detail text size',
+    'settings.fontSizeHint': 'Affects only expanded Todo, Goal, and Final body text.',
+    'settings.defaultExpansion': 'Default expansion',
+    'settings.todoExpanded': 'Todo',
+    'settings.goalExpanded': 'Goal',
+    'settings.finalExpanded': 'Final',
+    'settings.expansionHint': 'Each item is independent; manual expansion or collapse wins for the current lifecycle.',
+    'settings.columns': 'Task columns',
+    'settings.columns.auto': 'Auto',
+    'settings.columns.single': 'Single',
+    'settings.columns.double': 'Double',
+    'settings.columnsHint': 'Auto uses two columns when the sidebar is wider than 528px.',
+    'settings.loading': 'Loading settings…',
+    'settings.unavailable': 'Settings are unavailable; defaults are active.',
+    'settings.readOnly': 'This connection is read-only.',
+    'settings.writeFailed': 'Save failed; Host settings were restored.',
     'time.now': 'now',
     'time.minutes': '{n}min',
     'time.hours': '{n}h',
@@ -177,7 +216,7 @@ const css = `
 .dbt-projection-toggle:disabled{cursor:default;opacity:.38;color:var(--dsw-alias-label-tertiary);background:var(--dsw-alias-bg-layer-2)}
 .dbt-todo-count{font-size:10px;font-variant-numeric:tabular-nums}
 .dbt-projection-details{display:flex;flex-direction:column;gap:6px;padding-top:1px}
-.dbt-projection-detail{display:grid;grid-template-columns:18px minmax(0,1fr);gap:6px;align-items:start;border-radius:8px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 86%,transparent);padding:7px;font-size:12px;line-height:1.45}
+.dbt-projection-detail{display:grid;grid-template-columns:18px minmax(0,1fr);gap:6px;align-items:start;border-radius:8px;background:color-mix(in srgb,var(--dsw-alias-bg-layer-2) 86%,transparent);padding:7px;font-size:var(--dbt-projection-font-size,13px);line-height:1.5}
 .dbt-projection-detail.dbt-final-detail{display:block}
 .dbt-projection-detail[data-tone="blocked"]{color:var(--dsw-alias-error,#d14343)}
 .dbt-projection-copy{min-width:0;overflow-wrap:anywhere}
@@ -203,6 +242,14 @@ const css = `
 .dbt-dialog-actions{display:flex;justify-content:flex-end;gap:8px}
 .dbt-dialog-actions button{height:32px;border:0;border-radius:8px;padding:0 12px;cursor:pointer}
 .dbt-dialog-save{background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-static-white,#fff)}
+.dbt-settings-section{width:min(680px,100%);display:flex;flex-direction:column;gap:18px;color:var(--dsw-alias-label-primary)}
+.dbt-settings-heading{display:flex;flex-direction:column;gap:5px}.dbt-settings-heading h2{margin:0;font-size:18px;line-height:1.3}.dbt-settings-heading p,.dbt-settings-hint{margin:0;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5}
+.dbt-settings-group{display:flex;flex-direction:column;gap:10px}.dbt-settings-group-title{font-size:14px;font-weight:650}
+.dbt-settings-card{display:flex;flex-direction:column;gap:10px;border:1px solid color-mix(in srgb,var(--dsw-alias-label-primary) 10%,transparent);border-radius:12px;background:var(--dsw-alias-bg-layer-1);padding:14px}
+.dbt-settings-font-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center}.dbt-settings-font-options{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px}.dbt-settings-font-option{height:32px;border:0;border-radius:7px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);cursor:pointer;font-variant-numeric:tabular-nums}.dbt-settings-font-option[aria-pressed="true"]{background:color-mix(in srgb,var(--dsw-alias-brand-primary) 14%,var(--dsw-alias-bg-layer-1));color:var(--dsw-alias-brand-primary);font-weight:650}.dbt-settings-font-option:disabled{cursor:default;opacity:.5}.dbt-settings-font-value{min-width:44px;text-align:right;font-variant-numeric:tabular-nums;font-weight:650}
+.dbt-settings-switch-row{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:30px}.dbt-settings-switch{position:relative;width:38px;height:22px;flex:none;border:0;border-radius:999px;background:var(--dsw-alias-bg-layer-3,var(--dsw-alias-interactive-bg-hover));cursor:pointer;padding:0}.dbt-settings-switch:after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--dsw-alias-static-white,#fff);box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .14s ease}.dbt-settings-switch[aria-checked="true"]{background:var(--dsw-alias-brand-primary)}.dbt-settings-switch[aria-checked="true"]:after{transform:translateX(16px)}.dbt-settings-switch:disabled{cursor:default;opacity:.5}
+.dbt-settings-segments{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:3px;border-radius:9px;background:var(--dsw-alias-bg-layer-2)}.dbt-settings-segment{height:32px;border:0;border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer}.dbt-settings-segment[aria-pressed="true"]{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);box-shadow:0 1px 3px rgba(0,0,0,.12)}.dbt-settings-segment:disabled{cursor:default;opacity:.5}
+.dbt-settings-status{border-radius:8px;padding:8px 10px;font-size:12px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary)}.dbt-settings-status[data-error="true"]{color:var(--dsw-alias-error,#d14343)}
 @media (prefers-reduced-motion:no-preference){.dbt-sidebar,.dbt-panel-row,.dbt-icon-button,.dbt-task-card{transition:background-color .15s ease,color .15s ease,border-color .15s ease}}
 `
 
@@ -267,6 +314,10 @@ function useStoredPreference(key, fallback, allowed) {
   return [value, setValue]
 }
 
+export function isProjectionExpanded(value, key, defaultExpanded) {
+  return typeof value[key] === 'boolean' ? value[key] : defaultExpanded
+}
+
 export function expandFinalForIdleCycles(cycles, idleTasks, value) {
   const nextCycles = { ...cycles }
   const nextExpanded = { ...value }
@@ -277,8 +328,8 @@ export function expandFinalForIdleCycles(cycles, idleTasks, value) {
     nextCycles[task.id] = task.updatedAt
     cyclesChanged = true
     const key = `${task.id}:final`
-    if (nextExpanded[key] === true) continue
-    nextExpanded[key] = true
+    if (!Object.hasOwn(nextExpanded, key)) continue
+    delete nextExpanded[key]
     expandedChanged = true
   }
   return {
@@ -298,7 +349,7 @@ export function reconcileGoalExpansionCycles(cycles, goals, endedSessionIds, val
       cyclesChanged = true
     }
     const key = `${sessionId}:goal`
-    if (nextExpanded[key] === true) {
+    if (Object.hasOwn(nextExpanded, key)) {
       delete nextExpanded[key]
       expandedChanged = true
     }
@@ -308,8 +359,8 @@ export function reconcileGoalExpansionCycles(cycles, goals, endedSessionIds, val
     nextCycles[goal.id] = goal.goalId
     cyclesChanged = true
     const key = `${goal.id}:goal`
-    if (nextExpanded[key] === true) continue
-    nextExpanded[key] = true
+    if (!Object.hasOwn(nextExpanded, key)) continue
+    delete nextExpanded[key]
     expandedChanged = true
   }
   return {
@@ -348,17 +399,25 @@ function loadFinalMessageCache() {
   try { return parseFinalMessageCache(localStorage.getItem(FINAL_CACHE_KEY) ?? '') } catch { return {} }
 }
 
-function useStoredExpansion(key) {
+function parseExpansionRecord(raw) {
+  try {
+    const parsed = JSON.parse(raw ?? '{}')
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    return Object.fromEntries(Object.entries(parsed).filter(([entryKey, expanded]) => entryKey.length > 0 && typeof expanded === 'boolean').slice(-300))
+  } catch {
+    return {}
+  }
+}
+
+function useStoredExpansion(key, legacyKey) {
   const React = requireModule('react')
   const [value, setValue] = React.useState(() => {
     if (typeof localStorage === 'undefined') return {}
-    try {
-      const parsed = JSON.parse(localStorage.getItem(key) ?? '{}')
-      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
-      return Object.fromEntries(Object.entries(parsed).filter(([entryKey, expanded]) => entryKey.length > 0 && expanded === true))
-    } catch {
-      return {}
-    }
+    const current = localStorage.getItem(key)
+    if (current !== null) return parseExpansionRecord(current)
+    if (legacyKey === undefined) return {}
+    const legacy = parseExpansionRecord(localStorage.getItem(legacyKey))
+    return Object.fromEntries(Object.entries(legacy).filter(([entryKey, expanded]) => entryKey.endsWith(':todo') && expanded === true))
   })
   React.useEffect(() => {
     if (typeof localStorage === 'undefined') return
@@ -498,7 +557,7 @@ function compactRelativeTime(updatedAt, now, t, relativeTime) {
   return unit === 'now' ? t('time.now') : t(`time.${unit}`, { n })
 }
 
-function TaskSwimlane({ useSessions, useWorkspaces, useSessionPendingInteraction, useTaskPins, openSession, moveTaskBefore, unpinTask, renderQuestion, twoColumns, t }) {
+function TaskSwimlane({ useSessions, useWorkspaces, useSessionPendingInteraction, useTaskPins, preferences, openSession, moveTaskBefore, unpinTask, renderQuestion, twoColumns, t }) {
   const React = requireModule('react')
   const {
     IconCheckOutline14,
@@ -517,7 +576,7 @@ function TaskSwimlane({ useSessions, useWorkspaces, useSessionPendingInteraction
   const taskPins = useTaskPins((snapshot) => snapshot)
   const appearanceState = useProjectAppearanceSnapshot()
   const [editingWorkspaceId, setEditingWorkspaceId] = React.useState(null)
-  const [expanded, setExpanded] = useStoredExpansion('dsh-better-tasks.projection-expansion.v1')
+  const [expanded, setExpanded] = useStoredExpansion('dsh-better-tasks.projection-expansion.v2', 'dsh-better-tasks.projection-expansion.v1')
   const [finalAutoCycles, setFinalAutoCycles] = useStoredRecord('dsh-better-tasks.final-auto-open-cycle.v1')
   const [goalAutoCycles, setGoalAutoCycles] = useStoredRecord('dsh-better-tasks.goal-auto-open-cycle.v1')
   const [drag, setDrag] = React.useState(null)
@@ -552,7 +611,7 @@ function TaskSwimlane({ useSessions, useWorkspaces, useSessionPendingInteraction
     try { localStorage.setItem(FINAL_CACHE_KEY, serializeFinalMessageCache(finalStates)) } catch {}
   }, [finalStates])
   const finalRequests = tasks.filter((task) => {
-    if (task.session.status !== 'idle' || expanded[`${task.id}:final`] !== true) return false
+    if (task.session.status !== 'idle' || !isProjectionExpanded(expanded, `${task.id}:final`, preferences.defaultFinalExpanded)) return false
     const cached = finalStates[task.id]
     return cached?.status !== 'ready' || cached.updatedAt !== task.updatedAt
   }).map((task) => ({ id: task.id, updatedAt: task.updatedAt }))
@@ -594,14 +653,12 @@ function TaskSwimlane({ useSessions, useWorkspaces, useSessionPendingInteraction
   const editingWorkspace = workspaces.items.find((workspace) => workspace.workspaceId === editingWorkspaceId)
   const pendingMoves = new Set(taskPins.pendingSessionIds)
   const now = Date.now()
-  const toggleProjection = (sessionId, key) => {
+  const toggleProjection = (sessionId, key, defaultExpanded) => {
     const disclosureKey = `${sessionId}:${key}`
-    setExpanded((current) => {
-      if (current[disclosureKey] !== true) return { ...current, [disclosureKey]: true }
-      const next = { ...current }
-      delete next[disclosureKey]
-      return next
-    })
+    setExpanded((current) => ({
+      ...current,
+      [disclosureKey]: !isProjectionExpanded(current, disclosureKey, defaultExpanded),
+    }))
   }
   const commitDrop = (overId, half) => {
     if (drag === null) return
@@ -613,7 +670,11 @@ function TaskSwimlane({ useSessions, useWorkspaces, useSessionPendingInteraction
     moveTaskBefore(sessionId, beforeSessionId).catch((error) => setMoveError(String(error?.message ?? error)))
   }
 
-  return element('section', { className: 'dbt-task-view', 'aria-label': t('view.tasks') },
+  return element('section', {
+    className: 'dbt-task-view',
+    'aria-label': t('view.tasks'),
+    style: { '--dbt-projection-font-size': `${preferences.detailFontSize}px` },
+  },
     appearanceState.status === 'unavailable' ? element('div', { className: 'dbt-task-warning', role: 'status' }, t('tasks.appearanceUnavailable')) : null,
     taskPins.error !== null || moveError !== '' ? element('div', { className: 'dbt-task-warning', role: 'status' }, moveError || taskPins.error) : null,
     tasks.length === 0 ? element('div', { className: 'dbt-task-empty' }, t('tasks.empty')) :
@@ -644,9 +705,9 @@ function TaskSwimlane({ useSessions, useWorkspaces, useSessionPendingInteraction
         const goalAvailable = task.goal.availability === 'ready'
         const todoAvailable = task.todos.availability === 'ready'
         const todoVisible = !todoAvailable || task.todos.total > 0
-        const goalExpanded = goalAvailable && expanded[`${task.id}:goal`] === true
-        const todoExpanded = todoAvailable && task.todos.total > 0 && expanded[`${task.id}:todo`] === true
-        const finalExpanded = task.session.status === 'idle' && expanded[`${task.id}:final`] === true
+        const goalExpanded = goalAvailable && isProjectionExpanded(expanded, `${task.id}:goal`, preferences.defaultGoalExpanded)
+        const todoExpanded = todoAvailable && task.todos.total > 0 && isProjectionExpanded(expanded, `${task.id}:todo`, preferences.defaultTodoExpanded)
+        const finalExpanded = task.session.status === 'idle' && isProjectionExpanded(expanded, `${task.id}:final`, preferences.defaultFinalExpanded)
         const finalState = finalStates[task.id]
         const pendingInteraction = pendingInteractions.get(task.id)
         const questionElement = pendingInteraction?.kind === 'question' || pendingInteraction?.kind === 'plan-review' ? renderQuestion(pendingInteraction) : null
@@ -801,7 +862,7 @@ function TaskSwimlane({ useSessions, useWorkspaces, useSessionPendingInteraction
             'aria-expanded': goalExpanded,
             'aria-label': t(goalExpanded ? 'tasks.collapseGoal' : 'tasks.expandGoal'),
             title: goalLabel,
-            onClick: () => { if (goalAvailable) toggleProjection(task.id, 'goal') },
+            onClick: () => { if (goalAvailable) toggleProjection(task.id, 'goal', preferences.defaultGoalExpanded) },
           }, element(IconGoalOutline16, { size: 14 }), element(goalExpanded ? IconChevronDownOutline14 : IconChevronRightOutline14, { size: 14 })),
           todoVisible ? element('button', {
             type: 'button',
@@ -812,7 +873,7 @@ function TaskSwimlane({ useSessions, useWorkspaces, useSessionPendingInteraction
             'aria-expanded': todoExpanded,
             'aria-label': t(todoExpanded ? 'tasks.collapseTodo' : 'tasks.expandTodo'),
             title: todoLabel,
-            onClick: () => { if (todoAvailable) toggleProjection(task.id, 'todo') },
+            onClick: () => { if (todoAvailable) toggleProjection(task.id, 'todo', preferences.defaultTodoExpanded) },
           }, element(IconChecklistOutline14, { size: 14 }), todoAvailable ? element('span', { className: 'dbt-todo-count' }, todoLabel) : null, element(todoExpanded ? IconChevronDownOutline14 : IconChevronRightOutline14, { size: 14 })) : null,
           task.session.status !== 'idle' ? null : element('button', {
             type: 'button',
@@ -822,7 +883,7 @@ function TaskSwimlane({ useSessions, useWorkspaces, useSessionPendingInteraction
             'aria-expanded': finalExpanded,
             'aria-label': t(finalExpanded ? 'tasks.collapseFinal' : 'tasks.expandFinal'),
             title: t('tasks.final'),
-            onClick: () => toggleProjection(task.id, 'final'),
+            onClick: () => toggleProjection(task.id, 'final', preferences.defaultFinalExpanded),
           }, element(IconSparkle16, { size: 14 }), element(finalExpanded ? IconChevronDownOutline14 : IconChevronRightOutline14, { size: 14 }))),
         detailRows.length === 0 ? null : element('div', { className: 'dbt-projection-details' }, ...detailRows),
         questionElement === null ? null : element('div', {
@@ -841,7 +902,7 @@ function TaskSwimlane({ useSessions, useWorkspaces, useSessionPendingInteraction
     }) : null)
 }
 
-function SidebarRegion({ wide, collapsed, view, setView, twoColumns, toggleSidebar, renderSlot, useSessions, useWorkspaces, useSessionPendingInteraction, useTaskPins, openSession, moveTaskBefore, unpinTask, renderQuestion, t }) {
+function SidebarRegion({ wide, collapsed, view, setView, twoColumns, preferences, toggleSidebar, renderSlot, useSessions, useWorkspaces, useSessionPendingInteraction, useTaskPins, openSession, moveTaskBefore, unpinTask, renderQuestion, t }) {
   if (!wide) {
     return renderSlot('sidebar.workspaces', { wide: false, expandSidebar: () => { if (collapsed) toggleSidebar() } })
   }
@@ -860,6 +921,7 @@ function SidebarRegion({ wide, collapsed, view, setView, twoColumns, toggleSideb
         unpinTask,
         renderQuestion,
         twoColumns,
+        preferences,
         t,
       })))
 }
@@ -891,6 +953,7 @@ export function BetterSidebarRoot({
   useWorkspaces,
   useSessionPendingInteraction,
   useTaskPins,
+  useTaskPreferences,
   openSession,
   moveTaskBefore,
   unpinTask,
@@ -902,6 +965,7 @@ export function BetterSidebarRoot({
   const { IconPanelLeftOutline16, Tooltip } = requireModule('@deepseek-ai/dsh-client-ui-primitives')
   const [view, setView] = useStoredPreference('dsh-better-tasks.view', 'native', ['native', 'tasks'])
   const panels = usePanels((value) => value)
+  const preferences = useTaskPreferences((snapshot) => snapshot.value)
   const [settled, setSettled] = React.useState(collapsed)
   React.useEffect(() => {
     if (!collapsed) {
@@ -912,7 +976,7 @@ export function BetterSidebarRoot({
     return () => window.clearTimeout(timer)
   }, [collapsed])
   const wide = !collapsed || !settled
-  const twoColumns = !collapsed && width > TASK_GRID_TWO_COLUMN_THRESHOLD
+  const twoColumns = !collapsed && (preferences.columnLayout === 'double' || (preferences.columnLayout === 'auto' && width > TASK_GRID_TWO_COLUMN_THRESHOLD))
   const lastWideWidth = React.useRef(width)
   if (!collapsed) lastWideWidth.current = width
   const toggleLabel = collapsed ? t('toggle.open') : t('toggle.collapse')
@@ -975,6 +1039,7 @@ export function BetterSidebarRoot({
       view,
       setView,
       twoColumns,
+      preferences,
       toggleSidebar,
       renderSlot,
       useSessions,
@@ -992,9 +1057,102 @@ export function BetterSidebarRoot({
     element('div', { className: 'dbt-settings' }, renderSlot('sidebar.settings', { wide }))))
 }
 
-function mountSidebar(ctx, taskPins) {
-  ctx.effect(() => installStyles(), 'dsh-better-tasks: styles')
-  ctx.effect(() => ctx.locale.register(NS, dictionaries), 'dsh-better-tasks: dictionaries')
+function TaskSettingsSection({ useTaskPreferences, setTaskPreference, t }) {
+  const React = requireModule('react')
+  const element = React.createElement
+  const snapshot = useTaskPreferences((value) => value)
+  const [draft, setDraft] = React.useState(snapshot.value)
+  const [pending, setPending] = React.useState(false)
+  const [failed, setFailed] = React.useState(false)
+  React.useEffect(() => setDraft(snapshot.value), [snapshot.value])
+  const writable = snapshot.status === 'ready' && snapshot.writable && !pending
+  const update = (field, value) => {
+    if (!writable) return
+    setDraft((current) => ({ ...current, [field]: value }))
+    setFailed(false)
+    setPending(true)
+    Promise.resolve(setTaskPreference(field, value)).catch(() => {
+      setDraft(snapshot.value)
+      setFailed(true)
+    }).finally(() => setPending(false))
+  }
+  const switchRow = (field, label) => element('div', { className: 'dbt-settings-switch-row', key: field },
+    element('span', null, label),
+    element('button', {
+      type: 'button',
+      role: 'switch',
+      className: 'dbt-settings-switch',
+      'aria-label': label,
+      'aria-checked': String(draft[field]),
+      disabled: !writable,
+      onClick: () => update(field, !draft[field]),
+    }))
+  const status = failed
+    ? element('div', { className: 'dbt-settings-status', 'data-error': true }, t('settings.writeFailed'))
+    : snapshot.status === 'loading'
+      ? element('div', { className: 'dbt-settings-status' }, t('settings.loading'))
+      : snapshot.status === 'unavailable'
+        ? element('div', { className: 'dbt-settings-status' }, t('settings.unavailable'))
+      : snapshot.status === 'ready' && !snapshot.writable
+        ? element('div', { className: 'dbt-settings-status' }, t('settings.readOnly'))
+        : null
+  return element('section', { className: 'dbt-settings-section', 'aria-labelledby': 'dbt-settings-title' },
+    element('div', { className: 'dbt-settings-heading' },
+      element('h2', { id: 'dbt-settings-title' }, t('settings.title')),
+      element('p', null, t('settings.description'))),
+    status,
+    element('div', { className: 'dbt-settings-group' },
+      element('div', { className: 'dbt-settings-group-title' }, t('settings.fontSize')),
+      element('div', { className: 'dbt-settings-card' },
+        element('div', { className: 'dbt-settings-font-options' },
+          ...[11, 12, 13, 14, 15, 16].map((size) => element('button', {
+            key: size,
+            type: 'button',
+            className: 'dbt-settings-font-option',
+            'aria-label': `${size}px`,
+            'aria-pressed': String(draft.detailFontSize === size),
+            disabled: !writable,
+            onClick: () => update('detailFontSize', size),
+          }, `${size}px`))),
+        element('p', { className: 'dbt-settings-hint' }, t('settings.fontSizeHint')))),
+    element('div', { className: 'dbt-settings-group' },
+      element('div', { className: 'dbt-settings-group-title' }, t('settings.defaultExpansion')),
+      element('div', { className: 'dbt-settings-card' },
+        switchRow('defaultTodoExpanded', t('settings.todoExpanded')),
+        switchRow('defaultGoalExpanded', t('settings.goalExpanded')),
+        switchRow('defaultFinalExpanded', t('settings.finalExpanded')),
+        element('p', { className: 'dbt-settings-hint' }, t('settings.expansionHint')))),
+    element('div', { className: 'dbt-settings-group' },
+      element('div', { className: 'dbt-settings-group-title' }, t('settings.columns')),
+      element('div', { className: 'dbt-settings-card' },
+        element('div', { className: 'dbt-settings-segments' },
+          ...['auto', 'single', 'double'].map((layout) => element('button', {
+            key: layout,
+            type: 'button',
+            className: 'dbt-settings-segment',
+            'aria-pressed': String(draft.columnLayout === layout),
+            disabled: !writable,
+            onClick: () => update('columnLayout', layout),
+          }, t(`settings.columns.${layout}`)))),
+        element('p', { className: 'dbt-settings-hint' }, t('settings.columnsHint')))))
+}
+
+function mountTaskSettingsSection(ctx, taskPreferences) {
+  const injected = () => ({
+    hooks: { taskPreferences: taskPreferences.source },
+    setTaskPreference: (field, value) => taskPreferences.set(field, value),
+  })
+  ctx.slots.inject('settings.section', () => ctx.slots.register({
+    name: 'settings.section',
+    id: 'better-tasks',
+    order: 45,
+    label: () => ctx.locale.bind(NS)('settings.nav'),
+    locale: NS,
+    inject: injected,
+  }, TaskSettingsSection))
+}
+
+function mountSidebar(ctx, taskPins, taskPreferences) {
   ctx.effect(() => ctx.uiWorkspace.onSessionCreated((sessionId) => taskPins.pinCreated(sessionId)), 'dsh-better-tasks: auto-pin created sessions')
 
   const panels = createSnapshotStore([])
@@ -1022,7 +1180,7 @@ function mountSidebar(ctx, taskPins) {
     // Optional by design: native packages without the public surface keep the
     // canonical Composer and never hold the rest of the UI in a waiting state.
     renderQuestion: (pending) => ctx.get('questionSurface')?.render(pending, 'task-card') ?? null,
-    hooks: { panels, taskPins: taskPins.source },
+    hooks: { panels, taskPins: taskPins.source, taskPreferences: taskPreferences.source },
   })
 
   ctx.slots.inject('sidebar', () => ctx.slots.register({
@@ -1036,10 +1194,18 @@ function mountSidebar(ctx, taskPins) {
 }
 
 export function apply(ctx) {
+  ctx.effect(() => installStyles(), 'dsh-better-tasks: styles')
+  ctx.effect(() => ctx.locale.register(NS, dictionaries), 'dsh-better-tasks: dictionaries')
   const taskPins = createTaskPinsClient()
+  const taskPreferences = createTaskPreferencesStore()
   ctx.provide('betterTaskPins', taskPins)
   ctx.effect(() => taskPins.start(), 'dsh-better-tasks: pin projection')
-  ctx.inject(['uiWorkspace'], (scope) => mountSidebar(scope, taskPins))
+  ctx.inject(['settingsScope'], (scope) => {
+    const settings = scope.settingsScope.bind({ namespace: TASK_SETTINGS_NAMESPACE })
+    scope.effect(() => taskPreferences.connect(settings), 'dsh-better-tasks: optional settings projection')
+    mountTaskSettingsSection(scope, taskPreferences)
+  })
+  ctx.inject(['uiWorkspace'], (scope) => mountSidebar(scope, taskPins, taskPreferences))
 }
 
 export const contract = Object.freeze({

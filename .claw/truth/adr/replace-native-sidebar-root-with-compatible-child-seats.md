@@ -1,4 +1,4 @@
-﻿# ADR: Replace the native sidebar root with compatible local forks and Host-owned task state
+# ADR: Replace the native sidebar root with compatible local forks and Host-owned task state
 
 ## Context
 
@@ -6,7 +6,7 @@ The project must own the sidebar shell and provide a durable pinned-task workflo
 
 Cordis slot children belong to the root registration entry that declares them. A replacement root cannot safely render the shipped root's children merely by winning single-slot priority. The shipped workspace, layout, and question packages also expose no stable public extension points for the required Session-tree filter, row Pin action, shared create hook, expanded width contract, or task-card question surface.
 
-Pin membership and manual order must survive refresh, restart, and another browser. Goal, Todo, Session, Workspace, sidebar width, pending questions, and project appearance already have owners whose business semantics must not be duplicated. Any shell-wide composition change must cold-start safely before it is installed into the real Web profile.
+Pin membership and manual order must survive refresh, restart, and another browser. Pin and Unpin must also acknowledge a click without waiting for a Host round trip, without weakening revision-CAS or letting speculative membership become persistence input. Goal, Todo, Session, Workspace, sidebar width, pending questions, and project appearance already have owners whose business semantics must not be duplicated. Any shell-wide composition change must cold-start safely before it is installed into the real Web profile.
 
 ## Decision
 
@@ -19,12 +19,14 @@ Use exact, project-local compatibility forks of `@deepseek-ai/dsh-client-ui-work
 Assign ownership as follows:
 
 - Better Tasks Host owns one versioned `better_tasks_pin_queue` record and exposes revision-CAS pin, creation-pin, unpin, and reorder mutations. The ordered Session-id list is the sole task-membership and order truth.
+- Better Tasks Client may project reversible per-Session Pin or Unpin intent over its last confirmed Host queue and publish it before the serialized request tail. Host commands and `expectedRevision` are always derived from confirmed state; a valid conflict snapshot is adopted and retried once, and terminal failure discards the intent so the projection rolls back.
 - The workspace fork owns native Session-tree presentation additions: activity filtering, row Pin state, and one `onSessionCreated` lifecycle seam covering every create-or-reuse entry.
 - The layout fork remains the only sidebar-width owner and persists a 264px minimum, 280px default, and `max(840px, 50vw)` ceiling.
-- Session, Workspace, Goal, Todo, and pending-interaction semantics remain with their native owners. Better Tasks only reads their projections.
+- Session, Workspace, Goal, Todo, and pending-interaction semantics remain with their native owners. Better Tasks only reads their projections. Goal expansion is local presentation state keyed by stable `goal.id`: Goal defaults to collapsed, a manual override is respected within that cycle, and the override is cleared when the cycle ends.
 - The user-question fork exposes the official renderer, shared draft state, and single-settlement gate as `questionSurface`. Better Tasks looks it up optionally; missing support falls back to the native Composer rather than blocking core UI activation.
 - Better Tasks adopts the existing `workspace_appearance` domain name, version, table schema, and HTTP contract so prior data remains valid without a second provider.
 - Final is a bounded read projection, not a new transcript owner: the Host returns only the latest ended current-surface assistant text for a pinned Session, limited to 4000 Unicode code points; the client may cache that safe payload and idle-cycle expansion state.
+- Better Tasks registers one optional Host settings namespace and one official `settings.section` page for presentation preferences. Missing settings services must fall back to defaults without holding sidebar activation.
 
 Require the exact candidate composition to cold-start in an isolated sandbox with separate `DSH_HOME`, profile, Session storage, and ledger and with Cindy Host disabled. Host listening, browser-shell activation, core Session/Workspace/conversation surfaces, and zero startup errors take precedence over optional feature completeness. Only after that gate passes may the real composition be changed or `dsh web` restarted.
 
@@ -36,13 +38,15 @@ Require the exact candidate composition to cold-start in an isolated sandbox wit
 - **Inject Pin/filter controls into native DOM:** rejected because Session identity, React reconciliation, drag behavior, keyboard behavior, styles, and lifecycle are not stable DOM contracts.
 - **Copy Workspace Browser, layout, or question business logic into Better Tasks:** rejected because it creates competing owners and excessive parity risk. Exact, narrow forks retain the upstream owners and make differences auditable.
 - **Persist task membership or order in browser storage:** rejected because it cannot provide global cross-browser truth or safe concurrent mutation.
+- **Wait for each Host Pin mutation before updating membership:** rejected because round-trip and serialized-tail latency make the primary control appear unresponsive even though persistence remains correct.
+- **Use optimistic membership or revision as the next CAS baseline:** rejected because speculative state is not authoritative and can corrupt conflict handling; optimistic intent is projection-only.
 - **Hard-inject `questionSurface`:** rejected because an unfinished optional provider can hold the root layout and all dependent UI in a Cordis service-wait chain.
 - **Store Final as a second durable transcript:** rejected because Session history is already canonical; Final is a bounded on-demand projection.
 - **Patch the DSH installation or shipped preset:** rejected because upgrades overwrite those changes and rollback becomes unsafe.
 
 ## Consequences
 
-The project can provide a native-feeling pinned-task sidebar while preserving existing child registrants and business owners. Host revision-CAS makes stale writes explicit and manual ordering durable. The shared create hook gives all creation paths one idempotent auto-pin rule without rolling back a successfully created Session when pinning fails.
+The project can provide a native-feeling pinned-task sidebar while preserving existing child registrants and business owners. Host revision-CAS makes stale writes explicit and manual ordering durable, while reversible Client intent makes Pin and Unpin visible before Host completion. This introduces a deliberate two-layer Client model: concurrent intent may affect presentation, but serialization, conflict retry, revision, update time, and durable membership remain anchored to confirmed Host state. The shared create hook gives all creation paths one idempotent auto-pin rule without rolling back a successfully created Session when pinning fails.
 
 The design deliberately accepts maintenance cost: three exact forks must be compared with their upstream version, rebuilt, and regression-tested before an upgrade. Composition is stricter because shipped and local owners for the same root/package cannot be active together. The local package now owns durable pin and appearance domains, so rollback must preserve their data even when UI rows are restored.
 

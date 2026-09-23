@@ -29,10 +29,11 @@ test('layout owner restores one namespaced positive preference with a dynamic ha
   assert.doesNotMatch(value, /clampWidth\(px, 264, 420\)/)
 })
 
-test('task grid uses actual sidebar width with a strict greater-than 528 boundary', async () => {
+test('task grid supports auto, fixed single, and fixed double layouts', async () => {
   const value = await source(sidebarUrl)
   assert.match(value, /const TASK_GRID_TWO_COLUMN_THRESHOLD = 528/)
-  assert.match(value, /const twoColumns = !collapsed && width > TASK_GRID_TWO_COLUMN_THRESHOLD/)
+  assert.match(value, /const twoColumns = !collapsed && \(preferences\.columnLayout === 'double' \|\| \(preferences\.columnLayout === 'auto' && width > TASK_GRID_TWO_COLUMN_THRESHOLD\)\)/)
+  assert.match(value, /const preferences = useTaskPreferences\(\(snapshot\) => snapshot\.value\)/)
   assert.match(value, /'data-columns': twoColumns \? '2' : '1'/)
   assert.match(value, /\.dbt-task-list\[data-columns="2"\]\{display:flex;align-items:flex-start\}/)
   assert.match(value, /className: 'dbt-task-column'[\s\S]*?index % 2 === 0[\s\S]*?index % 2 === 1/)

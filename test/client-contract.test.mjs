@@ -19,8 +19,9 @@ function createContext(panelEntries = []) {
       return () => { delete ctx[name] }
     },
     inject(services, callback) {
-      assert.deepEqual(services, ['uiWorkspace'])
       calls.push(['inject', ...services])
+      if (services.length === 1 && services[0] === 'settingsScope') return () => {}
+      assert.deepEqual(services, ['uiWorkspace'])
       return callback(ctx)
     },
     locale: {
@@ -99,6 +100,8 @@ test('registers one root replacement and declares all compatibility seats', () =
   assert.equal(typeof injected.moveTaskBefore, 'function')
   assert.equal(injected.hooks.panels.getSnapshot().length, 2)
   assert.equal(typeof injected.hooks.taskPins.getSnapshot, 'function')
+  assert.equal(typeof injected.hooks.taskPreferences.getSnapshot, 'function')
+  assert.equal(injected.hooks.taskPreferences.getSnapshot().value.defaultGoalExpanded, false)
   assert.deepEqual(injected.hooks.panels.getSnapshot().map((panel) => panel.id), ['alpha', 'zeta'])
 
   injected.startSession('workspace-1')

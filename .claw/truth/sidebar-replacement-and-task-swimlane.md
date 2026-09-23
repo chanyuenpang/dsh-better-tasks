@@ -1,4 +1,4 @@
-﻿# Sidebar replacement and pinned-task swimlane
+# Sidebar replacement and pinned-task swimlane
 
 <!-- state: current -->
 ## Current behavior
@@ -20,6 +20,8 @@ The project uses exact, project-local compatibility forks of `@deepseek-ai/dsh-c
 
 The Host storage domain `better_tasks_pin_queue` is the sole owner of task membership and order. Its versioned record contains a monotonic revision, ordered unique Session ids, and an update timestamp. Mutations are serialized through the storage table and use revision compare-and-swap; a conflict returns the current queue rather than silently accepting stale client state.
 
+The Client may overlay short-lived, reversible Pin or Unpin intent on its last confirmed Host queue so membership and pending state render synchronously. It publishes intent before entering the serialized request tail, allowing different Session intents to remain visible together, but derives every Host command and `expectedRevision` only from the confirmed queue. A valid `409` response replaces that confirmed snapshot and is retried once; success adopts the returned queue, while terminal failure removes the intent and restores confirmed membership.
+
 Normal pinning rejects missing, blank, archived, and subagent Sessions. The creation-only `pin-created` action permits a retained blank Session so every successful create-or-reuse path can be pinned before its first message, while still rejecting missing, archived, and subagent Sessions. Repeating the action is idempotent. Invalid retained entries are pruned explicitly.
 
 The task view renders the Host order directly and never re-sorts by `updatedAt`. Every `uiWorkspace` create-or-reuse entry reports through `onSessionCreated`; Better Tasks installs one lifecycle-bound handler that calls `pin-created`. Pin failure does not roll back or close the created Session and is surfaced to the user.
@@ -32,11 +34,11 @@ The `ui-workspace` fork preserves native search, grouping, ordering, drag/drop, 
 - one Pin glyph per eligible Session row, with pressed state, tooltip, keyboard, and failure semantics;
 - the shared `onSessionCreated` lifecycle seam used by every create-or-reuse path.
 
-Pinned task cards display the project identity, localized relative Session time, official running `StateDot`, and whole-card `block > running > idle` background semantics without visible status text. Status remains available through accessible labels and titles. The whole card selects and drags; internal controls opt out of selection and drag. The unpin control is compact and only becomes visible on card hover or focus.
+Pinned task cards display the project identity, localized relative Session time, official running `StateDot`, and whole-card `block > running > idle` background semantics without visible status text. Status remains available through accessible labels and titles. The whole card selects and drags; internal controls opt out of selection and drag. Row Pin and task-card Unpin render from the optimistic queue projection and expose pressed or pending state before Host completion. The compact Unpin control becomes visible on card hover or focus without an opacity transition delay.
 
-Goal and Todo are read from the existing Session projection values and retain `unknown`, `none`, and ready-value distinctions. Their toggles are disabled when no ready value can be expanded. The card never creates a second Goal or Todo owner.
+Goal and Todo are read from the existing Session projection values and retain `unknown`, `none`, and ready-value distinctions. Their toggles are disabled when no ready value can be expanded. Todo and Goal default to collapsed and resolve independent presentation keys, so toggling Todo cannot change Goal. A manual Goal override persists across remounts and refreshes for the same stable `goal.id`; completion or a later ID clears only that override. The card never creates a second Goal or Todo owner.
 
-Idle cards expose Final on demand. The Host endpoint accepts pinned Sessions only and returns the latest ended, current-surface assistant text, truncated safely to 4000 Unicode code points. The client caches the safe payload by Session freshness and persists an idle-cycle marker: Final opens on first idle presentation and on each later transition into a new idle cycle, while a manual close remains respected for the rest of that cycle.
+Idle cards expose Final on demand. The Host endpoint accepts pinned Sessions only and returns the latest ended, current-surface assistant text, truncated safely to 4000 Unicode code points. The client caches the safe payload by Session freshness and persists an idle-cycle marker: Final defaults to expanded for each idle cycle, while a manual override remains respected for the rest of that cycle. Expanded Final content occupies the full detail width and omits the leading projection icon. Todo, Goal, and Final defaults can be changed independently through Better Tasks settings.
 
 Pending questions use the exact `ui-user-questions` fork's shared `questionSurface`, draft state, and one-way settlement gate. Better Tasks performs an optional service lookup; if the surface is unavailable, the native conversation composer remains the canonical fallback and sidebar, Session, and Workspace activation must not wait.
 
@@ -44,14 +46,14 @@ Project icon and color remain in the existing `workspace_appearance` domain name
 
 ### Layout behavior
 
-The exact `ui-layout` fork remains the sole sidebar-width owner. It persists the last expanded width with a 264px minimum, 280px default, and dynamic `max(840px, 50vw)` ceiling. Better Tasks receives the actual width and switches to two independent vertical card flows only when the width is strictly greater than 528px; it does not maintain another width preference.
+The exact `ui-layout` fork remains the sole sidebar-width owner. It persists the last expanded width with a 264px minimum, 280px default, and dynamic `max(840px, 50vw)` ceiling. Better Tasks receives the actual width and offers Auto, Single, and Double card columns. Auto switches to two independent vertical flows only when width is strictly greater than 528px; no mode creates another width preference.
 
 ### Implementation anchors
 
 - `src/index.js`, `src/pin-model.mjs`, and `src/pin-client.mjs`: Host queue domain, eligibility, pruning, revision-CAS API, and client projection.
 - `src/final-message.mjs`: pinned-only Final extraction and 4000-code-point bound.
 - `src/project-appearance.mjs`: compatible `workspace_appearance` owner and HTTP contract.
-- `src/client.js`: sidebar root, pinned cards, projection availability, Final cache and idle-cycle state, optional question surface, and auto-pin registration.
+- `src/client.js` and `src/task-preferences.mjs`: sidebar root, pinned cards, independent projection overrides, Host-backed settings section, Final cache, optional question surface, and auto-pin registration.
 - `forks/ui-workspace`: native-parity Session tree filtering, row Pin action, and session-created lifecycle seam.
 - `forks/ui-layout`: persistent width owner and dynamic width ceiling.
 - `forks/ui-user-questions`: shared official question renderer, draft state, and single-settlement gate.
@@ -68,7 +70,7 @@ A sandbox must use the candidate composition with its own `DSH_HOME`, profile, S
 
 Before any real-profile installation, replay the three fork patches/provenance checks, run package tests and checks, then cold-start the exact candidate composition in an isolated sandbox and verify Host listening, browser-shell activation, native and task views, Session/Workspace/conversation surfaces, pin and reorder behavior, Final, question fallback, width restoration, and zero startup/browser errors.
 
-The completed pinned-task release passed 58/58 automated tests, package checks, all three provenance replays, an isolated cold start, and live Edge regression on `:3080` with no recorded Host or browser errors.
+The settings-enabled release passed 71/71 automated tests, package checks, all three provenance replays, and an isolated cold start. Sandbox Edge opened the official settings section, verified all controls and defaults, persisted a font-size change across reload, restored the default, and recorded zero browser errors. The preceding optimistic-interaction live regression held Host writes pending while the DOM completed Unpin and Pin first (27.5–28.7ms initial, 5.3–7.1ms warm), restoring persisted membership after each measurement.
 
 Rollback is composition-based: restore the last known-startable composition, re-enable the shipped packages that the local rows replace, restart `dsh web`, and refresh with the new token URL. Do not mutate Session, Workspace, Goal, Todo, pin-queue, or appearance data merely to roll back UI code.
 

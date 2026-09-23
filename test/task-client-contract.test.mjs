@@ -23,6 +23,8 @@ test('task view renders only the Host pin order', async () => {
   assert.match(source, /\.dbt-task-card\{[^}]*cursor:pointer/)
   assert.match(source, /\.dbt-task-unpin\{[^}]*width:24px[^}]*height:24px[^}]*padding:0/)
   assert.match(source, /\.dbt-task-unpin svg\{width:14px;height:14px;flex:none\}/)
+  assert.match(source, /\.dbt-task-unpin\[aria-pressed="true"\]\{[^}]*background:color-mix\([^}]*10%/)
+  assert.match(taskView, /'aria-pressed': true/)
   assert.match(source, /renderTaskPinIcon\(14\)/)
 })
 

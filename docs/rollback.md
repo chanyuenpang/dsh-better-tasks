@@ -24,4 +24,4 @@ Removing that block re-enables the shipped `ui-layout`, `ui-sidebar`, `ui-worksp
 
 The latest backup restores Better Tasks with the local Workspace fork but without the layout fork; the Workspace backup restores the earlier sidebar-only integration.
 
-Rollback does not delete Session, Workspace, Goal, Todo, cost-meter, project-appearance, or Host pin-queue data. The browser-only keys `dsh-better-tasks.projection-expansion.v1`, `dsh-better-tasks.final-auto-open-cycle.v1`, `dsh-better-tasks.final-message-cache.v1`, and `dsh-better-tasks.layout.sidebar-width.v1` may remain safely; shipped packages do not consume them.
+Rollback does not delete Session, Workspace, Goal, Todo, cost-meter, project-appearance, or Host pin-queue data. The browser-only keys `dsh-better-tasks.projection-expansion.v1`, `dsh-better-tasks.goal-auto-open-cycle.v1`, `dsh-better-tasks.final-auto-open-cycle.v1`, `dsh-better-tasks.final-message-cache.v1`, and `dsh-better-tasks.layout.sidebar-width.v1` may remain safely; shipped packages do not consume them.

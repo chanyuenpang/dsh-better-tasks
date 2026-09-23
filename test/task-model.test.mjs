@@ -108,6 +108,7 @@ test('keeps unknown, none and concrete goal states distinct', () => {
   assert.deepEqual(summarizeGoal({ goal: { phase: 'complete', objective: 'Done' }, roundsStarted: 1 }), { availability: 'none' })
   assert.deepEqual(summarizeGoal({
     goal: {
+      id: 'goal-1',
       phase: 'blocked',
       objective: 'Ship it',
       maxGoalRounds: 8,
@@ -116,6 +117,7 @@ test('keeps unknown, none and concrete goal states distinct', () => {
     roundsStarted: 3,
   }), {
     availability: 'ready',
+    id: 'goal-1',
     phase: 'blocked',
     objective: 'Ship it',
     roundsStarted: 3,

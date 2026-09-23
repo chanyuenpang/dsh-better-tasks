@@ -61,22 +61,38 @@ export function createTaskPinsClient() {
     error: null,
   }))
   const pending = new Set()
+  const optimisticPins = new Map()
+  let confirmedQueue = EMPTY_QUEUE
   let tail = Promise.resolve()
   let disposed = false
 
-  const publish = (patch) => {
+  const projectedQueue = () => {
+    if (optimisticPins.size === 0) return confirmedQueue
+    let sessionIds = [...confirmedQueue.sessionIds]
+    for (const [sessionId, pinned] of optimisticPins) {
+      const index = sessionIds.indexOf(sessionId)
+      if (pinned && index === -1) sessionIds.push(sessionId)
+      if (!pinned && index !== -1) sessionIds.splice(index, 1)
+    }
+    return Object.freeze({
+      ...confirmedQueue,
+      sessionIds: Object.freeze(sessionIds),
+    })
+  }
+  const publish = (patch = {}) => {
     if (disposed) return
     const previous = source.getSnapshot()
     source.set(Object.freeze({
       ...previous,
       ...patch,
+      queue: projectedQueue(),
       pendingSessionIds: Object.freeze([...pending]),
     }))
   }
   const adopt = (queue) => {
-    const next = ownedQueue(queue)
-    publish({ phase: 'ready', queue: next, error: null })
-    return next
+    confirmedQueue = ownedQueue(queue)
+    publish({ phase: 'ready', error: null })
+    return confirmedQueue
   }
   const enqueue = (work) => {
     const next = tail.then(work, work)
@@ -93,31 +109,38 @@ export function createTaskPinsClient() {
     throw error
   })
 
-  const mutate = (sessionId, commandFor) => enqueue(async () => {
-    pending.add(sessionId)
-    publish({})
-    try {
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        const queue = source.getSnapshot().queue
-        const command = commandFor(queue)
-        if (command === null) return queue
-        const { response, payload } = await pinRequest('POST', command)
-        if (response.ok) return adopt(payload.queue)
-        if (response.status === 409 && validQueue(payload.queue)) {
-          adopt(payload.queue)
-          continue
-        }
-        throw new Error(payload.message ?? `pin queue write failed (${response.status})`)
-      }
-      throw new Error('pin queue changed again; retry the action')
-    } finally {
-      pending.delete(sessionId)
-      publish({})
+  const mutate = (sessionId, commandFor, optimisticPinned) => {
+    const visibleQueue = source.getSnapshot().queue
+    if (optimisticPinned !== undefined && visibleQueue.sessionIds.includes(sessionId) === optimisticPinned) {
+      return Promise.resolve(visibleQueue)
     }
-  }).catch((error) => {
-    publish({ error: String(error?.message ?? error) })
-    throw error
-  })
+    pending.add(sessionId)
+    if (optimisticPinned !== undefined) optimisticPins.set(sessionId, optimisticPinned)
+    publish({ error: null })
+    return enqueue(async () => {
+      try {
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const command = commandFor(confirmedQueue)
+          if (command === null) return confirmedQueue
+          const { response, payload } = await pinRequest('POST', command)
+          if (response.ok) return adopt(payload.queue)
+          if (response.status === 409 && validQueue(payload.queue)) {
+            adopt(payload.queue)
+            continue
+          }
+          throw new Error(payload.message ?? `pin queue write failed (${response.status})`)
+        }
+        throw new Error('pin queue changed again; retry the action')
+      } finally {
+        pending.delete(sessionId)
+        optimisticPins.delete(sessionId)
+        publish({})
+      }
+    }).catch((error) => {
+      publish({ error: String(error?.message ?? error) })
+      throw error
+    })
+  }
 
   return {
     source,
@@ -131,14 +154,14 @@ export function createTaskPinsClient() {
           sessionId,
           expectedRevision: queue.revision,
         }
-      })
+      }, pinned)
     },
     pinCreated(sessionId) {
       return mutate(sessionId, (queue) => queue.sessionIds.includes(sessionId) ? null : {
         action: 'pin-created',
         sessionId,
         expectedRevision: queue.revision,
-      })
+      }, true)
     },
     moveBefore(sessionId, beforeSessionId) {
       return mutate(sessionId, (queue) => ({

@@ -65,6 +65,9 @@ test('Goal and non-empty Todo are expandable only when their projections are rea
   assert.match(source, /if \(goalAvailable\) toggleProjection\(task\.id, 'goal'\)/)
   assert.match(source, /if \(todoAvailable\) toggleProjection\(task\.id, 'todo'\)/)
   assert.match(source, /useStoredExpansion\('dsh-better-tasks\.projection-expansion\.v1'\)/)
+  assert.match(source, /useStoredRecord\('dsh-better-tasks\.goal-auto-open-cycle\.v1'\)/)
+  assert.match(source, /reconcileGoalExpansionCycles\(goalAutoCycles, goalTasks, endedGoalTaskIds, expanded\)/)
+  assert.match(source, /\.dbt-projection-detail\{[^}]*font-size:12px;line-height:1\.45/)
   assert.doesNotMatch(source, /setPinned\([^)]*true[^)]*\)/)
 })
 
@@ -89,4 +92,8 @@ test('idle Final disclosure lazily reads a minimal no-store Host projection', as
   assert.match(source, /task\.session\.status !== 'idle' \? null : element\('button'/)
   assert.match(source, /controller\.abort\(\)/)
   assert.match(source, /className: 'dbt-final-copy'/)
+  assert.match(source, /className: 'dbt-projection-detail dbt-final-detail'/)
+  assert.match(source, /\.dbt-projection-detail\.dbt-final-detail\{display:block\}/)
+  const finalDetail = source.slice(source.indexOf("key: 'final'"), source.indexOf("return element('article'"))
+  assert.doesNotMatch(finalDetail, /IconSparkle16/)
 })

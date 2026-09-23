@@ -79,6 +79,7 @@ export function summarizeGoal(value) {
   const reason = value.goal.blockedReason
   return Object.freeze({
     availability: 'ready',
+    id: value.goal.id,
     phase: value.goal.phase,
     objective: value.goal.objective,
     roundsStarted: value.roundsStarted,

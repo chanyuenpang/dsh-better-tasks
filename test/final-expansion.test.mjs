@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { expandFinalForIdleCycles, parseFinalMessageCache, serializeFinalMessageCache } from '../src/client.js'
+import { expandFinalForIdleCycles, parseFinalMessageCache, reconcileGoalExpansionCycles, serializeFinalMessageCache } from '../src/client.js'
 
 const idle = (id, updatedAt) => ({ id, updatedAt })
 
@@ -28,6 +28,27 @@ test('a later idle cycle reopens Final', () => {
   const result = expandFinalForIdleCycles({ 'session-a': 10 }, [idle('session-a', 11)], {})
   assert.equal(result.expanded['session-a:final'], true)
   assert.equal(result.cycles['session-a'], 11)
+})
+
+test('Goal auto-expands once and manual collapse survives the same goal lifecycle', () => {
+  const first = reconcileGoalExpansionCycles({}, [{ id: 'session-a', goalId: 'goal-1' }], [], {})
+  assert.equal(first.expanded['session-a:goal'], true)
+  assert.equal(first.cycles['session-a'], 'goal-1')
+
+  const collapsed = {}
+  const remount = reconcileGoalExpansionCycles(first.cycles, [{ id: 'session-a', goalId: 'goal-1' }], [], collapsed)
+  assert.equal(remount.expanded, collapsed)
+  assert.equal(remount.cycles, first.cycles)
+})
+
+test('Goal completion clears its cycle and a later Goal opens again', () => {
+  const ended = reconcileGoalExpansionCycles({ 'session-a': 'goal-1' }, [], ['session-a'], { 'session-a:goal': true })
+  assert.deepEqual(ended.cycles, {})
+  assert.deepEqual(ended.expanded, {})
+
+  const next = reconcileGoalExpansionCycles(ended.cycles, [{ id: 'session-a', goalId: 'goal-2' }], [], ended.expanded)
+  assert.equal(next.expanded['session-a:goal'], true)
+  assert.equal(next.cycles['session-a'], 'goal-2')
 })
 
 test('Final cache round-trips only ready bounded text projections', () => {

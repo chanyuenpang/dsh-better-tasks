@@ -1,0 +1,27 @@
+{
+  "release": "dsh-better-tasks@0.2.0",
+  "sourceCommit": "5ea6a2d2968f858a683fb24cc1e5131d5130e90e",
+  "createdAt": "2026-09-23T15:21:56.9923576Z",
+  "packages": [
+    {
+      "file": "deepseek-ai-dsh-client-ui-layout-0.1.5-rc.2.tgz",
+      "sha256": "df984b6a078463477f25998fd9396ef7b53030dc457e1786e978ae4cc2a7a44e",
+      "bytes": 20972
+    },
+    {
+      "file": "deepseek-ai-dsh-client-ui-user-questions-0.1.5-rc.2.tgz",
+      "sha256": "003337bcfd030b9a81e7cd5a2d77c7591bcfbabef3c51bdb978202d502377485",
+      "bytes": 23564
+    },
+    {
+      "file": "deepseek-ai-dsh-client-ui-workspace-0.1.5-rc.2.tgz",
+      "sha256": "6c3ff427c5ec58889a5540a52dd951b2ba17b3e1e8018eed7c296e59db5b7905",
+      "bytes": 55506
+    },
+    {
+      "file": "dsh-better-tasks-0.2.0.tgz",
+      "sha256": "58207ad3d94ace7b28e8e29726a9b85903a530565e7aa1b9e75e2d633dcaced4",
+      "bytes": 62607
+    }
+  ]
+}

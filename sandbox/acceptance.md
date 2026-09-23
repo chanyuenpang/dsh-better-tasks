@@ -25,6 +25,8 @@ dsh --profile better-tasks-sandbox --from-default-profile web `
 
 The isolated Host reached `http://127.0.0.1:3081/` successfully with a dedicated `DSH_HOME` and Cindy Host disabled. Edge CDP confirmed the root layout, Better Sidebar, native Session/Workspace surface, Tasks tab, collapse rail, and zero browser runtime/console errors. It also opened the native Better Tasks settings section, verified six font choices, independent Todo/Goal/Final switches (`false / false / true`), Auto columns, persisted `14px` across a reload, then restored `13px`. The empty isolated profile intentionally had no real task rows; data-dependent task assertions were covered separately by model/contract tests.
 
+The final gate repeated that cold start using only four installed tgz dependencies and `sandbox/cordis.packaged.yml`; no composition row referenced the development checkout. Profile `node_modules` entries were ordinary installed directories rather than links to the source tree. The packaged settings persistence probe and core browser smoke produced the same result with zero browser errors, and port 3081 was removed afterward.
+
 ## Automated evidence
 
 - `npm test`: **71/71 passed**.

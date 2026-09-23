@@ -21,7 +21,8 @@ Removing that block re-enables the shipped `ui-layout`, `ui-sidebar`, `ui-worksp
 - Before the Workspace fork: `${DSH_HOME:-$HOME/.dsh}\profiles\web\cordis.patch.yml.before-ui-workspace-fork`
 - Before the layout fork: `${DSH_HOME:-$HOME/.dsh}\profiles\web\cordis.patch.yml.before-ui-layout-fork`
 - Before the final three-fork install: `${DSH_HOME:-$HOME/.dsh}\profiles\web\cordis.patch.yml.before-better-tasks-final`
+- Before switching from development paths to packaged plugins: `${DSH_HOME:-$HOME/.dsh}\profiles\web\cordis.patch.yml.before-dbt-package-0.2.0`
 
-The latest backup restores Better Tasks with the local Workspace fork but without the layout fork; the Workspace backup restores the earlier sidebar-only integration.
+The latest backup restores the four Better Tasks rows with their development `file:///G:/Projects/...` paths. Prefer reinstalling a known release from `${DSH_HOME:-$HOME/.dsh}\plugin-releases\dsh-better-tasks\` and keeping package-name composition; use the development-path backup only for diagnosis.
 
 Rollback does not delete Session, Workspace, Goal, Todo, cost-meter, project-appearance, Host pin-queue data, or the `better-tasks-ui` Host settings namespace. The browser-only keys `dsh-better-tasks.projection-expansion.v1`, `dsh-better-tasks.projection-expansion.v2`, `dsh-better-tasks.goal-auto-open-cycle.v1`, `dsh-better-tasks.final-auto-open-cycle.v1`, `dsh-better-tasks.final-message-cache.v1`, and `dsh-better-tasks.layout.sidebar-width.v1` may remain safely; shipped packages do not consume them.

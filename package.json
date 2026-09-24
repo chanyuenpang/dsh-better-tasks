@@ -1,6 +1,6 @@
 {
   "name": "@veewo/dsh-better-tasks",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "A compositional DSH sidebar with a Host-persisted pinned-task queue.",
   "publishConfig": {

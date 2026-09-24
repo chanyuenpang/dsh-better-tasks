@@ -43,6 +43,8 @@ test('row pin action uses shared projection and cannot bubble into open or drag'
   assert.match(source, /function TaskPinIcon/)
   assert.match(source, /M15 4\.5l-4 4l-4 1\.5l-1\.5 1\.5l7 7l1\.5 -1\.5l1\.5 -4l4 -4/)
   assert.match(source, /children: \(0, react_jsx_runtime\.jsx\)\(TaskPinIcon, \{\}\)/)
+  assert.equal(count(source, '"data-dbt-pinned-title-marker"'), 1)
+  assert.match(source, /children: \[pinned &&[\s\S]*?"aria-hidden": true[\s\S]*?children: "📌"[\s\S]*?, title\]/)
   assert.doesNotMatch(source, /IconCloseOutline16|IconQueueOutline14/)
   assert.match(source, /onPointerDown: \(e\) => \{ e\.stopPropagation\(\); \}/)
   assert.match(source, /onDragStart: \(e\) => \{ e\.preventDefault\(\); e\.stopPropagation\(\); \}/)

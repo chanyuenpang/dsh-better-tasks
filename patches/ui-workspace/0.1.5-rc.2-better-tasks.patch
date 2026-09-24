@@ -117,7 +117,23 @@
  			const row = node;
  			const title = displayTitle(node, t);
  			const selected = node.id === currentId;
-@@ -1066,9 +1101,27 @@
+@@ -1057,18 +1092,41 @@
+ 							children: showStatus && (0, react_jsx_runtime.jsx)(SessionStatusDots, { statuses })
+ 						}),
+ 						flat && row.projectAppearance !== void 0 && (0, react_jsx_runtime.jsx)(ProjectAppearanceIcon, { appearance: row.projectAppearance }),
+-						(0, react_jsx_runtime.jsx)("span", {
++						(0, react_jsx_runtime.jsxs)("span", {
+ 							className: Rows_module_css_default.title,
+-							children: title
++							children: [pinned && (0, react_jsx_runtime.jsx)("span", {
++								"aria-hidden": true,
++								"data-dbt-pinned-title-marker": "",
++								style: { display: "inline-block", marginInlineEnd: 4 },
++								children: "📌"
++							}), title]
+ 						}),
+ 						row.hasActiveSchedule && (0, react_jsx_runtime.jsx)(ActiveScheduleIndicator, { t }),
+ 						!row.blank && (0, react_jsx_runtime.jsx)("span", {
  							className: Rows_module_css_default.time,
  							children: timeLabel(row.updatedAt, now, t)
  						}),
@@ -147,7 +163,7 @@
  								open: menuOpen,
  								onClose: () => {
  									setMenuOpen(false);
-@@ -1092,7 +1145,7 @@
+@@ -1092,7 +1150,7 @@
  									},
  									children: (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.IconEllipsisOutline16, {})
  								})
@@ -156,7 +172,7 @@
  						})
  					]
  				}),
-@@ -1350,6 +1403,13 @@
+@@ -1350,6 +1408,13 @@
  		const SEARCH_QUERY_MAX_CODE_UNITS = 500;
  		/** Session rows visible per Workspace before the local overflow control. */
  		const COLLAPSED_SESSION_LIMIT = 5;
@@ -170,7 +186,7 @@
  		/** Fold one Workspace without charging its provisional New Session against the ordinary-row limit. */
  		function collapsedSessionRows(sessions) {
  			let ordinaryCount = 0;
-@@ -1454,7 +1514,7 @@
+@@ -1454,7 +1519,7 @@
  			};
  		}
  		/** Grouping and ordering menu; own open state so it resets with the wide chrome. */
@@ -179,7 +195,7 @@
  			const [open, setOpen] = (0, react.useState)(false);
  			return (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Menu, {
  				open,
-@@ -1491,12 +1551,23 @@
+@@ -1491,12 +1556,23 @@
  					{
  						id: "updated",
  						label: t("orderBy.updated")
@@ -205,7 +221,7 @@
  					setOpen(false);
  				},
  				align: "end",
-@@ -1524,12 +1595,16 @@
+@@ -1524,12 +1600,16 @@
  			return e.clientY < rect.top + rect.height / 2 ? "before" : "after";
  		}
  		/** The scrolling session tree; unmounting drops the sessions subscription and expand-all state. */
@@ -223,7 +239,7 @@
  			const revealGroup = revealSessionId === void 0 || !workspaceReady ? void 0 : owningGroupKey(workspaces, revealSessionId);
  			const [expandedSessionGroups, setExpandedSessionGroups] = (0, react.useState)([]);
  			const [drag, setDrag] = (0, react.useState)(null);
-@@ -1596,7 +1671,7 @@
+@@ -1596,7 +1676,7 @@
  				});
  			}, [sessionOrderByAccount, workspaces]);
  			const orderedUngroupedSessionIds = (0, react.useMemo)(() => reconciledSessionOrder(ungroupedSessionIds, sessionOrderByAccount[""]), [sessionOrderByAccount, ungroupedSessionIds]);
@@ -232,7 +248,7 @@
  				expandedGroups,
  				...sessionOrderByAccount[""] === void 0 ? {} : { ungroupedOrder: sessionOrderByAccount[""] }
  			}), [
-@@ -1607,6 +1682,10 @@
+@@ -1607,6 +1687,10 @@
  				expandedGroups,
  				sessionOrderByAccount
  			]);
@@ -243,7 +259,7 @@
  			(0, react.useEffect)(() => {
  				if (revealGroup === void 0 || groupExpansion[revealGroup] === true) return;
  				setGroupExpanded(revealGroup, true);
-@@ -1626,7 +1705,6 @@
+@@ -1626,7 +1710,6 @@
  				revealGroup,
  				revealSessionId
  			]);
@@ -251,7 +267,7 @@
  			const commitSessionDrag = (activeDrag, over) => {
  				if (sessionDropCommitted.current) return;
  				sessionDropCommitted.current = true;
-@@ -1825,6 +1903,9 @@
+@@ -1825,6 +1908,9 @@
  											onRename: onSessionRename,
  											onFork: forkSession,
  											onArchive: onSessionArchive,
@@ -261,7 +277,7 @@
  											onReveal: node.id === revealSessionId && group.key === revealGroup ? () => {
  												onSessionRevealed(node.id);
  											} : void 0,
-@@ -1850,11 +1931,15 @@
+@@ -1850,11 +1936,15 @@
  			});
  		}
  		/** The flat "In one list" body: every session is one draggable top-level row. */
@@ -278,7 +294,7 @@
  			const baseRows = (0, react.useMemo)(() => deriveFlat(list, archivedSessionIds, pendingInteractions, workspaces, appearances), [
  				list,
  				archivedSessionIds,
-@@ -1887,7 +1972,7 @@
+@@ -1887,7 +1977,7 @@
  				sessionIds,
  				syncSessionOrderAccount
  			]);
@@ -287,7 +303,7 @@
  				const byId = new Map(baseRows.map((row) => [row.id, row]));
  				return reconciledSessionOrder(sessionIds, sessionOrderByAccount[FLAT_SESSION_ORDER_KEY]).flatMap((id) => {
  					const row = byId.get(id);
-@@ -1898,6 +1983,7 @@
+@@ -1898,6 +1988,7 @@
  				sessionOrderByAccount,
  				sessionIds
  			]);
@@ -295,7 +311,7 @@
  			const [drag, setDrag] = (0, react.useState)(null);
  			const dropCommitted = (0, react.useRef)(false);
  			useNativeDragAcceptance(drag !== null);
-@@ -1912,12 +1998,11 @@
+@@ -1912,12 +2003,11 @@
  				const sourceIndex = rows.findIndex((row) => row.id === activeDrag.sessionId);
  				const anchorIndex = anchor === void 0 ? rows.length : rows.findIndex((row) => row.id === anchor);
  				if (sourceIndex !== -1 && (anchorIndex === sourceIndex || anchorIndex === sourceIndex + 1)) return;
@@ -309,7 +325,7 @@
  			return (0, react_jsx_runtime.jsxs)("div", {
  				className: clsx(WorkspaceBrowser_module_css_default.treeBody, WorkspaceBrowser_module_css_default.wide),
  				children: [(0, react_jsx_runtime.jsxs)("div", {
-@@ -1937,6 +2022,9 @@
+@@ -1937,6 +2027,9 @@
  							onRename: onSessionRename,
  							onFork: forkSession,
  							onArchive: onSessionArchive,
@@ -319,7 +335,7 @@
  							onReveal: node.id === revealSessionId ? () => {
  								onSessionRevealed(node.id);
  							} : void 0,
-@@ -1980,7 +2068,7 @@
+@@ -1980,7 +2073,7 @@
  			});
  		}
  		/** Flat search body: local metadata matches plus the current Host result page. */
@@ -328,7 +344,7 @@
  			const panelActive = usePanelInfo((info) => info.activePanelId !== null);
  			const list = useSessions((s) => s);
  			const pendingInteractions = useSessionPendingInteraction((s) => s);
-@@ -1990,14 +2078,22 @@
+@@ -1990,14 +2083,22 @@
  				items: [],
  				hasMore: false
  			};
@@ -353,7 +369,7 @@
  			]);
  			const pending = currentRemote.status === "loading";
  			const failed = currentRemote.status === "error";
-@@ -2044,7 +2140,7 @@
+@@ -2044,7 +2145,7 @@
  		* @param props - composed slot props (shell owner share + store + injected actions).
  		* @returns the region element tree.
  		*/
@@ -362,7 +378,7 @@
  			const home = useHostInfo((info) => info.home);
  			const workspaces = useWorkspaces((state) => state.items);
  			const workspacePhase = useWorkspaces((state) => state.phase);
-@@ -2053,6 +2149,7 @@
+@@ -2053,6 +2154,7 @@
  			const directoryFlowAvailable = useDirectoryFlow((occupied) => occupied);
  			const groupBy = useStore((s) => s.groupBy);
  			const orderBy = useStore((s) => s.orderBy);
@@ -370,7 +386,7 @@
  			const groupExpansion = useStore((s) => s.groupExpansion);
  			const sessionOrderByAccount = useStore((s) => s.sessionOrderByAccount);
  			const sessionUpdatedAtByAccount = useStore((s) => s.sessionUpdatedAtByAccount);
-@@ -2363,12 +2460,16 @@
+@@ -2363,12 +2465,16 @@
  								children: [wide && (0, react_jsx_runtime.jsx)(ViewOptionsMenu, {
  									groupBy,
  									orderBy,
@@ -387,7 +403,7 @@
  									t
  								}), directoryFlowAvailable && (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Tooltip, {
  									label: t("workspace.add"),
-@@ -2429,6 +2530,7 @@
+@@ -2429,6 +2535,7 @@
  							usePanelInfo,
  							useSessions,
  							useSessionPendingInteraction,
@@ -395,7 +411,7 @@
  							open: openSearchResult,
  							workspaces,
  							archivedSessionIds,
-@@ -2440,6 +2542,9 @@
+@@ -2440,6 +2547,9 @@
  							usePanelInfo,
  							useSessions,
  							useSessionPendingInteraction,
@@ -405,7 +421,7 @@
  							open,
  							forkSession,
  							onSessionRename,
-@@ -2458,6 +2563,9 @@
+@@ -2458,6 +2568,9 @@
  							usePanelInfo,
  							useSessions,
  							useSessionPendingInteraction,
@@ -415,7 +431,7 @@
  							onSessionRename,
  							onSessionArchive,
  							forkSession,
-@@ -2649,6 +2757,12 @@
+@@ -2649,6 +2762,12 @@
  			"orderBy.label": "排序方式",
  			"orderBy.manual": "手动排序",
  			"orderBy.updated": "最近更新",
@@ -428,7 +444,7 @@
  			"sessions.expand": "展开其余 {n} 个会话",
  			"sessions.collapse": "收起",
  			"empty.none": "暂无会话",
-@@ -2682,6 +2796,8 @@
+@@ -2682,6 +2801,8 @@
  			"actions.workspace.aria": "工作区“{name}”的操作",
  			"actions.session.aria": "会话“{name}”的操作",
  			"actions.newSession.aria": "在“{name}”中新建会话",
@@ -437,7 +453,7 @@
  			"status.running": "进行中",
  			"status.subagentsRunning.one": "{n} 个子代理运行中",
  			"status.subagentsRunning.other": "{n} 个子代理运行中",
-@@ -2715,6 +2831,12 @@
+@@ -2715,6 +2836,12 @@
  			"orderBy.label": "Order by",
  			"orderBy.manual": "Manual",
  			"orderBy.updated": "Last updated",
@@ -450,7 +466,7 @@
  			"sessions.expand": "Show {n} more sessions",
  			"sessions.collapse": "Show less",
  			"empty.none": "No sessions yet",
-@@ -2748,6 +2870,8 @@
+@@ -2748,6 +2875,8 @@
  			"actions.workspace.aria": "Workspace actions for {name}",
  			"actions.session.aria": "Session actions for {name}",
  			"actions.newSession.aria": "New session in {name}",
@@ -459,7 +475,7 @@
  			"status.running": "Running",
  			"status.subagentsRunning.one": "{n} subagent running",
  			"status.subagentsRunning.other": "{n} subagents running",
-@@ -2787,7 +2911,8 @@
+@@ -2787,7 +2916,8 @@
  			"locale",
  			"remote",
  			"remote.directoryPicker",
@@ -469,7 +485,7 @@
  		];
  		/**
  		* Register the browser and picker once their slot declarations are on the
-@@ -2798,6 +2923,7 @@
+@@ -2798,6 +2928,7 @@
  		function apply(ctx) {
  			const sessions = ctx.get("sessions");
  			const workspaces = ctx.get("workspaces");
@@ -477,7 +493,7 @@
  			const uiWorkspace = new UiWorkspaceService(ctx, ctx.remote.directoryPicker, workspaces, sessions);
  			ctx.slots.provideRoot({ hooks: { workspaces: workspaces.list } });
  			ctx.effect(() => ctx.locale.register(NS, {
-@@ -2829,6 +2955,7 @@
+@@ -2829,6 +2960,7 @@
  				open: openSession,
  				searchSessions,
  				searchResultLimit: sessions.searchResultLimit,
@@ -485,7 +501,7 @@
  				renameSession: async (sessionId, title) => {
  					const session = sessions.binding(sessionId)?.session;
  					if (session === void 0) throw new Error(`unknown session "${sessionId}"`);
-@@ -2856,7 +2983,8 @@
+@@ -2856,7 +2988,8 @@
  				createWorkspace: (input) => workspaces.create(input),
  				hooks: {
  					directoryFlow: browserFlowSource,

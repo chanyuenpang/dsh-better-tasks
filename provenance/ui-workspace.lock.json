@@ -10,8 +10,8 @@
     "publishedClient": "383b9ef779366c13d818500b6488896328b189f156addbaa480c835e902edd5f",
     "installedBehaviorBaseline": "cbc9be0f92087cab703edaaf74f74050ff002c165646f9fcf03d231dcf8784f6",
     "installedDeltaPatch": "cca61cea2eb6184d23c9299cb1f97ba18778346c7b72580686ba0dfc40a1a3f0",
-    "betterTasksPatch": "53aa4cf10b36f8577adbba5a81db1000f571f168971dbca3dc73195a186cc04a",
+    "betterTasksPatch": "a32d3ea643875903da13178a86ca6dbfafaccd9626da16388cfb7d0f8f9935ff",
     "typesPatch": "59c6e39c58be416ba52a1081c6e1f8b431e45361360c396c2b8020b8cddb165d",
-    "forkClient": "c9baf56feda333e5ad908220e7cca5a90ceb9aa44100ec43530c1bedb56e3255"
+    "forkClient": "215f6b57521c2f7b1c8322efb5df84248f88501f580c8857aedbf8609916d13a"
   }
 }

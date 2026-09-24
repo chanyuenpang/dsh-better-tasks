@@ -1092,9 +1092,14 @@ window.__ModuleLoader__.load({
 							children: showStatus && (0, react_jsx_runtime.jsx)(SessionStatusDots, { statuses })
 						}),
 						flat && row.projectAppearance !== void 0 && (0, react_jsx_runtime.jsx)(ProjectAppearanceIcon, { appearance: row.projectAppearance }),
-						(0, react_jsx_runtime.jsx)("span", {
+						(0, react_jsx_runtime.jsxs)("span", {
 							className: Rows_module_css_default.title,
-							children: title
+							children: [pinned && (0, react_jsx_runtime.jsx)("span", {
+								"aria-hidden": true,
+								"data-dbt-pinned-title-marker": "",
+								style: { display: "inline-block", marginInlineEnd: 4 },
+								children: "📌"
+							}), title]
 						}),
 						row.hasActiveSchedule && (0, react_jsx_runtime.jsx)(ActiveScheduleIndicator, { t }),
 						!row.blank && (0, react_jsx_runtime.jsx)("span", {

@@ -1,0 +1,27 @@
+{
+  "release": "@veewo/dsh-better-tasks@0.2.1",
+  "sourceCommit": "0858ffb55544fd50da68026a28e927c39940e58f",
+  "createdAt": "2026-09-24T05:26:56.2262312Z",
+  "packages": [
+    {
+      "file": "deepseek-ai-dsh-client-ui-layout-0.1.5-rc.2.tgz",
+      "sha256": "df984b6a078463477f25998fd9396ef7b53030dc457e1786e978ae4cc2a7a44e",
+      "bytes": 20972
+    },
+    {
+      "file": "deepseek-ai-dsh-client-ui-user-questions-0.1.5-rc.2.tgz",
+      "sha256": "003337bcfd030b9a81e7cd5a2d77c7591bcfbabef3c51bdb978202d502377485",
+      "bytes": 23564
+    },
+    {
+      "file": "deepseek-ai-dsh-client-ui-workspace-0.1.5-rc.2.tgz",
+      "sha256": "b5cc3c62ea9a55921ac5b9c6e24ddf793a6fcb179f76f54aee66432dbcbc1b3c",
+      "bytes": 55578
+    },
+    {
+      "file": "veewo-dsh-better-tasks-0.2.1.tgz",
+      "sha256": "06d600748008b8b719b640726158ea1ba089d595866deb176a60ad01305cd625",
+      "bytes": 62911
+    }
+  ]
+}

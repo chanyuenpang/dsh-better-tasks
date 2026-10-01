@@ -11,7 +11,10 @@ const configured = Object.freeze({
   defaultTodoExpanded: true,
   defaultGoalExpanded: false,
   defaultFinalExpanded: false,
+  defaultInputExpanded: true,
   columnLayout: 'single',
+  titleEmphasis: 'task',
+  sidebarView: 'tasks',
 })
 
 function fakeScope(initial) {
@@ -38,8 +41,13 @@ function fakeScope(initial) {
 
 test('decodes only complete bounded Better Tasks preferences', () => {
   assert.deepEqual(decodeTaskPreferences(configured), configured)
+  const { titleEmphasis, ...legacy } = configured
+  assert.deepEqual(decodeTaskPreferences(legacy), { ...legacy, titleEmphasis: 'project' })
+  assert.equal(decodeTaskPreferences({ ...configured, titleEmphasis: 'session' }), undefined)
+  assert.equal(decodeTaskPreferences({ ...configured, titleEmphasis: null }), undefined)
   assert.equal(decodeTaskPreferences({ ...configured, detailFontSize: 17 }), undefined)
   assert.equal(decodeTaskPreferences({ ...configured, columnLayout: 'wide' }), undefined)
+  assert.equal(decodeTaskPreferences({ ...configured, sidebarView: 'deck' }), undefined)
   assert.equal(decodeTaskPreferences({ ...configured, defaultGoalExpanded: 'no' }), undefined)
 })
 
@@ -75,6 +83,17 @@ test('rolls an optimistic preference back when the Host write fails', async () =
   assert.equal(store.source.getSnapshot().value.detailFontSize, 15)
 })
 
+test('rolls back an emphasis change when Host rejects the write', async () => {
+  const store = createTaskPreferencesStore()
+  const scope = fakeScope({ status: 'ready', value: configured, revision: 2, writable: true, mode: 'host' })
+  scope.set = () => Promise.reject(new Error('write failed'))
+  store.connect(scope)
+  const write = store.set('titleEmphasis', 'project')
+  assert.equal(store.source.getSnapshot().value.titleEmphasis, 'project')
+  await assert.rejects(write, /write failed/)
+  assert.equal(store.source.getSnapshot().value.titleEmphasis, 'task')
+})
+
 test('routes validated field writes only through a writable bound scope', async () => {
   const store = createTaskPreferencesStore()
   await assert.rejects(store.set('detailFontSize', 14), /not writable/)
@@ -84,6 +103,11 @@ test('routes validated field writes only through a writable bound scope', async 
   assert.equal(store.source.getSnapshot().value.detailFontSize, 14)
   await write
   assert.deepEqual(scope.writes, [['detailFontSize', 14]])
+  const emphasisWrite = store.set('titleEmphasis', 'project')
+  assert.equal(store.source.getSnapshot().value.titleEmphasis, 'project')
+  await emphasisWrite
+  assert.deepEqual(scope.writes, [['detailFontSize', 14], ['titleEmphasis', 'project']])
+  await assert.rejects(store.set('titleEmphasis', 'session'), /invalid Better Tasks setting/)
   await assert.rejects(store.set('detailFontSize', 17), /invalid Better Tasks setting/)
   await assert.rejects(store.set('unknown', true), /unknown Better Tasks setting/)
 })

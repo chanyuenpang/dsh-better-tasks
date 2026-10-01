@@ -1,129 +1,51 @@
-# Better Tasks 插件发布流程
+# Better Tasks 0.3 Desktop public-release procedure
 
-本项目的正式 DSH Profile 必须加载不可变插件包，禁止直接引用开发 checkout。这样修改 `src/`、`forks/` 或重新构建项目都不会影响正在运行的 DSH；升级必须经过“构建 → 打包 → package-mode sandbox → Profile 安装 → composition 切换 → 重启回归”的完整流程。
+This is the current procedure for **DSH Desktop 0.2.0-rc.2**. The former 0.1.5 Web/local-unscoped line is preserved in [legacy release notes](<release-legacy-0.2.md>) and is not the install recipe for 0.3.
 
-## 发布物
+## Distribution contract
 
-每个版本发布四个 tgz：
+- The public npm bundle is `@veewo/dsh-better-tasks` (0.3.0 starts the Desktop line). Its `dsh.bundle.patch` is shipped as [the package layer](<../cordis.patch.yml>).
+- Six exact native-named Client forks are dependencies, downloaded from a separately revisioned, immutable [GitHub asset library](https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/better-tasks-forks-0.2.0-rc.2-r1). Do not publish those names to the upstream npm scope, rename their ModuleLoader identities, or use a developer `file:G:/...` dependency in a public package.
+- A main release includes its main tgz, the same six fork tgz files, a sanitized SHA-256 manifest and release notes. Preserve upstream licenses. Never overwrite bytes under an existing version/tag/filename; a changed fork requires a new library revision and main version.
+- Public assets/source commits exclude Profile backups, credentials, Session stores, runtime/sandbox logs, tokens and `.claw` session data. Use explicit path/file allowlists, never `git add .` or a recursive zip of a deployment directory.
 
-- `veewo-dsh-better-tasks-<version>.tgz`（同时发布为 npm public package `@veewo/dsh-better-tasks`）
-- `deepseek-ai-dsh-client-ui-layout-0.1.5-rc.2.tgz`
-- `deepseek-ai-dsh-client-ui-workspace-0.1.5-rc.2.tgz`
-- `deepseek-ai-dsh-client-ui-user-questions-0.1.5-rc.2.tgz`
+## Prepare once
 
-三个 fork 保留上游包名和 `0.1.5-rc.2` 基线，确保 Client 注入身份不变；它们的 tgz 内容由本仓库 provenance/patch 校验保证。`manifest.json` 记录每个文件的 SHA-256、大小和源提交。
+1. Obtain explicit release permission and compatibility/version agreement; verify npm write rights and GitHub repository permission without printing tokens.
+2. Freeze user-accepted functionality. Update the main manifest/version, public dependency URLs, supported native peer versions, README and release notes. Keep source/fork provenance reproducible.
+3. If this is a new fork library, commit/tag the audited fork source, publish its exact archives as a non-latest prerelease asset library, and verify anonymous download hashes before using those URLs. This avoids a cyclic requirement between a main tag's dependency URLs and generating its lockfile. It is not yet the stable main release.
+4. Generate/update the source lockfile from publicly reachable dependencies (no local dependency specs), build/test the completed batch once, and create one immutable main tarball. The current public-release pack helper validates the npm file list and accepted main/fork digests. Do not rebuild a main or fork during installation of an already verified identical archive.
+5. Commit only reviewed source, tests, provenance, public docs and sanitized manifests. A release tag must point to the actual source commit used for its archive, not an old base revision. Do not force-move existing tags.
 
-## 1. 发布前验证
+## Exact package-mode startup gate
 
-```powershell
-npm test
-npm run check
-```
+For every **new public archive or dependency composition**, cold-start that exact package-manager-resolved graph in its own Desktop sandbox before npm promotion:
 
-两条命令必须通过，包括三个 exact-fork provenance replay。修改 `package.json` 中 Better Tasks 的版本号；不要随意修改 fork 的包名或基线版本。
+- Independent `DSH_HOME`, desktop Profile, Session storage, ledger and Electron user-data; never point it at real storage.
+- Disable Cindy Host. Keep candidate rows, native disables and fork identities exactly as the published bundle specifies.
+- Confirm the Host listening endpoint and the actual `dsh-app://app/` preload/core root, sidebar, Session, Workspace and conversation activation with no startup errors/service-wait deadlock. Compare served bundle bytes to candidate digests.
+- Startup only, not feature/visual QA. User acceptance remains authoritative; do not measure computed CSS, geometry or pixels as a routine release check.
+- Stop the owned Desktop/Host tree and verify every owned process and listener has disappeared before touching any real Profile. Record startup and cleanup evidence, sanitized before public upload.
 
-## 2. 构建不可变包
+The accepted Desktop local archive is not sufficient evidence for a public manifest whose dependency locations changed. A public-URL install must resolve successfully and match the same fork bytes. Failed gating prevents stable publication; it is not a reason to restart or patch the real Desktop.
 
-以下以 `0.2.0` 为例：
+## Publish and verify
 
-```powershell
-$release = Join-Path $PWD 'releases\0.2.0'
-New-Item -ItemType Directory -Force $release | Out-Null
-npm run build
-npm pack --pack-destination $release
-npm pack .\forks\ui-layout --pack-destination $release
-npm pack .\forks\ui-workspace --pack-destination $release
-npm pack .\forks\ui-user-questions --pack-destination $release
-```
-
-生成后计算 SHA-256 并写入 `manifest.json`。发布目录一旦用于 Profile 安装就不可覆盖；修复必须发布新版本目录。
-
-## 3. package-mode sandbox 门禁
-
-Sandbox 必须使用独立 `DSH_HOME`，并禁用 Cindy Host：
+After all gates pass, publish the **exact verified main tgz** to the official npm registry:
 
 ```powershell
-$env:DSH_HOME = Join-Path $PWD 'sandbox\dsh-home'
-dsh plugin --profile better-tasks-sandbox add `
-  "$release\veewo-dsh-better-tasks-0.2.0.tgz" `
-  "$release\deepseek-ai-dsh-client-ui-layout-0.1.5-rc.2.tgz" `
-  "$release\deepseek-ai-dsh-client-ui-workspace-0.1.5-rc.2.tgz" `
-  "$release\deepseek-ai-dsh-client-ui-user-questions-0.1.5-rc.2.tgz"
-
-dsh --profile better-tasks-sandbox `
-  --patch "$PWD\sandbox\cordis.packaged.yml" `
-  --no-open --port 3081
+npm.cmd publish releases/0.3.0/veewo-dsh-better-tasks-0.3.0.tgz --access public --tag latest --registry=https://registry.npmjs.org/
+npm.cmd view '@veewo/dsh-better-tasks@0.3.0' name version dist.integrity dist.tarball --json --registry=https://registry.npmjs.org/
 ```
 
-`cordis.packaged.yml` 只能使用包名：
+Verify registry version/integrity against the archive and verify `latest`. If authentication or OTP is required, pause transparently for the user; never report a queued/failed publish as success.
 
-```yaml
-- insert:
-    - id: ui-layout-dbt
-      name: '@deepseek-ai/dsh-client-ui-layout'
-    - id: ui-workspace-dbt
-      name: '@deepseek-ai/dsh-client-ui-workspace'
-    - id: ui-user-questions-dbt
-      name: '@deepseek-ai/dsh-client-ui-user-questions'
-    - id: better-tasks-sidebar
-      name: '@veewo/dsh-better-tasks'
-```
+Publish/promote the main [GitHub release](https://github.com/chanyuenpang/dsh-better-tasks/releases) and its immutable source tag, upload only the safe asset list, then re-read URLs, asset sizes/digests and final non-draft/non-prerelease status. Keep the fork library separate from the repository's latest plugin release.
 
-通过条件：Host 成功监听、核心页面激活、设置页交互与跨刷新持久化通过、浏览器错误为 0。结束后必须停止并确认 `:3081` 无监听。
+Publishing is **not** a real-Profile upgrade or restart. The user's accepted local Desktop stays installed unless a separate update is requested. Future installation of an identical archive/graph can reuse its technical evidence after verifying composition/hashes; it does not need another build or feature sandbox run.
 
-## 4. 发布到 npm
+## Development source tests
 
-主包使用 public scope `@veewo/dsh-better-tasks`。确认 npm 身份属于 `veewo` organization、版本尚未存在，然后发布并回读 registry：
+The pinned fork source is generated under ignored `.srcbuild/`, using [the source lock](<../provenance/source.lock.json>) and [recorded patches](<../src-patches/>). On a fresh clone use Node 24+, `npm ci --ignore-scripts`, then `npm run test:prepare` before `npm test`. The prepare mode only stages/applies test source contracts and toolchain, not accepted fork lib artifacts. A deliberate `npm run build:fork` changes artifacts and therefore requires fresh provenance/package validation.
 
-```powershell
-npm whoami
-npm publish --access public
-npm view '@veewo/dsh-better-tasks@0.2.0' name version dist.integrity --json
-```
-
-npm 版本不可覆盖；任何内容变化都必须提升版本并重走 sandbox 门禁。三个 exact fork 不发布到不属于本项目的 `@deepseek-ai` scope，它们继续作为本仓库 release assets 安装。
-
-## 5. 安装到正式 Profile
-
-先把 exact-fork tgz 复制到项目目录外的版本化发布库；主包从 npm registry 安装：
-
-```powershell
-$version = '0.2.0'
-$source = Join-Path $PWD "releases\$version"
-$releaseRoot = Join-Path $env:USERPROFILE ".dsh\plugin-releases\dsh-better-tasks\$version"
-New-Item -ItemType Directory -Force $releaseRoot | Out-Null
-Copy-Item "$source\*" $releaseRoot -Force
-
-dsh plugin --profile web add `
-  '@veewo/dsh-better-tasks@0.2.0' `
-  "$releaseRoot\deepseek-ai-dsh-client-ui-layout-0.1.5-rc.2.tgz" `
-  "$releaseRoot\deepseek-ai-dsh-client-ui-workspace-0.1.5-rc.2.tgz" `
-  "$releaseRoot\deepseek-ai-dsh-client-ui-user-questions-0.1.5-rc.2.tgz"
-```
-
-确认 `${DSH_HOME:-$HOME/.dsh}\profiles\web\package.json` 的依赖指向发布库 tgz。再备份并编辑用户 Profile 的 `cordis.patch.yml`，把四个 `file:///.../Projects/...` 行替换为上述四个包名。不得编辑 DSH 安装目录或 shipped preset。
-
-由于 Profile 可启用 live patch reload，写 patch 前必须已通过 package-mode sandbox；写入后仍要按正常流程取得明确确认，再以 grace period 重启正式 `dsh web`。
-
-## 6. 正式回归
-
-重启后检查：
-
-1. `:3080` 只有一个 listener，`:3081` 无 listener；
-2. composition 中四个 Better Tasks 行均从 Profile package 解析，不含开发 checkout 路径；
-3. 设置页显示 Better Tasks Tab；
-4. 字号、三个独立默认展开选项和列布局修改后立即生效并跨刷新保存；
-5. Goal 默认折叠，展开 Todo 不改变 Goal；
-6. Pin/Unpin optimistic 反馈、Host CAS、Final 与 Workspace 功能无回归；
-7. 浏览器 console/runtime 错误为 0。
-
-## 回滚
-
-保留上一版本发布目录和 patch 备份。回滚时：
-
-1. 用 `dsh plugin --profile web add <上一版本 tgz...>` 恢复上一组依赖；
-2. 恢复上一份 package-name `cordis.patch.yml`；
-3. 取得确认后重启 `dsh web`；
-4. 不删除 Session、Goal、Todo、Pin queue、project appearance 或 `better-tasks-ui` settings 数据。
-
-不要把 composition 改回开发 checkout 作为普通回滚手段；项目路径只允许用于隔离开发 sandbox。
+Unified-diff context whitespace and byte-locked upstream artifacts are retained; validate authored code/docs separately rather than normalizing vendor bytes and breaking hashes.

@@ -1,0 +1,19 @@
+# Better Tasks owns one removable bundle layer; the six pinned forks are dependencies.
+# Native package names/Client identities are preserved, not republished to their npm scope.
+- id: ui-layout
+  disabled: true
+- id: ui-sidebar
+  disabled: true
+- id: ui-workspace
+  disabled: true
+- id: ui-user-questions
+  disabled: true
+- insert:
+    - id: ui-layout-dbt
+      name: '@deepseek-ai/dsh-client-ui-layout'
+    - id: ui-workspace-dbt
+      name: '@deepseek-ai/dsh-client-ui-workspace'
+    - id: ui-user-questions-dbt
+      name: '@deepseek-ai/dsh-client-ui-user-questions'
+    - id: better-tasks-ui
+      name: '@veewo/dsh-better-tasks'

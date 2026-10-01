@@ -64,7 +64,7 @@ test('exact question fork keeps one canonical owner and publishes an optional su
 
 test('surface service recognizes only official carriers and preserves waterfall settlement', async () => {
   const source = await readFile(sourceUrl, 'utf8')
-  const { plugin } = materialize(source)
+  const { plugin, styles } = materialize(source)
   const disposers = []
   let service
   let remoteHandler
@@ -80,6 +80,16 @@ test('surface service recognizes only official carriers and preserves waterfall 
     remote: { $on: (_name, handler) => { remoteHandler = handler; return () => {} } },
   }
   plugin.apply(ctx)
+  const scoped = styles.find((style) => style.dataset.pluginCss === '@deepseek-ai/dsh-client-ui-user-questions/task-card')?.textContent
+  assert.ok(scoped)
+  assert.match(scoped, /\[data-question-surface="task-card"\] \.Mbwy4a_title\{[^}]*font-size:12px;line-height:18px\}/)
+  assert.match(scoped, /\[data-question-surface="task-card"\] \.Mbwy4a_body\{font-size:12px;line-height:18px\}/)
+  assert.match(scoped, /\[data-question-surface="task-card"\] \.Mbwy4a_optionLabel\{[^}]*font-size:12px;line-height:18px\}/)
+  assert.match(scoped, /\[data-question-surface="task-card"\] \.Mbwy4a_description\{[^}]*font-size:11px;line-height:16px\}/)
+  assert.match(scoped, /\[data-question-surface="task-card"\] \.Mbwy4a_fieldMirror,\[data-question-surface="task-card"\] \.Mbwy4a_fieldInput\{font-size:12px;line-height:18px\}/)
+  assert.match(scoped, /\[data-question-surface="task-card"\] \.Mbwy4a_footerActions button\{height:28px;min-height:28px;padding:0 9px;font-size:12px;line-height:18px\}/)
+  assert.doesNotMatch(scoped, /\[data-question-surface="composer"\]|\[data-question-surface="task-card"\] \.\w+_actions button/)
+  assert.match(source, /\.Mbwy4a_title\{margin:0;font-size:16px;font-weight:500;line-height:22px\}/)
   assert.ok(service)
   assert.equal(service.isSupported({ kind: 'question' }), false)
   assert.equal(service.render({ kind: 'question' }), null)

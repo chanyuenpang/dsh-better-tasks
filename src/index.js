@@ -3,16 +3,13 @@ import { z } from 'zod'
 import Schema from '@deepseek-ai/schemastery'
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain'
 import {
-  PIN_QUEUE_KEY,
   PIN_QUEUE_SCHEMA_VERSION,
   PinQueueError,
-  applyPinCommand,
-  createEmptyPinQueue,
-  prunePinQueue,
   publicPinQueue,
 } from './pin-model.mjs'
 import { installProjectAppearance } from './project-appearance.mjs'
 import { createFinalMessageHttpHandler } from './final-message.mjs'
+import { createNativePinHost } from './native-pin-host.mjs'
 
 export const name = 'dsh-better-tasks'
 export const inject = ['storageDomain', 'sessionController', 'sessionQuery', 'workspaceRegistry', 'webServer']
@@ -22,15 +19,43 @@ export const TASK_SETTINGS_DEFAULTS = Object.freeze({
   defaultTodoExpanded: false,
   defaultGoalExpanded: false,
   defaultFinalExpanded: true,
+  defaultInputExpanded: false,
   columnLayout: 'auto',
+  titleEmphasis: 'project',
+  sidebarView: 'native',
 })
 export const TaskSettingsSchema = Schema.object({
-  detailFontSize: Schema.number().step(1).min(11).max(16).default(13),
-  defaultTodoExpanded: Schema.boolean().default(false),
-  defaultGoalExpanded: Schema.boolean().default(false),
-  defaultFinalExpanded: Schema.boolean().default(true),
-  columnLayout: Schema.union(['auto', 'single', 'double']).default('auto'),
+  // 0.2 exposes only volatile Config fields through settings.describe/forms.
+  // Its .volatile() is exactly .extra('volatile', true); use that public metadata
+  // API so the retained 0.1.5 build-time Schemastery can parse the same schema.
+  detailFontSize: Schema.number().step(1).min(11).max(16).default(13).extra('volatile', true),
+  defaultTodoExpanded: Schema.boolean().default(false).extra('volatile', true),
+  defaultGoalExpanded: Schema.boolean().default(false).extra('volatile', true),
+  defaultFinalExpanded: Schema.boolean().default(true).extra('volatile', true),
+  defaultInputExpanded: Schema.boolean().default(false).extra('volatile', true),
+  columnLayout: Schema.union(['auto', 'single', 'double']).default('auto').extra('volatile', true),
+  titleEmphasis: Schema.union(['project', 'task']).default('project').extra('volatile', true),
+  // D1: the sidebar body the browser shows. Host-persisted, so both generations
+  // read and write it through the same Config path.
+  sidebarView: Schema.union(['native', 'tasks']).default('native').extra('volatile', true),
 })
+
+/**
+ * The plugin's own Config schema.
+ *
+ * 0.2 derives both the settings form and the persistence namespace from a plugin's
+ * entry: the namespace is the loader entry id and the fields are this schema's
+ * keys, so the seven preference fields have to live here. The 0.1.5 runtime entry
+ * point `settings.register(namespace, schema)` does not exist in 0.2 — calling it
+ * threw inside a non-blocking inject callback, which is exactly why preferences
+ * never persisted and nothing reported itself as broken.
+ *
+ * {@link TASK_SETTINGS_NAMESPACE} is therefore both the 0.1.5 namespace and the
+ * required 0.2 row id: under the same name the values 0.1.5 wrote are read in
+ * place and a rollback loses nothing, so no copy migration is needed. A row named
+ * anything else starts at these defaults and leaves the legacy key untouched.
+ */
+export const Config = TaskSettingsSchema
 
 const pinQueueRecord = z.object({
   schemaVersion: z.literal(PIN_QUEUE_SCHEMA_VERSION),
@@ -43,6 +68,22 @@ export const pinQueueDomain = defineDomain({
   name: 'better_tasks_pin_queue',
   version: 1,
   tables: { queues: domainTable(pinQueueRecord) },
+})
+
+// A new unit, not a field/table extension of the rollback-readable legacy queue.
+export const nativePinOrderDomain = defineDomain({
+  name: 'better_tasks_native_order', version: 1,
+  tables: { state: domainTable(pinQueueRecord.extend({
+    migration: z.object({
+      status: z.enum(['running', 'done', 'partial']),
+      sourceRevision: z.number().int().nonnegative().nullable(),
+      entries: z.array(z.object({
+        sessionId: z.string().min(1),
+        status: z.enum(['pending', 'attempted', 'imported', 'skipped', 'failed', 'uncertain']),
+        detail: z.string().optional(),
+      })),
+    }),
+  })) },
 })
 
 function sendJson(res, status, value) {
@@ -104,41 +145,49 @@ export function createPinQueueHttpHandler({ current, eligibleSessionIds, retaine
   }
 }
 
-export async function apply(ctx) {
-  ctx.inject(['settings'], (settingsCtx) => {
-    settingsCtx.settings.register(TASK_SETTINGS_NAMESPACE, TaskSettingsSchema)
-  })
-  await installProjectAppearance(ctx)
-  const domain = await ctx.storageDomain.open(pinQueueDomain)
-  const queues = domain.table('queues')
-  if (queues.get(PIN_QUEUE_KEY) === undefined) await queues.put(PIN_QUEUE_KEY, createEmptyPinQueue())
-
-  const current = () => {
-    const queue = queues.get(PIN_QUEUE_KEY)
-    if (queue === undefined) throw new PinQueueError('better-tasks/missing-record', 'pin queue record is unavailable')
-    return queue
-  }
-
-  const sessionEligibility = async () => {
-    const value = await ctx.sessionController.list({}, new AbortController().signal)
-    const archived = new Set(ctx.workspaceRegistry.archivedSessionIds.map(String))
-    const retained = value.items
-      .filter((session) => session.origin !== 'subagent' && !archived.has(String(session.sessionId)))
-    return {
-      eligible: new Set(retained.filter((session) => !session.blank).map((session) => String(session.sessionId))),
-      retained: new Set(retained.map((session) => String(session.sessionId))),
+export function createNativePinHttpHandler(controller) {
+  return async (req, res) => {
+    try {
+      if (req.method === 'GET') return sendJson(res, 200, controller.read())
+      if (req.method !== 'POST') return sendJson(res, 405, { code: 'method-not-allowed' })
+      return sendJson(res, 200, await controller.mutate(await readJson(req)))
+    } catch (error) {
+      const status = error?.status ?? (error?.name === 'WorkspaceUnknownSessionError' ? 404 : error?.name === 'WorkspaceArchivedSessionPinError' ? 400 : errorStatus(error))
+      return sendJson(res, status, { ...controller.current(), code: error?.code ?? 'better-tasks/write-failed', message: String(error?.message ?? error) })
     }
   }
-  const eligibleSessionIds = async () => (await sessionEligibility()).eligible
-  const retainedSessionIds = async () => (await sessionEligibility()).retained
+}
 
-  const prune = async (eligible) => {
-    const observed = current()
-    if (prunePinQueue(observed, eligible) === observed) return observed
-    return queues.update(PIN_QUEUE_KEY, (queue) => prunePinQueue(queue, eligible))
+export async function apply(ctx) {
+  ctx.inject(['settings'], (settingsCtx) => {
+    // 0.1.5: the Host settings service accepted a runtime namespace registration.
+    if (typeof settingsCtx.settings.register === 'function') {
+      settingsCtx.settings.register(TASK_SETTINGS_NAMESPACE, TaskSettingsSchema)
+      return
+    }
+    // 0.2: the schema comes from `Config` above, so the only thing left to declare
+    // is the instance-level UI policy, attributed to this plugin's fiber.
+    if (typeof settingsCtx.settings.configure === 'function') {
+      settingsCtx.effect(
+        () => settingsCtx.settings.configure({ auto: false }, ctx.fiber),
+        'dsh-better-tasks: settings presentation',
+      )
+    }
+  })
+  await installProjectAppearance(ctx)
+  // No migration/storage wait in plugin startup. Native controls are independent
+  // of this optional ordering feature; the first feature request starts its work.
+  const open = async (spec, tableName) => {
+    const domain = await ctx.storageDomain.open(spec)
+    return { table: domain.table(tableName), close: () => domain.close() }
   }
-  const mutate = async (command) => queues.update(PIN_QUEUE_KEY, (queue) => applyPinCommand(queue, command))
-  const handler = createPinQueueHttpHandler({ current, eligibleSessionIds, retainedSessionIds, mutate, prune })
+  const controller = createNativePinHost({
+    registry: ctx.workspaceRegistry,
+    openOrder: () => open(nativePinOrderDomain, 'state'),
+    openLegacy: () => open(pinQueueDomain, 'queues'),
+    subscribe: listener => ctx.on('domain/changed', listener),
+  })
+  const handler = createNativePinHttpHandler(controller)
 
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
@@ -149,11 +198,11 @@ export async function apply(ctx) {
     kind: 'exact',
     path: '/api/better-tasks/final-message',
     handler: createFinalMessageHttpHandler({
-      isPinned: (sessionId) => current().sessionIds.includes(String(sessionId)),
+      isPinned: (sessionId) => ctx.workspaceRegistry.pinnedSessionIds.includes(String(sessionId)),
       readSession: (sessionId) => ctx.sessionQuery.readSession(sessionId),
     }),
   }), 'dsh-better-tasks.final-message-http')
   ctx.effect(() => async () => {
-    await domain.close()
-  }, 'dsh-better-tasks.pin-domain-close')
+    await controller.dispose()
+  }, 'dsh-better-tasks.native-pin-controller-close')
 }

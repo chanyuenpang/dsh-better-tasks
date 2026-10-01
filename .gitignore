@@ -1,10 +1,19 @@
 node_modules/
 npm-debug.log*
 
+# Standalone source-build root for the client UI forks (generated tree + toolchain).
+.srcbuild/
+
+# Scratch output of scripts/port-fork-baseline.mjs.
+.port-probe/
+
 # Browser and isolated DSH runtime profiles (large, local, and may contain credentials).
 sandbox/.edge-final/
 sandbox/edge-fork-profile/
 sandbox/dsh-home/
+sandbox/.desktop-*/home/
+sandbox/.desktop-*/electron-*/
+releases/*/preinstall-backup/
 
 # claw-kit transient state; keep project plans, Truth, and reports.
 .claw/runtime/
@@ -15,3 +24,9 @@ sandbox/dsh-home/
 # Generated composition dumps and screenshots are machine-specific evidence.
 sandbox/*-composed.yml
 sandbox/*.png
+
+# Public-release scratch and private deployment evidence; stage only safe manifests explicitly.
+.release-public-lock-*/
+.public-release-*/
+sandbox/.desktop-*/
+releases/0.3.0/

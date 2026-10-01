@@ -123,17 +123,30 @@ function projectTask(summary, currentId, pendingInteraction) {
   })
 }
 
+/** Match the native 0.2 browser's main-view selection, not Agent running state. */
+export function currentTaskSessionId(list, panelActive = false) {
+  if (panelActive) return undefined
+  const rows = Object.values(list.byId)
+  // 0.2's catalog removed list.current; retention is updated as the view switches.
+  // Never fall back to an obsolete current id once the new contract is present.
+  if (rows.some((row) => Object.hasOwn(row, 'retainedBy'))) {
+    return rows.find((row) => (row.retainedBy?.mainView ?? 0) > 0)?.id
+  }
+  return list.current // Retained 0.1.5 compatibility only.
+}
+
 /** Derive task cards in the exact Host-owned pin order. */
-export function derivePinnedTasks({ list, pinnedSessionIds, pendingInteractions = new Map() }) {
+export function derivePinnedTasks({ list, pinnedSessionIds, pendingInteractions = new Map(), panelActive = false }) {
   if (!Array.isArray(pinnedSessionIds)) throw new Error('pinnedSessionIds must be an array')
   const seen = new Set()
   const tasks = []
+  const currentId = currentTaskSessionId(list, panelActive)
   for (const id of pinnedSessionIds) {
     if (seen.has(id)) continue
     seen.add(id)
     const summary = list.byId[id]
     if (summary === undefined || summary.blank || summary.origin === 'subagent') continue
-    tasks.push(projectTask(summary, list.current, pendingInteractions.get(id)))
+    tasks.push(projectTask(summary, currentId, pendingInteractions.get(id)))
   }
   return tasks
 }

@@ -1,39 +1,48 @@
-# dsh-better-tasks
+# Better Tasks for DSH Desktop
 
-A compositional DSH sidebar replacement with a Host-global pinned-task queue and version-locked compatibility forks of the native Workspace Browser, layout frame, and user-question surface.
+A compositional sidebar and pinned-task view for **DSH Desktop 0.2.0-rc.2**. The 0.3 line uses the native Workspace Registry as the single Pin owner and ships a removable Cordis bundle with six exact, audited Client compatibility forks.
 
-## Behavior
+> **Compatibility change:** 0.3.0 targets the Desktop 0.2 runtime, not the legacy 0.1.5 Web composition. Legacy users should keep their existing compatible release (npm 0.2.4); do not bypass DSH peer-version checks.
 
-- `BetterSidebarRoot` replaces only the shipped `ui-sidebar` root while preserving its six child-slot contracts.
-- A project-local fork of `@deepseek-ai/dsh-client-ui-workspace@0.1.5-rc.2` remains the single `uiWorkspace` owner and the single registrant for `sidebar.workspaces` and `conversation.hero.workspace`. On cold startup it opens the restored current Session binding so Goal actions work before any new chat message.
-- A project-local exact fork of `@deepseek-ai/dsh-client-ui-layout@0.1.5-rc.2` remains the single `layout`/root owner. It persists the last positive sidebar width under `dsh-better-tasks.layout.sidebar-width.v1`, clamps it to `264px..max(840px, 50vw)`, and preserves it across collapse and refresh.
-- The Session view keeps native search, grouping, ordering, Workspace actions, and directory flows. Its existing view-options menu adds `all / 1d / 3d / 7d / 14d` activity filtering.
-- Every ordinary grouped/flat Session row uses one Pin glyph with `aria-pressed` off/on states. Pinned rows also show an `aria-hidden` `📌` prefix before the Session name for faster visual scanning. There is no task-list add button or settings picker.
-- The Host persists one revision-CAS pin queue in the `better_tasks_pin_queue` storage domain. Membership and manual order survive refreshes, restarts, and browsers. The Client projects Pin/Unpin intents immediately while Host writes remain serialized against confirmed revisions; failures roll back and 409 conflicts still retry once. Every New Session route—Sessions/Tasks tab, top/rail action, or Workspace group—uses one `uiWorkspace` lifecycle hook and the dedicated idempotent `pin-created` command.
-- The same Host package owns the existing `workspace_appearance` domain and `/api/project-appearance` contract, including its 191-icon catalog. Existing icon/color records remain in place and no separate project-appearance plugin is required.
-- The Tasks view renders that exact queue order. Cards are whole-card drag surfaces and selection targets without a grab cursor, with a hover-only top-right unpin action, native `relativeTime`, the unchanged native running `StateDot`, persistent read-only Goal/Todo disclosures, and `block > running > idle` card backgrounds. Empty or completed Goal projections and unavailable Todo projections are disabled. Goal and Todo default to collapsed and never affect one another. Final defaults to expanded for each new idle cycle; manual choices survive tab switches and refreshes for the same lifecycle. Its bounded safe payload and cycle marker are cached, and the icon-free detail uses the full card width.
-- The native Settings panel has a Better Tasks section backed by the Host `better-tasks-ui` settings namespace. It configures 11–16px projection detail text, independent Todo/Goal/Final default expansion, and `auto / single / double` task columns. Auto preserves the strict `>528px` boundary; both two-column modes use independent index-interleaved vertical flows.
+## Install
 
-## Package
+In DSH Desktop **Settings → Plugins**, install the public bundle:
 
-The Host/Client package is published publicly as [`@veewo/dsh-better-tasks`](https://www.npmjs.com/package/@veewo/dsh-better-tasks):
-
-```bash
-npm install @veewo/dsh-better-tasks
+```text
+@veewo/dsh-better-tasks@0.3.0
 ```
 
-The complete sidebar composition also requires the three version-locked compatibility forks. Use the immutable assets and package-name composition described in [`docs/release.md`](docs/release.md); do not point a real DSH Profile at the development checkout.
+The npm main package is [`@veewo/dsh-better-tasks`](https://www.npmjs.com/package/@veewo/dsh-better-tasks). Its six native-named fork dependencies resolve from fixed [GitHub release assets](https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/better-tasks-forks-0.2.0-rc.2-r1); there are no developer-machine `file:G:/...` references and no manual checkout/fork-name renaming. Keep GitHub reachable during installation.
 
-## Commands
+Restart Desktop if Plugin Manager reports **restart required**. Installing a package is not the same as the running page loading it. Do not enable the shipped `ui-sidebar` simultaneously: the bundle owns the replacement layer and restores native rows when removed. For release/rollback procedure see [release](<docs/release.md>) and [rollback](<docs/rollback.md>).
 
-```bash
-npm run build       # verifies/materializes all exact forks, then builds the sidebar bundle
-npm test            # complete unit and contract suite
-npm run check       # build plus syntax checks
+## Features
+
+- Switch between the native Session browser and a task swimlane in the same sidebar; native search, Workspace grouping, rename, archive and directory operations remain.
+- Native Pin membership is shared with official Session rows. Better Tasks persists a separate task-card order, not a second membership truth. New Session paths use the same native action and auto-Pin lifecycle hook.
+- Cards keep the native running StateDot, localized relative time and current main-view selection. Clicking a card immediately opens its Session. Double-clicking its non-interactive area toggles Final: close immediately when expanded; open only when a current, nonempty Final preview is available.
+- Final is a bounded, read-only Host projection (up to 4000 Unicode code points). The currently browsed task does not automatically expand Final for a new idle cycle; manual choices win, and navigation does not retroactively expand it. Cold startup catalog fallback/hydration does not erase saved choices or lower the consumed activity watermark.
+- Independent native input surfaces let pinned idle tasks receive messages, commands and skill insertion without changing the main view. Hidden input retains its draft. Ordinary native questions can be answered inside cards through the same draft/settlement owner; plan-review approval stays in its native panel.
+- Host-backed settings configure detail/question text size (11–16), default disclosures, native/tasks view, task/project title emphasis, and auto/single/double columns. Auto uses two independent vertical flows only above 528px. Input remains subordinate to expanded Final, rather than pretending every disclosure is display-independent.
+- Native layout owns sidebar width and collapse. Its last positive width is retained. Windows caption controls remain reachable at zero-width collapse; macOS uses the legal frame-owned `shell.leading` reopen/New Session seat. Browser-style rails keep their existing behavior.
+
+## Distribution and provenance
+
+The six forks preserve upstream package names, ModuleLoader identities, `0.2.0-rc.2` baseline and licenses. They are **not official upstream npm releases** and are not published to the `@deepseek-ai` registry scope. Audited bytes and SHA-256 manifests are release assets; source patches are under [src-patches](<src-patches/>) and upstream source is pinned by [source lock](<provenance/source.lock.json>). Changing a fork requires a new asset-library revision and a new main version; never replace an archive under an existing URL.
+
+The source tag/release is [v0.3.0](https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/v0.3.0). Release assets contain code archives and sanitized manifests only, never real Profile backups, Session stores, credentials or runtime logs.
+
+## Development
+
+Use Node **24+** for the source-contract tests (`stripTypeScriptTypes`) and install developer dependencies:
+
+```powershell
+npm ci --ignore-scripts
+npm run test:prepare  # stage pinned, patched TS test sources; does not rebuild fork artifacts
+npm test             # build the main client, then run unit/contract tests
+npm run check
 ```
 
-Fork provenance is locked in `provenance/ui-workspace.lock.json`, `provenance/ui-layout.lock.json`, and `provenance/ui-user-questions.lock.json`; reviewed deltas are in the matching `patches/` directories. Sandbox and real-GUI evidence is recorded in `sandbox/acceptance.md`, with rollback steps in `docs/rollback.md`.
+`npm run build:fork` is a deliberate source-fork rebuild for development, not a routine main release step. It uses the pinned upstream tag and official preset; revalidate changed bytes before deployment. `.srcbuild/` is generated and ignored. Never point a real Profile at the mutable checkout.
 
-## Architecture
-
-The base contract and final interaction revision are recorded under `.claw/tasks/2026-09-23/钉选任务队列与侧栏交互优化/feature-architecture/`, including `2026-09-23-1149-任务卡交互与侧栏宽度修订.md`.
+Technical unit/package/startup checks do not replace user acceptance. Desktop candidates must cold-start in isolated storage with Cindy disabled, and every sandbox process/listener must be removed before real installation. Functional and appearance acceptance belong to the user; the agent does not automatically restart the real Desktop.

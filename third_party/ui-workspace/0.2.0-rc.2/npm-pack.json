@@ -1,0 +1,146 @@
+[
+  {
+    "id": "@deepseek-ai/dsh-client-ui-workspace@0.2.0-rc.2",
+    "name": "@deepseek-ai/dsh-client-ui-workspace",
+    "version": "0.2.0-rc.2",
+    "size": 90393,
+    "unpackedSize": 341330,
+    "shasum": "875a3c3bce5b134294c8bb6c7be9c9b0dbd292ed",
+    "integrity": "sha512-uAgZV/73MRBHLj9LdXimYnRo9fBRp/vJDPmYI3WY+1aqp/fhFNfEvgmY/4O1yRDxC1ghV/06MDMwMXZAxWhTXQ==",
+    "filename": "deepseek-ai-dsh-client-ui-workspace-0.2.0-rc.2.tgz",
+    "files": [
+      {
+        "path": "LICENSE",
+        "size": 1065,
+        "mode": 420
+      },
+      {
+        "path": "README.i18n.yaml",
+        "size": 3012,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 29127,
+        "mode": 420
+      },
+      {
+        "path": "README.zh.md",
+        "size": 27159,
+        "mode": 420
+      },
+      {
+        "path": "lib/client.js",
+        "size": 200045,
+        "mode": 420
+      },
+      {
+        "path": "lib/index.js",
+        "size": 453,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/contract/slots.d.ts",
+        "size": 23414,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/index.d.ts",
+        "size": 2052,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/locales.d.ts",
+        "size": 8087,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/navigation.d.ts",
+        "size": 7312,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/pin-order.d.ts",
+        "size": 1673,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/rows/AnimatedRows.d.ts",
+        "size": 1547,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/rows/Rows.d.ts",
+        "size": 5857,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/rows/WorkspaceBrowser.d.ts",
+        "size": 844,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/session-actions/ArchiveSession.d.ts",
+        "size": 1499,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/session-actions/derived.d.ts",
+        "size": 678,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/session-actions/ForkSession.d.ts",
+        "size": 536,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/session-actions/PinSession.d.ts",
+        "size": 859,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/session-actions/RenameSession.d.ts",
+        "size": 1234,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/session-actions/RowActionToast.d.ts",
+        "size": 816,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/shortcuts.d.ts",
+        "size": 2185,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/stores.d.ts",
+        "size": 3460,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/tree.d.ts",
+        "size": 11294,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/WorkspacePicker.d.ts",
+        "size": 3609,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/index.d.ts",
+        "size": 452,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 3061,
+        "mode": 420
+      }
+    ],
+    "entryCount": 26,
+    "bundled": []
+  }
+]

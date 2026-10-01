@@ -1,0 +1,96 @@
+[
+  {
+    "id": "@deepseek-ai/dsh-client-ui-user-questions@0.2.0-rc.2",
+    "name": "@deepseek-ai/dsh-client-ui-user-questions",
+    "version": "0.2.0-rc.2",
+    "size": 43572,
+    "unpackedSize": 146046,
+    "shasum": "6f5b252c469aa4fc1cacb91093624926e5450bff",
+    "integrity": "sha512-1AZHhZtH6LfZ1ASX23nL+Lk3lILSEKeq3mbdeYWRSLY1M86ynntU6xwxo6inCd1s5jyf+4KQfGSR3DJ75lI1TQ==",
+    "filename": "deepseek-ai-dsh-client-ui-user-questions-0.2.0-rc.2.tgz",
+    "files": [
+      {
+        "path": "LICENSE",
+        "size": 1065,
+        "mode": 420
+      },
+      {
+        "path": "README.i18n.yaml",
+        "size": 2429,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 12879,
+        "mode": 420
+      },
+      {
+        "path": "README.zh.md",
+        "size": 11907,
+        "mode": 420
+      },
+      {
+        "path": "lib/client.js",
+        "size": 89162,
+        "mode": 420
+      },
+      {
+        "path": "lib/index.js",
+        "size": 496,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/contract/slots.d.ts",
+        "size": 13416,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/draft-store.d.ts",
+        "size": 1756,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/index.d.ts",
+        "size": 1699,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/locales.d.ts",
+        "size": 2127,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/PlanReviewPanel.d.ts",
+        "size": 732,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/question-reply.d.ts",
+        "size": 2918,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/QuestionComposer.d.ts",
+        "size": 1352,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/QuestionReplyView.d.ts",
+        "size": 1019,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/index.d.ts",
+        "size": 497,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 2592,
+        "mode": 420
+      }
+    ],
+    "entryCount": 16,
+    "bundled": []
+  }
+]

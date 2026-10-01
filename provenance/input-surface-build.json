@@ -1,0 +1,72 @@
+{
+  "version": "0.2.0-rc.2",
+  "sourceCommit": "639ed015397290b3745d163aafe02ffee4aa3f84",
+  "results": [
+    {
+      "slug": "ui-input-trigger",
+      "clientSha256": "ca833a62c52c10898e071f510ebb17556f9e8525b4436a3bba5ac121b7098f17",
+      "officialArchiveSha256": "26a18c9af78c1dc8cd0cde19468cc8f294404e9c31788d43fd5b60716e682c37",
+      "officialClientSha256": "8fb600a9355c48edd02a54587efda18c70fe4047f5c9d124b1837a4214b1bd26",
+      "moduleEdges": [
+        "@deepseek-ai/cordis",
+        "@deepseek-ai/dsh-client-store",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "react",
+        "react/jsx-runtime"
+      ],
+      "declarations": [
+        "lib\\types\\client\\contract.d.ts",
+        "lib\\types\\client\\controller.d.ts",
+        "lib\\types\\client\\index.d.ts",
+        "lib\\types\\client\\MenuView.d.ts",
+        "lib\\types\\client\\service.d.ts",
+        "lib\\types\\core\\contract.d.ts",
+        "lib\\types\\core\\menu.d.ts",
+        "lib\\types\\types.d.ts"
+      ]
+    },
+    {
+      "slug": "ui-commands",
+      "clientSha256": "56392b3bdbd7d5083c89a0fee2cb55e8dab46a942bafc9613a36a2b0cedddd4d",
+      "officialArchiveSha256": "6a10c17ceb1dc91222c20b6f845c38261578a38f532419354e498faf51d68420",
+      "officialClientSha256": "2bec91f1523c15e01a74b7718e631a03b876d529c2fe3c6564cbaee167fe4b41",
+      "moduleEdges": [
+        "@deepseek-ai/cordis",
+        "@deepseek-ai/dsh-client-store",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "react",
+        "react/jsx-runtime"
+      ],
+      "declarations": [
+        "lib\\types\\client\\contract.d.ts",
+        "lib\\types\\client\\PopupSelectView.d.ts",
+        "lib\\types\\client\\service.d.ts"
+      ]
+    },
+    {
+      "slug": "ui-conversation",
+      "clientSha256": "6e8bdad33a685c34b5cdfc7841e766bce241a6e63250317f612034babc393632",
+      "officialArchiveSha256": "f63e5169ec293ba750c52a03f9e9bb8f0a4b3398f37285e6d8ba4d6fcc83fdff",
+      "officialClientSha256": "8d5c8223197d52d69eb0587f88a8a051fc172985553915f1de361544653a68b0",
+      "moduleEdges": [
+        "@deepseek-ai/cordis",
+        "@deepseek-ai/dsh-client-store",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "react",
+        "react-dom",
+        "react/jsx-runtime"
+      ],
+      "declarations": [
+        "lib\\types\\client\\contract\\input-surface.d.ts",
+        "lib\\types\\client\\contract\\input.d.ts",
+        "lib\\types\\client\\index.d.ts",
+        "lib\\types\\client\\input\\facade.d.ts",
+        "lib\\types\\client\\input\\hub.d.ts",
+        "lib\\types\\client\\input\\InputSurfaceView.d.ts",
+        "lib\\types\\client\\input\\surface-lifetime.d.ts",
+        "lib\\types\\client\\input\\surface.d.ts"
+      ]
+    }
+  ]
+}

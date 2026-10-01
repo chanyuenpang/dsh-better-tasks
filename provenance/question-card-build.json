@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0-rc.2",
+  "sourceCommit": "639ed015397290b3745d163aafe02ffee4aa3f84",
+  "results": [
+    {
+      "slug": "ui-user-questions",
+      "clientSha256": "0e204ef1b7ab8c7d8cb9761aae365675ff8b1526b8d502ec86ea2e95a5cb064f",
+      "officialArchiveSha256": "f3c61d0070a7ab0e43fba0ea13431d4325580fd17478f846589bb0dd663e8ff4",
+      "officialClientSha256": "9b8a76c3f1a5ab7eb62bd529b42eff5b8feba66e29eecc9705b399bac6c508ed",
+      "moduleEdges": [
+        "@deepseek-ai/dsh-client-store",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "react",
+        "react/jsx-runtime"
+      ],
+      "declarations": [
+        "lib\\types\\client\\contract\\slots.d.ts",
+        "lib\\types\\client\\draft-store.d.ts",
+        "lib\\types\\client\\index.d.ts",
+        "lib\\types\\client\\PlanReviewPanel.d.ts",
+        "lib\\types\\client\\question-surface.d.ts",
+        "lib\\types\\client\\QuestionComposer.d.ts",
+        "lib\\types\\client\\region-boundary.d.ts",
+        "lib\\types\\client\\surface-card.d.ts"
+      ]
+    }
+  ]
+}

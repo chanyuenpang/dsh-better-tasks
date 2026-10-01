@@ -1,0 +1,420 @@
+===================================================================
+--- a/packages/client/ui-commands/src/client/contract.ts
++++ b/packages/client/ui-commands/src/client/contract.ts
+@@ -5,7 +5,9 @@
+  */
+ import type { ComponentType } from 'react'
+ import type { Context as ClientContext } from '@deepseek-ai/cordis'
+-import type { ClientSessionContext } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
++import type { ClientSessionContext, InputSurfaceTarget, InputSurfaceToken } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
++import type { PopupSelectController } from './popup.ts'
++import type { PopupSelectView } from './PopupSelectView.tsx'
+ import type { IconProps } from '@deepseek-ai/dsh-client-ui-primitives'
+ 
+ /** Copy for an option that must be acknowledged before onSelect can run. */
+@@ -147,4 +149,10 @@
+   dismiss(name: string): void
+   /** Resolve the per-session popup controller for one session scope (wiring/overlay layer). */
+   popupFor(actx: ClientContext): unknown
++  /** Bind a detached input to the existing native command registry and popup implementation. */
++  attachSurface(actx: ClientContext, token: InputSurfaceToken, target: InputSurfaceTarget): {
++    readonly popup: PopupSelectController<ClientSessionContext>
++    readonly View: typeof PopupSelectView
++    dispose(): void
++  }
+ }
+===================================================================
+--- a/packages/client/ui-commands/src/client/PopupSelectView.tsx
++++ b/packages/client/ui-commands/src/client/PopupSelectView.tsx
+@@ -11,7 +11,7 @@
+  * above the composer.
+  */
+ import { MenuGroup, MenuSurface, observeStickyMenuGroups } from '@deepseek-ai/dsh-client-ui-primitives'
+-import { Fragment, useEffect, useMemo, useRef } from 'react'
++import { Fragment, useEffect, useMemo, useRef, type ReactElement } from 'react'
+ import { useSyncExternalStore } from 'react'
+ import clsx from 'clsx'
+ import { IconCheckOutlineRegular, RiskConfirmation, useAnchoredMaxHeight } from '@deepseek-ai/dsh-client-ui-primitives'
+@@ -32,14 +32,14 @@
+ }
+ 
+ /** Full shell props: injected face + the locale seat. */
+-export type PopupSelectViewProps = PopupSelectInjected & PropsLocale<'command'>
++export type PopupSelectViewProps = PopupSelectInjected & PropsLocale<'command'> & { readonly inline?: boolean }
+ 
+ /**
+  * Render the popupSelect shell overlay entry.
+  * @param props - injected face: the session's shell controller; `t` rides the standard locale seat.
+  * @returns the select card while open; null while closed.
+  */
+-export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
++export function PopupSelectView({ popup, t, inline = false }: PopupSelectViewProps): ReactElement | null {
+   const state = useSyncExternalStore(
+     fn => popup.state.subscribe(fn),
+     () => popup.state.getSnapshot(),
+@@ -47,6 +47,10 @@
+   const cardRef = useRef<HTMLDivElement>(null)
+   const searchRef = useRef<HTMLInputElement>(null)
+   const viewportRef = useRef<HTMLDivElement>(null)
++  // This search input is outside Lexical: it needs its own composition guard.
++  // Keep the same 10ms post-composition window as the native composer keymap.
++  const composing = useRef(false)
++  const composingUntil = useRef(0)
+   const rows = useMemo(() => filterOptions(state.options, state.search, state.searchMode),
+     [state.options, state.search, state.searchMode])
+   const groups = useMemo(() => groupOptions(rows), [rows])
+@@ -82,6 +86,13 @@
+     return () => { document.removeEventListener('pointerdown', onPointerDown, true) }
+   }, [state.open, state.confirming, popup])
+ 
++  useEffect(() => {
++    // Closing or entering confirmation can unmount the input without compositionend.
++    // A later popup must not inherit that abandoned composition.
++    composing.current = false
++    composingUntil.current = 0
++  }, [state.open, state.command, state.confirming])
++
+   // Focus the search input after it mounts (separate effect so the ref is populated).
+   useEffect(() => {
+     if (state.open && state.confirming === null) searchRef.current?.focus()
+@@ -95,6 +106,11 @@
+     : state.options.length === 0 ? state.searchLabels.empty : state.searchLabels.noResults
+ 
+   const onKeyDown = (ev: React.KeyboardEvent<HTMLDivElement>): void => {
++    // Do not consume the browser/IME's candidate-confirmation, navigation or cancel.
++    // Safari can deliver the closing keydown just after compositionend; 229 covers
++    // engines that omit isComposing. None of these keys may select or dismiss.
++    if (ev.nativeEvent.isComposing || ev.nativeEvent.keyCode === 229
++      || composing.current || Date.now() < composingUntil.current) return
+     // ArrowLeft/ArrowRight fall through on purpose: the search input keeps
+     // its native caret movement.
+     switch (ev.key) {
+@@ -108,6 +124,8 @@
+         return
+       case 'Enter':
+         ev.preventDefault()
++        // Holding the Enter that opened this popup is not a second selection.
++        if (ev.repeat) return
+         void popup.select(state.active)
+         return
+       // Tab settles like Enter and Shift+Tab dismisses like Escape, so the
+@@ -156,7 +174,7 @@
+         <MenuSurface
+           ref={cardRef}
+           className={css.card}
+-          style={{ maxHeight }}
++          style={inline ? { position: 'relative', inset: 'auto', width: '100%', minWidth: 0, maxHeight: MAX_HEIGHT } : { maxHeight }}
+           aria-label={t('overlay.aria', { command: String(state.command) })}
+           onKeyDown={onKeyDown}
+         >
+@@ -168,6 +186,8 @@
+             aria-label={t('search.aria')}
+             value={state.search}
+             readOnly={state.submitting}
++            onCompositionStart={() => { composing.current = true }}
++            onCompositionEnd={() => { composing.current = false; composingUntil.current = Date.now() + 10 }}
+             onChange={(ev) => { popup.setSearch(ev.currentTarget.value) }}
+           />
+           {state.error !== null && (
+===================================================================
+--- a/packages/client/ui-commands/src/client/service.ts
++++ b/packages/client/ui-commands/src/client/service.ts
+@@ -26,12 +26,13 @@
+ import { rankByName } from '@deepseek-ai/dsh-client-ui-primitives'
+ import type {
+   CandidateRequest, ClientSessionContext, CommandClaim, PickOutcome, InputTriggerCandidate, InputTriggerPick,
+-  SubmitAttachment, SubmitEnvelope, SubmitOutcome,
++  InputSurfaceTarget, InputSurfaceToken, SubmitAttachment, SubmitEnvelope, SubmitOutcome,
+ } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
+ import type { CommandContribution, CommandDecoration, CommandUiContract } from './contract.ts'
+ import type { CommandDescriptor } from './directory.ts'
+ import { CommandDirectory } from './directory.ts'
+ import { PopupSelectController } from './popup.ts'
++import { PopupSelectView } from './PopupSelectView.tsx'
+ import { builtinRowFace, sectionRows } from './presentation.ts'
+ import { claimToken } from './resolution.ts'
+ import type { TokenSegment } from './popup.ts'
+@@ -66,21 +67,29 @@
+ }
+ 
+ /** Live mutable state in one holder (service methods run behind the caller-ctx tracker). */
++interface SurfaceRoute {
++  readonly binding: SessionBinding
++  readonly target: InputSurfaceTarget
++  readonly popup: PopupSelectController<ClientSessionContext>
++}
++
+ interface LiveState {
+   readonly contributions: Map<string, CommandContribution>
+   readonly decorations: Map<string, CommandDecoration>
+   readonly popups: WeakMapWithValues<SessionBinding, PopupSelectController<ClientSessionContext>>
++  readonly surfaces: Map<InputSurfaceToken, SurfaceRoute>
++  readonly usedTokens: WeakSet<InputSurfaceToken>
+ }
+ 
+ /** Command surface: session-keyed directory + '/' source + contribution registry + per-session popups. */
+ export class CommandUiRuntime extends Service implements CommandUiContract {
+-  static inject = ['inputTriggers', 'sessions', 'remote', 'remote.commands']
++  static inject: string[] = ['inputTriggers', 'sessions', 'remote', 'remote.commands']
+ 
+   private readonly directory: CommandDirectory
+   private readonly live: LiveState = {
+     contributions: new Map(),
+     decorations: new Map(),
+-    popups: new WeakMapWithValues(),
++    popups: new WeakMapWithValues(), surfaces: new Map(), usedTokens: new WeakSet(),
+   }
+   /** `command`-namespace translator (composer refusal notices). */
+   private readonly t: TranslateNS<'command'>
+@@ -171,7 +180,7 @@
+    * @param name - command name without the leading slash.
+    */
+   dismiss(name: string): void {
+-    for (const popup of this.live.popups.values) {
++    for (const popup of [...this.live.popups.values, ...[...this.live.surfaces.values()].map(route => route.popup)]) {
+       // A catalog that went stale underneath the card takes its rows away; the
+       // composer keeps the keyboard the card was holding, like every other
+       // dismissal path.
+@@ -215,13 +224,80 @@
+     return controller
+   }
+ 
++  /** Attach an independent popup and mutation route; token object identity is authoritative. */
++  attachSurface(actx: ClientContext, token: InputSurfaceToken, target: InputSurfaceTarget): {
++    popup: PopupSelectController<ClientSessionContext>; View: typeof PopupSelectView; dispose(): void
++  } {
++    const sessions = this.sessions()
++    const session = sessions.sessionOf(actx)
++    const binding = session === undefined ? undefined : sessions.binding(session.sessionId)
++    if (binding === undefined || binding.session !== session) throw new Error('command.attachSurface requires a retained Session scope')
++    if (target.signal.aborted || typeof token !== 'object' || token === null || this.live.usedTokens.has(token)) {
++      throw new Error('command surface token is closed or already used')
++    }
++    this.live.usedTokens.add(token)
++    const projection = { sessionId: binding.sessionId, surface: token }
++    const popup = new PopupSelectController<ClientSessionContext>({
++      consume: segment => {
++        if (!this.surfaceAlive(projection)) return false
++        return target.consumeToken(segment.via === 'menu' ? { kind: 'span', span: segment.span } : { kind: 'bare-token', token: segment.token })
++      },
++      focusComposer: () => { if (this.surfaceAlive(projection)) target.focus() },
++    })
++    const route = { binding, target, popup }
++    this.live.surfaces.set(token, route)
++    let closed = false
++    let removeBinding: (() => unknown) | undefined
++    let removeOwner: (() => unknown) | undefined
++    const dispose = () => {
++      if (closed) return
++      closed = true
++      target.signal.removeEventListener('abort', dispose)
++      this.live.surfaces.delete(token)
++      const releaseBinding = removeBinding
++      const releaseOwner = removeOwner
++      removeBinding = removeOwner = undefined
++      try { popup.dispose() } finally {
++        try { void releaseBinding?.() } finally { void releaseOwner?.() }
++      }
++    }
++    target.signal.addEventListener('abort', dispose, { once: true })
++    try {
++      removeBinding = binding.ctx.effect(() => dispose, 'command: input surface')
++      removeOwner = this.ctx.effect(() => dispose, 'command: surface provider lifetime')
++      if (target.signal.aborted) throw new Error('command surface closed during creation')
++      return { popup, View: PopupSelectView, dispose }
++    } catch (error) {
++      dispose()
++      throw error
++    }
++  }
++
++  /** Undefined means the original native route ONLY when no token was supplied. */
++  private surfaceFor(session: ClientSessionContext): SurfaceRoute | undefined {
++    if (session.surface === undefined) return undefined
++    const route = this.live.surfaces.get(session.surface)
++    if (route === undefined || route.target.signal.aborted || route.binding.sessionId !== session.sessionId
++      || this.sessions().binding(session.sessionId) !== route.binding) {
++      throw new Error('unknown or closed command input surface')
++    }
++    return route
++  }
++
++  private surfaceAlive(session: ClientSessionContext): boolean {
++    try { return this.surfaceFor(session) !== undefined } catch { return false }
++  }
++
+   /**
+    * Menu candidates: host catalog + contribution availability, built-in rows
+    * localized, then position filtering; sections for an empty query, the
+    * shared name-and-label ranking for a typed one.
+    */
+   private async candidates(session: ClientSessionContext, req: CandidateRequest): Promise<readonly InputTriggerCandidate[]> {
++    this.surfaceFor(session)
+     const list = await this.directory.ensureReady(session.sessionId, req.signal)
++    this.surfaceFor(session)
++    if (req.signal.aborted) return []
+     const rows: InputTriggerCandidate[] = []
+     const seen = new Set<string>()
+     for (const c of list) {
+@@ -250,6 +326,7 @@
+ 
+   /** Decision table, menu column: contribution/decorated-host → popup or action; host input → claim; host bare → detached execute. */
+   private dispatch(pick: InputTriggerPick): PickOutcome {
++    this.surfaceFor(pick.session)
+     const name = pick.candidate.name
+     const contribution = this.live.contributions.get(name)
+     if (contribution !== undefined && contribution.available(pick.session)) {
+@@ -269,13 +346,15 @@
+     if (desc.input !== undefined) return { claim: this.leadingClaim(desc, pick.session, claimToken(desc, this.t)) }
+     // Menu-pick execute consumes the trigger span before the detached run
+     // (scoped event; the input owns the CAS guard).
+-    this.consumeVia(pick.session.sessionId, { via: 'menu', span: pick.span })
+-    this.runDetached(desc, pick.session, `/${name}`)
++    const segment: TokenSegment = { via: 'menu', span: pick.span }
++    if (pick.session.surface === undefined) this.consumeVia(pick.session, segment)
++    this.runDetached(desc, pick.session, `/${name}`, segment)
+     return 'handled'
+   }
+ 
+   /** Decision table, space column: hot-key sync check; only host leadingInput claims. */
+   private matchSpace(session: ClientSessionContext, token: string): PickOutcome {
++    this.surfaceFor(session)
+     if (!token.startsWith('/')) return undefined
+     if (this.live.contributions.has(token.slice(1))) return undefined // popup and action kinds never claim on space
+     const desc = this.directory.resolve(session.sessionId, token.slice(1))
+@@ -305,6 +384,7 @@
+     signal: AbortSignal,
+     envelope: SubmitEnvelope,
+   ): Promise<PickOutcome> {
++    this.surfaceFor(session)
+     const trimmed = line.trim()
+     if (!trimmed.startsWith('/')) return undefined
+     const ws = trimmed.search(/\s/)
+@@ -323,6 +403,8 @@
+       return 'handled'
+     }
+     await this.directory.ensureReady(session.sessionId, signal)
++    this.surfaceFor(session)
++    signal.throwIfAborted()
+     const desc = this.directory.resolve(session.sessionId, typedName)
+     if (desc === undefined) return undefined
+     const name = desc.name
+@@ -343,8 +425,9 @@
+     }
+     if (!bare) return undefined
+     if (envelope.attachments > 0) refuseAttachments()
+-    this.consumeVia(session.sessionId, { via: 'enter', token })
+-    this.runDetached(desc, session, canonical)
++    const segment: TokenSegment = { via: 'enter', token }
++    if (session.surface === undefined) this.consumeVia(session, segment)
++    this.runDetached(desc, session, canonical, segment)
+     return 'handled'
+   }
+ 
+@@ -358,8 +441,28 @@
+     session: ClientSessionContext,
+     segment: TokenSegment,
+   ): void {
++    const route = this.surfaceFor(session)
++    if (route !== undefined) {
++      if (ui.kind === 'action') {
++        void route.target.withOperation(() => ui.run(session)).then(() => {
++          if (this.surfaceAlive(session)) this.consumeVia(session, segment)
++        }).catch(error => { this.noticeFor(session, 'error', error instanceof Error ? error.message : String(error)) })
++        return
++      }
++      route.popup.open(name, {
++        ...ui,
++        onSelect: (option, context) => {
++          const active = this.surfaceFor(context)
++          if (active !== route) throw new Error('command surface changed')
++          // Selecting/confirming a popup is a new gesture, unlike a nested claim dispatch.
++          if (!route.target.isAvailable()) throw new Error('command input surface is unavailable')
++          return route.target.withOperation(() => ui.onSelect(option, context))
++        },
++      }, session, segment)
++      return
++    }
+     if (ui.kind === 'action') {
+-      this.consumeVia(session.sessionId, segment)
++      this.consumeVia(session, segment)
+       ui.run(session)
+       return
+     }
+@@ -403,13 +506,20 @@
+     line: string,
+     attachments: readonly SubmitAttachment[] = [],
+   ): Promise<SubmitOutcome> {
++    const route = this.surfaceFor(session)
++    return route === undefined
++      ? this.executeRemote(session, line, attachments)
++      : route.target.withOperation(() => this.executeRemote(session, line, attachments))
++  }
++
++  private async executeRemote(session: ClientSessionContext, line: string, attachments: readonly SubmitAttachment[]): Promise<SubmitOutcome> {
+     const result = await this.ctx.remote.commands.execute(session.sessionId, line, attachments)
+     if (!result.ok) throw new Error(`command.execute failed: ${result.error.code}: ${result.error.message}`)
+     if (result.value === undefined) return { kind: 'error', text: `unknown or malformed command: ${line}` }
+     this.notifyExecuted(session.sessionId, submittedCommandName(line), result.value.result)
+     // A submission consumes its attachments only after handler success; an
+     // error outcome keeps the draft and attachments in the composer.
+-    if (attachments.length > 0 && result.value.result.kind === 'error') {
++    if ((session.surface !== undefined || attachments.length > 0) && result.value.result.kind === 'error') {
+       return { kind: 'error', text: result.value.result.text }
+     }
+     return { kind: 'success' }
+@@ -446,21 +556,27 @@
+    * entered a handler and therefore never logged — falls back to the composer
+    * notice as immediate feedback.
+    */
+-  private runDetached(desc: CommandDescriptor, session: ClientSessionContext, line: string): void {
++  private runDetached(desc: CommandDescriptor, session: ClientSessionContext, line: string, segment: TokenSegment): void {
+     void this.execute(session, line).then(
+       (outcome) => {
+         // matched:false maps to an error outcome with no logged lifecycle.
+-        if (outcome.kind === 'error') this.noticeFor(session.sessionId, 'error', outcome.text ?? `/${desc.name} failed`)
++        if (outcome.kind === 'error') this.noticeFor(session, 'error', outcome.text ?? `/${desc.name} failed`)
++        else if (session.surface !== undefined && this.surfaceAlive(session)) this.consumeVia(session, segment)
+       },
+-      (error: unknown) => {
+-        this.noticeFor(session.sessionId, 'error', error instanceof Error ? error.message : String(error))
+-      },
+-    )
++    ).catch((error: unknown) => {
++      // Includes a throwing target CAS callback after the Remote succeeds.
++      this.noticeFor(session, 'error', error instanceof Error ? error.message : String(error))
++    })
+   }
+ 
+   /** Dispatch a consume-token event to one session (menu-pick / bare-enter execute paths). */
+-  private consumeVia(id: SessionId, segment: TokenSegment): void {
+-    const actx = this.scopeFor(id)
++  private consumeVia(session: ClientSessionContext, segment: TokenSegment): void {
++    const route = this.surfaceFor(session)
++    if (route !== undefined) {
++      route.target.consumeToken(segment.via === 'menu' ? { kind: 'span', span: segment.span } : { kind: 'bare-token', token: segment.token })
++      return
++    }
++    const actx = this.scopeFor(session.sessionId)
+     if (actx === undefined) return
+     actx.bail(actx, 'slash/input-consume-token', {
+       guard: segment.via === 'menu'
+@@ -470,8 +586,16 @@
+   }
+ 
+   /** Route an admission failure to the session's composer notice channel (scope gone = attempt died with it). */
+-  private noticeFor(id: SessionId, level: 'info' | 'error', text: string): void {
+-    const actx = this.scopeFor(id)
++  private noticeFor(session: ClientSessionContext, level: 'info' | 'error', text: string): void {
++    if (session.surface !== undefined) {
++      // A late result may outlive its surface, but must never notify the main composer.
++      if (this.surfaceAlive(session)) {
++        try { this.surfaceFor(session)!.target.notify(level, text) }
++        catch (error) { this.ctx.logger.warn('command surface notice failed', error) }
++      }
++      return
++    }
++    const actx = this.scopeFor(session.sessionId)
+     if (actx === undefined) return
+     const conversation = actx.get('conversation')
+     if (conversation === undefined) return

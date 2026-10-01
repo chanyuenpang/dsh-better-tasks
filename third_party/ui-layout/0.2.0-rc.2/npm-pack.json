@@ -1,0 +1,96 @@
+[
+  {
+    "id": "@deepseek-ai/dsh-client-ui-layout@0.2.0-rc.2",
+    "name": "@deepseek-ai/dsh-client-ui-layout",
+    "version": "0.2.0-rc.2",
+    "size": 25896,
+    "unpackedSize": 75843,
+    "shasum": "097337a8b27c9bddcb4c75e856eeadb9832abe8f",
+    "integrity": "sha512-GY6BbZ26rNrEJDQ1q38aIun09Z1t7GXWLWHUIwoItl/IwHAagABBcZhtnK0PWosw/n5QNqLSer7b+GFuB5zyQQ==",
+    "filename": "deepseek-ai-dsh-client-ui-layout-0.2.0-rc.2.tgz",
+    "files": [
+      {
+        "path": "LICENSE",
+        "size": 1065,
+        "mode": 420
+      },
+      {
+        "path": "README.i18n.yaml",
+        "size": 1652,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 9892,
+        "mode": 420
+      },
+      {
+        "path": "README.zh.md",
+        "size": 8784,
+        "mode": 420
+      },
+      {
+        "path": "lib/client.js",
+        "size": 31749,
+        "mode": 420
+      },
+      {
+        "path": "lib/index.js",
+        "size": 180,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/AppFrame.d.ts",
+        "size": 693,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/columns.d.ts",
+        "size": 2379,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/DocumentTitle.d.ts",
+        "size": 678,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/index.d.ts",
+        "size": 6391,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/service.d.ts",
+        "size": 4050,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/shortcut-locales.d.ts",
+        "size": 236,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/stores.d.ts",
+        "size": 3203,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/client/theme-presenter.d.ts",
+        "size": 2840,
+        "mode": 420
+      },
+      {
+        "path": "lib/types/index.d.ts",
+        "size": 174,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 1877,
+        "mode": 420
+      }
+    ],
+    "entryCount": 16,
+    "bundled": []
+  }
+]

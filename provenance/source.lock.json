@@ -1,0 +1,23 @@
+{
+  "package": "deepseek-ai/deepseek-harness",
+  "repository": "https://github.com/deepseek-ai/deepseek-harness.git",
+  "tag": "dsh-v0.2.0-rc.2",
+  "version": "0.2.0-rc.2",
+  "commit": "639ed015397290b3745d163aafe02ffee4aa3f84",
+  "tarball": "https://codeload.github.com/deepseek-ai/deepseek-harness/tar.gz/refs/tags/dsh-v0.2.0-rc.2",
+  "tarballSha256": "c126f2f5dc56820e62d07e52eba6455cc20fffb379fc876626993452d86d4010",
+  "vendoredTarball": "third_party/source/dsh-v0.2.0-rc.2.tar.gz",
+  "title": "DeepSeek Harness",
+  "profile": "official",
+  "buildToolchain": {
+    "tsdown": "^0.22.2",
+    "lightningcss": "^1.30.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@types/react": "~18.3.1",
+    "@types/react-dom": "~18.3.0",
+    "typescript": "^5.9.3"
+  },
+  "note": "The forks are built from this tag's source through the unmodified official packages/client/tsdown.client.ts preset. Only the preset's node half is dropped (it needs a workspace-wide tsc project graph that the fork does not change); with DSH_BUILD_FACE unset the client entry is src/client/index.ts, so the browser artifact builds straight from TSX. Acquiring the tag: `git fetch` of this tag hangs in this environment (smart-HTTP), so use codeload with a resumable download: curl.exe -sS -L -C - --max-time 120 -o <file> <tarball>.",
+  "fidelity": "Building an UNMODIFIED 0.2.0-rc.2 ui-layout through this root reproduces the published npm artifact exactly after normalizing seed-derived CSS class hashes, build-path region comments, @__PURE__ annotations and require ordering (scripts/compare-client-bundles.mjs prints EQUIVALENT). ui-workspace and ui-user-questions differ from their npm artifacts only by inlined TS downleveling helpers (__create/__defProp et al.) that the CI route had already lowered via the tsc intermediate; the programs are semantically equivalent."
+}

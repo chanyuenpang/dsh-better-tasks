@@ -1,0 +1,6 @@
+{
+  "repository": "https://github.com/deepseek-ai/deepseek-harness.git",
+  "tag": "dsh-v0.2.0-rc.2",
+  "commit": null,
+  "note": "Review provenance only; the published package is the executable baseline because standalone source rebuild is not byte-reproducible from the npm artifact."
+}

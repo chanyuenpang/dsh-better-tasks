@@ -1,0 +1,243 @@
+===================================================================
+--- a/packages/client/ui-layout/src/client/AppFrame.tsx
++++ b/packages/client/ui-layout/src/client/AppFrame.tsx
+@@ -19,9 +19,10 @@
+ import type {
+   PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore,
+ } from '@deepseek-ai/dsh-client-ui-slots'
+-import { CENTER_MIN, clampWidth, computeColumns, RIGHTBAR_DEFAULT_RATIO, RIGHTBAR_MAX_RATIO, RIGHTBAR_MIN, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT } from './columns.ts'
++import { CENTER_MIN, clampWidth, computeColumns, RIGHTBAR_DEFAULT_RATIO, RIGHTBAR_MAX_RATIO, RIGHTBAR_MIN, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_COLLAPSED } from './columns.ts'
+ import { DocumentTitle } from './DocumentTitle.tsx'
+ import type { createLayoutStore } from './stores.ts'
++import { currentSidebarPreference } from './stores.ts'
+ import css from './AppFrame.module.css'
+ 
+ /** Full composed props: runtime share + child-slot render share + store share. */
+@@ -161,7 +162,7 @@
+   const sidebarCollapsed = narrow ? !layoutInfo.narrowExpanded : layoutInfo.sidebar === 0
+   const sidebarPreference = sidebarCollapsed
+     ? 0
+-    : layoutInfo.sidebar === 0 ? SIDEBAR_DEFAULT : layoutInfo.sidebar
++    : layoutInfo.sidebar === 0 ? currentSidebarPreference() : layoutInfo.sidebar
+   const rightbarPreference = layoutInfo.rightbar ?? viewport * RIGHTBAR_DEFAULT_RATIO
+   // Desktop reopen controls occupy the frame's shell.leading seat (macOS) or
+   // the Windows caption row; neither platform keeps an icon rail.
+===================================================================
+--- a/packages/client/ui-layout/src/client/columns.ts
++++ b/packages/client/ui-layout/src/client/columns.ts
+@@ -11,8 +11,11 @@
+ export const CENTER_MIN = 400
+ /** Sidebar drag clamp floor. */
+ export const SIDEBAR_MIN = 264
+-/** Sidebar drag clamp ceiling. */
+-export const SIDEBAR_MAX = 420
++/**
++ * Sidebar drag clamp ceiling floor: the effective ceiling is the larger of this
++ * and half the viewport, so a wide frame may spend its space on the sidebar.
++ */
++export const SIDEBAR_MAX = 840
+ /** Sidebar width before any user drag. */
+ export const SIDEBAR_DEFAULT = 280
+ /** Closed-sidebar rail: a 24px icon column between 16px horizontal paddings. */
+@@ -40,6 +43,15 @@
+ }
+ 
+ /**
++ * Effective sidebar ceiling for one frame.
++ * @param viewport - available frame width in px.
++ * @returns the larger of {@link SIDEBAR_MAX} and half the viewport.
++ */
++export function sidebarMax(viewport: number): number {
++  return Math.max(SIDEBAR_MAX, viewport * 0.5)
++}
++
++/**
+  * Solve the three column widths for one viewport frame.
+  * @param viewport - available frame width in px.
+  * @param sidebar - sidebar width preference in px (0 = closed).
+@@ -50,7 +62,7 @@
+  *   without that track may the center fall below its minimum, down to zero.
+  */
+ export function computeColumns(viewport: number, sidebar: number, rightbar: number, collapsedWidth = SIDEBAR_COLLAPSED): Columns {
+-  const s = sidebar === 0 ? collapsedWidth : clampWidth(sidebar, SIDEBAR_MIN, SIDEBAR_MAX)
++  const s = sidebar === 0 ? collapsedWidth : clampWidth(sidebar, SIDEBAR_MIN, sidebarMax(viewport))
+   const available = viewport - s - CENTER_MIN
+   const r = rightbar === 0 || available < RIGHTBAR_MIN
+     ? 0
+===================================================================
+--- a/packages/client/ui-layout/src/client/index.ts
++++ b/packages/client/ui-layout/src/client/index.ts
+@@ -15,6 +15,7 @@
+ import type { HostObservable, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
+ import type { PanelInfo } from './service.ts'
+ import { AppFrame } from './AppFrame.tsx'
++import { withRegionBoundary } from './region-boundary.tsx'
+ import { createLayoutStore } from './stores.ts'
+ import { LayoutController } from './service.ts'
+ import type { ShortcutCommandId } from '@deepseek-ai/dsh-client-shortcuts/client'
+@@ -179,7 +180,7 @@
+         'shell.leading': { kind: 'single', scope: 'root' },
+       },
+       store,
+-    }, AppFrame)
++    }, withRegionBoundary('root', AppFrame))
+     const disposeShortcut = ctx.shortcuts.register({
+       id: 'sidebar.left.toggle' as ShortcutCommandId, label: () => t('toggle'), aliases: ['sidebar', 'toggle left sidebar'],
+       defaults: {
+===================================================================
+--- a/packages/client/ui-layout/src/client/stores.ts
++++ b/packages/client/ui-layout/src/client/stores.ts
+@@ -6,10 +6,51 @@
+ import type { MainPanelId } from './service.ts'
+ import {
+   clampWidth, RIGHTBAR_DEFAULT_RATIO, RIGHTBAR_MAX_RATIO, RIGHTBAR_MIN,
+-  SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN,
++  SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT, SIDEBAR_MIN, sidebarMax,
+ } from './columns.ts'
+ 
++/** Storage key holding the last positive sidebar width across collapse and refresh. */
++const SIDEBAR_WIDTH_STORAGE_KEY = 'dsh-better-tasks.layout.sidebar-width.v1'
++
+ /**
++ * Read the persisted sidebar width.
++ * @returns the stored width clamped into the current frame's range, or the
++ *   contract default when nothing usable is stored.
++ */
++export function readSidebarWidthPreference(): number {
++  try {
++    const stored = Number.parseFloat(localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY) ?? '')
++    return Number.isFinite(stored)
++      ? clampWidth(stored, SIDEBAR_MIN, sidebarMax(window.innerWidth))
++      : SIDEBAR_DEFAULT
++  } catch {
++    return SIDEBAR_DEFAULT
++  }
++}
++
++/**
++ * Persist the sidebar width. Failures are non-fatal: a blocked storage medium
++ * only costs the preference across reloads, never the drag itself.
++ * @param px - the clamped width to remember.
++ */
++function writeSidebarWidthPreference(px: number): void {
++  try {
++    localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(px))
++  } catch {}
++}
++
++/**
++ * Last positive sidebar width, shared by the store and the frame. Opening from
++ * closed, re-expanding past the breakpoint, and the first render all restore it.
++ */
++let sidebarExpandedPreference = readSidebarWidthPreference()
++
++/** The width a reopen restores. */
++export function currentSidebarPreference(): number {
++  return sidebarExpandedPreference
++}
++
++/**
+  * Transient layout preferences. Responsive concessions never rewrite widths;
+  * the right panel's expanded state belongs to its occupant.
+  */
+@@ -67,12 +108,12 @@
+ }
+ 
+ /**
+- * Create the layout panel store handle. For the sidebar the preference IS the
+- * width, so closing it forgets its drag width — reopening restores the contract
+- * default. The right panel initializes at 45% of the frame on first opening
+- * and keeps that px preference across resizes and close. Drag writes clamp to
+- * the current frame's range. Narrow sidebar toggles change only the expansion
+- * override; opening the right panel clears that override.
++ * Create the layout panel store handle. The sidebar persists its last positive
++ * width in this layout owner, so closing preserves it and reopening or refreshing
++ * restores the clamped preference. The right panel initializes at 45% of the
++ * frame on first opening and keeps that px preference across resizes and close.
++ * Drag writes clamp to the current frame's range. Narrow sidebar toggles change
++ * only the expansion override; opening the right panel clears that override.
+  * @returns the store handle (spec + type + identity + factory in one).
+  */
+ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutActions>  {
+@@ -80,7 +121,7 @@
+     init: (): LayoutState => ({
+       panelInfo: { activePanelId: null },
+       layoutInfo: {
+-        sidebar: SIDEBAR_DEFAULT,
++        sidebar: sidebarExpandedPreference,
+         viewportWidth: window.innerWidth,
+         narrowExpanded: false,
+         rightbar: null,
+@@ -101,14 +142,17 @@
+       },
+       setSidebar: (d, px: number) => {
+         d.layoutInfo.rightbarInstant = false
+-        d.layoutInfo.sidebar = clampWidth(px, SIDEBAR_MIN, SIDEBAR_MAX)
++        const width = clampWidth(px, SIDEBAR_MIN, sidebarMax(d.layoutInfo.viewportWidth))
++        d.layoutInfo.sidebar = width
++        sidebarExpandedPreference = width
++        writeSidebarWidthPreference(width)
+       },
+       // Narrow toggles flip only the override: the width preference survives
+       // untouched, so re-widening restores the pre-squeeze layout.
+       toggleSidebar: (d) => {
+         d.layoutInfo.rightbarInstant = false
+         if (d.layoutInfo.viewportWidth < SIDEBAR_AUTO_COLLAPSE) d.layoutInfo.narrowExpanded = !d.layoutInfo.narrowExpanded
+-        else d.layoutInfo.sidebar = d.layoutInfo.sidebar === 0 ? SIDEBAR_DEFAULT : 0
++        else d.layoutInfo.sidebar = d.layoutInfo.sidebar === 0 ? sidebarExpandedPreference : 0
+       },
+       // Crossing the breakpoint in either direction drops the override: the
+       // narrow default is auto-collapsed, the wide state is the preference.
+===================================================================
+--- a/packages/client/ui-layout/src/client/region-boundary.tsx
++++ b/packages/client/ui-layout/src/client/region-boundary.tsx
+@@ -0,0 +1,48 @@
++/**
++ * Contain one region's render failure at this package's own registration.
++ *
++ * The framework's `SlotErrorBoundary` wraps the whole occupancy, so any throw in a
++ * region retired that entry and blanked the area. This boundary sits directly
++ * around the component this package registers, records the failure — including
++ * `info.componentStack`, which names the offending descendant — and renders a
++ * compact fallback instead of rethrowing, so the rest of the shell stays usable
++ * while the real adaptation is written.
++ */
++import { Component, createElement, type ComponentType, type ReactNode } from 'react'
++
++/** Stamped at build time by scripts/build-forks-from-source.mjs. */
++const BUILD_REVISION = '__BUILD_REVISION__'
++
++export function withRegionBoundary(
++  region: string,
++  Inner: ComponentType<any>,
++): ComponentType<any> {
++  return class RegionBoundary extends Component<Record<string, unknown>, { failed: boolean }> {
++    override state: { failed: boolean } = { failed: false }
++
++    static getDerivedStateFromError(): { failed: boolean } {
++      return { failed: true }
++    }
++
++    override componentDidCatch(error: unknown, info: { componentStack?: string | null }): void {
++      try {
++        localStorage.setItem(`dbt-region-error:${region}`, JSON.stringify({
++          revision: BUILD_REVISION,
++          region,
++          message: String((error as Error | undefined)?.message ?? error),
++          stack: String((error as Error | undefined)?.stack ?? '').slice(0, 2000),
++          componentStack: String(info?.componentStack ?? '').slice(0, 2000),
++        }))
++      } catch {}
++    }
++
++    override render(): ReactNode {
++      if (this.state.failed) {
++        return createElement('div', {
++          style: { padding: '8px', font: '11px ui-monospace, monospace', color: '#ff9f9f' },
++        }, `${region}: render failed`)
++      }
++      return createElement(Inner, this.props)
++    }
++  }
++}
+\ No newline at end of file

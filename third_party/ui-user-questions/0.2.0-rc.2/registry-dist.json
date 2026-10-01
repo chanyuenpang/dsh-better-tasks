@@ -1,0 +1,19 @@
+{
+  "name": "@deepseek-ai/dsh-client-ui-user-questions",
+  "version": "0.2.0-rc.2",
+  "shasum": "9347d3a2b576c052751b32e6b591437c513f9ab0",
+  "tarball": "https://registry.npmjs.org/@deepseek-ai/dsh-client-ui-user-questions/-/dsh-client-ui-user-questions-0.2.0-rc.2.tgz",
+  "fileCount": 16,
+  "integrity": "sha512-N19AmrBM4BNl2FNOVwi8q48W3utd3IUSdnhRxeDSR6TZRzWcFPlYZx9irt+kFFehsjvKRCnPz3Dv2A/CgCppcQ==",
+  "signatures": [
+    {
+      "sig": "MEYCIQDfWbrKHilUH3Z/mCVaDFVKEnv6htCBEnKczao5Tq2GzgIhAJkZCOHGR3QNqSTCf5Z7qi3ztx59P6/3tutfmf+U+Oxr",
+      "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+    },
+    {
+      "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+      "sig": "MEUCIQDl+aa7ZPw4upOq2EWY0s9j84PM8Vv6COny0vorqGK1dgIgUwhEwYjXDI/2hIRSo+nrPTXm1xSihjNeD9XRKTApKQc="
+    }
+  ],
+  "unpackedSize": 146046
+}

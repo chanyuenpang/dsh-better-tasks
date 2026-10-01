@@ -1,0 +1,31 @@
+{
+  "version": "0.2.0-rc.2",
+  "sourceCommit": "639ed015397290b3745d163aafe02ffee4aa3f84",
+  "results": [
+    {
+      "slug": "ui-workspace",
+      "clientSha256": "a4c96a852d03d7c9775d96b2552a1e74714abfe4f5118253660698ffb133132c",
+      "officialArchiveSha256": "5b0088f72a3af10a881e18a5a0d6625271ec9fed46caaef31cb9eb0887f0ea80",
+      "officialClientSha256": "e784543780fb8ac7c38c853afd26b9b1713c6907eec2b07eff37461e07bd3be9",
+      "moduleEdges": [
+        "@deepseek-ai/cordis",
+        "@deepseek-ai/dsh-client-store",
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "react",
+        "react/jsx-runtime"
+      ],
+      "declarations": [
+        "lib\\types\\client\\activity-range.d.ts",
+        "lib\\types\\client\\index.d.ts",
+        "lib\\types\\client\\locales.d.ts",
+        "lib\\types\\client\\navigation.d.ts",
+        "lib\\types\\client\\project-appearance.d.ts",
+        "lib\\types\\client\\region-boundary.d.ts",
+        "lib\\types\\client\\rows\\Rows.d.ts",
+        "lib\\types\\client\\rows\\WorkspaceBrowser.d.ts",
+        "lib\\types\\client\\stores.d.ts",
+        "lib\\types\\client\\tree.d.ts"
+      ]
+    }
+  ]
+}

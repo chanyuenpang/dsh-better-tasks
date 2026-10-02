@@ -1,5 +1,4 @@
-# Better Tasks owns one removable bundle layer; the six pinned forks are dependencies.
-# Native package names/Client identities are preserved, not republished to their npm scope.
+# Removable self-contained fork layer. Native names and option IDs are retained.
 - id: ui-layout
   disabled: true
 - id: ui-sidebar
@@ -8,12 +7,28 @@
   disabled: true
 - id: ui-user-questions
   disabled: true
+- id: ui-input-trigger
+  disabled: true
+- id: ui-commands
+  disabled: true
+- id: ui-conversation
+  disabled: true
 - insert:
-    - id: ui-layout-dbt
-      name: '@deepseek-ai/dsh-client-ui-layout'
-    - id: ui-workspace-dbt
-      name: '@deepseek-ai/dsh-client-ui-workspace'
-    - id: ui-user-questions-dbt
-      name: '@deepseek-ai/dsh-client-ui-user-questions'
+    - id: better-tasks-forks
+      name: '@veewo/dsh-better-tasks/fork-layer'
+      group: true
+      config:
+        - id: ui-layout-dbt
+          name: '@deepseek-ai/dsh-client-ui-layout'
+        - id: ui-workspace-dbt
+          name: '@deepseek-ai/dsh-client-ui-workspace'
+        - id: ui-user-questions-dbt
+          name: '@deepseek-ai/dsh-client-ui-user-questions'
+        - id: ui-input-trigger
+          name: '@deepseek-ai/dsh-client-ui-input-trigger'
+        - id: ui-commands
+          name: '@deepseek-ai/dsh-client-ui-commands'
+        - id: ui-conversation
+          name: '@deepseek-ai/dsh-client-ui-conversation'
     - id: better-tasks-ui
       name: '@veewo/dsh-better-tasks'

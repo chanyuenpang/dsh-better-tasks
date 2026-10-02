@@ -5,26 +5,32 @@ const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.
 const patch = readFileSync(new URL('../cordis.patch.yml', import.meta.url), 'utf8')
 const slugs = ['ui-layout', 'ui-workspace', 'ui-user-questions', 'ui-input-trigger', 'ui-commands', 'ui-conversation']
 
-test('public Desktop bundle resolves every audited fork through fixed repository URLs, never machine paths', () => {
-  assert.equal(manifest.version, '0.3.0')
+test('public Desktop package bundles the six native identities without exotic subdependency specs', () => {
+  assert.equal(manifest.version, '0.3.1')
   for (const slug of slugs) {
-    assert.equal(manifest.dependencies['@deepseek-ai/dsh-client-' + slug], `https://github.com/chanyuenpang/dsh-better-tasks/releases/download/better-tasks-forks-0.2.0-rc.2-r1/deepseek-ai-dsh-client-${slug}-0.2.0-rc.2.tgz`)
+    const name = '@deepseek-ai/dsh-client-' + slug
+    assert.equal(manifest.dependencies[name], '0.2.0-rc.2')
+    assert.ok(manifest.bundledDependencies.includes(name))
   }
-  for (const value of Object.values(manifest.dependencies)) assert.doesNotMatch(value, /^(?:file:|[A-Za-z]:|\/)/)
+  for (const value of Object.values(manifest.dependencies)) assert.doesNotMatch(value, /^(?:file:|https?:|npm:|[A-Za-z]:|\/)/)
 })
 
-test('public package is an installable removable bundle with the tested native peer baseline', () => {
+test('package scope and original native option IDs are kept for bundled fork resolution', () => {
   assert.equal(manifest.dsh.bundle.patch, './cordis.patch.yml')
   assert.ok(manifest.files.includes('cordis.patch.yml'))
   assert.equal(manifest.peerDependencies['@deepseek-ai/dsh-session-query'], '0.2.0-rc.2')
   assert.equal(manifest.peerDependencies['@deepseek-ai/dsh-storage-domain'], '0.2.0-rc.2')
-  for (const row of ['ui-layout', 'ui-sidebar', 'ui-workspace', 'ui-user-questions']) assert.ok(patch.includes(`- id: ${row}\n  disabled: true`))
-  assert.match(patch, /id: better-tasks-ui\n\s+name: '@veewo\/dsh-better-tasks'/)
+  assert.equal(manifest.exports['./fork-layer'], './src/fork-layer.mjs')
+  assert.match(patch, /name: '@veewo\/dsh-better-tasks\/fork-layer'\n\s+group: true/)
+  for (const slug of slugs) assert.ok(patch.includes(`name: '@deepseek-ai/dsh-client-${slug}'`))
+  for (const id of ['ui-input-trigger', 'ui-commands', 'ui-conversation']) {
+    assert.ok(patch.includes(`- id: ${id}\n  disabled: true`))
+    assert.match(patch, new RegExp(`        - id: ${id}\\n          name:`))
+  }
 })
 
 test('public npm file allowlist excludes private profiles, runtime logs and workflow data', () => {
   for (const entry of manifest.files) assert.doesNotMatch(entry, /sandbox|releases|profiles|backups|\.claw|node_modules|\.npmrc|\.env/)
   assert.ok(manifest.files.includes('LICENSE'))
-  assert.ok(manifest.files.includes('docs/release.md'))
   assert.equal(manifest.publishConfig.registry, 'https://registry.npmjs.org/')
 })

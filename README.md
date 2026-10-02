@@ -2,17 +2,17 @@
 
 A compositional sidebar and pinned-task view for **DSH Desktop 0.2.0-rc.2**. The 0.3 line uses the native Workspace Registry as the single Pin owner and ships a removable Cordis bundle with six exact, audited Client compatibility forks.
 
-> **Compatibility change:** 0.3.0 targets the Desktop 0.2 runtime, not the legacy 0.1.5 Web composition. Legacy users should keep their existing compatible release (npm 0.2.4); do not bypass DSH peer-version checks.
+> **Compatibility change:** 0.3.1 targets the Desktop 0.2 runtime, not the legacy 0.1.5 Web composition. Legacy users should keep their existing compatible release (npm 0.2.4); do not bypass DSH peer-version checks.
 
 ## Install
 
 In DSH Desktop **Settings → Plugins**, install the public bundle:
 
 ```text
-@veewo/dsh-better-tasks@0.3.0
+@veewo/dsh-better-tasks@0.3.1
 ```
 
-The npm main package is [`@veewo/dsh-better-tasks`](https://www.npmjs.com/package/@veewo/dsh-better-tasks). Its six native-named fork dependencies resolve from fixed [GitHub release assets](https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/better-tasks-forks-0.2.0-rc.2-r1); there are no developer-machine `file:G:/...` references and no manual checkout/fork-name renaming. Keep GitHub reachable during installation.
+The npm main package is [`@veewo/dsh-better-tasks`](https://www.npmjs.com/package/@veewo/dsh-better-tasks). It includes all six native-named fork payloads using npm `bundledDependencies`, so default pnpm protection against URL subdependencies remains enabled. The same reviewed archives are available as [GitHub release assets](https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/better-tasks-forks-0.2.0-rc.2-r1); there are no developer-machine paths, URL subdependencies or fork-name renaming. A package-local Loader subtree resolves native names from those bundled payloads and retains the original input/commands/conversation option IDs.
 
 Restart Desktop if Plugin Manager reports **restart required**. Installing a package is not the same as the running page loading it. Do not enable the shipped `ui-sidebar` simultaneously: the bundle owns the replacement layer and restores native rows when removed. For release/rollback procedure see [release](<docs/release.md>) and [rollback](<docs/rollback.md>).
 
@@ -30,7 +30,7 @@ Restart Desktop if Plugin Manager reports **restart required**. Installing a pac
 
 The six forks preserve upstream package names, ModuleLoader identities, `0.2.0-rc.2` baseline and licenses. They are **not official upstream npm releases** and are not published to the `@deepseek-ai` registry scope. Audited bytes and SHA-256 manifests are release assets; source patches are under [src-patches](<src-patches/>) and upstream source is pinned by [source lock](<provenance/source.lock.json>). Changing a fork requires a new asset-library revision and a new main version; never replace an archive under an existing URL.
 
-The source tag/release is [v0.3.0](https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/v0.3.0). Release assets contain code archives and sanitized manifests only, never real Profile backups, Session stores, credentials or runtime logs.
+The source tag/release is [v0.3.1](https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/v0.3.1). Release assets contain code archives and sanitized manifests only, never real Profile backups, Session stores, credentials or runtime logs.
 
 ## Development
 

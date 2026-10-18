@@ -19,7 +19,7 @@ test('native core activation and exactly one official Pin registration per seat 
   assert.ok(deps)
   assert.doesNotMatch(deps, /betterTask|taskPins/)
   assert.match(source, /new UiWorkspaceService\(/)
-  assert.match(source, /provideRoot\(\{ hooks: \{ workspaces: workspaces\.list \} \}\)/)
+  assert.match(source, /provideRoot\(\{\s*hooks: \{ workspaces: workspaces\.list \}/)
   assert.equal((source.match(/name: 'sidebar\.workspaces\.session\.menu\.item', id: 'pin'/g) ?? []).length, 1)
   assert.equal((source.match(/name: 'sidebar\.workspaces\.session\.row\.action', id: 'pin'/g) ?? []).length, 1)
   assert.match(source, /uiWorkspace\.pinSession\(sessionId\)\.catch\(\(\) => \{ notify\(\{ kind: 'pinFailed' \}\) \}\)/)
@@ -59,5 +59,9 @@ test('New Session seam remains independent, pre-navigation and rejection-contain
   assert.match(source, /Promise\.resolve\(listener\(sessionId\)\)\.catch/)
   assert.match(source, /if \(navigation\.aborted\) return\s*this\.notifySessionCreated\(sessionId\)\s*this\.replaceMain/)
   assert.match(source, /this\.sessionCreatedListeners\.clear\(\)/)
-  assert.match(source, /void this\.openWorkspace\(target, beforeOpen\)/)
+  // 0.2.1-rc.2 turned startSession's second argument into StartSessionOptions, so the fork keeps
+  // the observer callback through a union and hands the composed preparation to openWorkspace.
+  assert.match(source, /const runBeforeOpen = beforeOpen === undefined\s*\? prepareDraft\s*: prepareDraft === undefined\s*\? beforeOpen\s*: \(id: SessionId\): void => \{ beforeOpen\(id\); prepareDraft\(id\) \}/)
+  assert.match(source, /const opening = this\.openWorkspace\(target, runBeforeOpen, agentPreset === undefined \? \{\} : \{ agentPreset \}\)/)
+  assert.match(source, /void opening\.catch\(/)
 })

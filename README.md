@@ -18,6 +18,8 @@ The npm main package is [`@veewo/dsh-better-tasks`](https://www.npmjs.com/packag
 
 Restart Desktop if Plugin Manager reports **restart required**. Installing a package is not the same as the running page loading it. Do not enable the shipped `ui-sidebar` simultaneously: the bundle owns the replacement layer and restores native rows when removed. For release/rollback procedure see [release](<docs/release.md>) and [rollback](<docs/rollback.md>).
 
+> **DSH Desktop 0.2.1-rc.2:** 0.3.1 is rejected by the 0.2.1 peer gate. A 0.3.2 package for the 0.2.1 fork line is prepared but not published — its clean-install desktop gate still fails (see the blocker note in [release](<docs/release.md>)). Until that is fixed, run the 0.2.1 line with the procedure in [upgrading-dsh-version](<docs/upgrading-dsh-version.md>): the six forks as direct profile dependencies hoisted to the profile root.
+
 ## Features
 
 - Switch between the native Session browser and a task swimlane in the same sidebar; native search, Workspace grouping, rename, archive and directory operations remain.

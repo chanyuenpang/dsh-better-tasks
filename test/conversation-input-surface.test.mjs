@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { stripTypeScriptTypes } from 'node:module'
+import * as zod from 'zod'
 
 // Pure contract tests: actual surface factory, native shell and submit machine.
 // Only the editor document, stores, providers and view module are test doubles;
@@ -42,6 +43,7 @@ function load(path) {
   const externals = {
     react: { createElement: (type, props) => ({ type, props }) },
     '@deepseek-ai/dsh-client-store': { createSnapshotStore: store },
+    zod,
   }
   let source = stripTypeScriptTypes(readFileSync(path, 'utf8'), { mode: 'transform', sourceUrl: path })
   const deps = []

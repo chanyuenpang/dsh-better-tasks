@@ -1,6 +1,8 @@
 # Better Tasks for DSH Desktop
 
-A compositional sidebar and pinned-task view for **DSH Desktop 0.2.0-rc.2**. The 0.3 line uses the native Workspace Registry as the single Pin owner and ships a removable Cordis bundle with six exact, audited Client compatibility forks.
+A compositional sidebar and pinned-task view for **DSH Desktop 0.2.x**. The 0.3 line uses the native Workspace Registry as the single Pin owner and ships a removable Cordis bundle with six exact, audited Client compatibility forks.
+
+> **Runtime baselines:** the six client UI forks are rebuilt from each dsh source tag. `forks-0.2.0-rc.2/` is the audited 0.2.0-rc.2 library; `forks-0.2.1-rc.2/` is the 0.2.1-rc.2 rebuild that the Desktop 0.2.1 runtime loads (see [forks-0.2.1-rc.2 assets](<releases/0.2.1-rc.2-forks/candidates.json>)). The step-by-step rebase procedure for the next dsh line is [upgrading-dsh-version](<docs/upgrading-dsh-version.md>).
 
 > **Compatibility change:** 0.3.1 targets the Desktop 0.2 runtime, not the legacy 0.1.5 Web composition. Legacy users should keep their existing compatible release (npm 0.2.4); do not bypass DSH peer-version checks.
 

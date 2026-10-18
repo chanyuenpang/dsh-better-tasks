@@ -1,0 +1,742 @@
+===================================================================
+--- a/packages/client/ui-conversation/src/client/apply.ts
++++ b/packages/client/ui-conversation/src/client/apply.ts
+@@ -125,8 +125,8 @@
+     name: string
+     label(): string
+     icon: typeof IconPaperclipOutlineRegular
+-    available(session: { sessionId: SessionId }): boolean
+-    ui: { kind: 'action'; run(session: { sessionId: SessionId }): void }
++    available(session: { sessionId: SessionId; surface?: object }): boolean
++    ui: { kind: 'action'; run(session: { sessionId: SessionId; surface?: object }): void }
+   }): () => void
+ }
+ 
+@@ -301,8 +301,8 @@
+       name: 'file',
+       label: () => t('input.file'),
+       icon: IconPaperclipOutlineRegular,
+-      available: session => inputHub.canPickFiles(session.sessionId),
+-      ui: { kind: 'action', run: (session) => { inputHub.pickFiles(session.sessionId) } },
++      available: session => session.surface === undefined && inputHub.canPickFiles(session.sessionId),
++      ui: { kind: 'action', run: (session) => { if (session.surface === undefined) inputHub.pickFiles(session.sessionId) } },
+     }), 'ui-conversation: File action')
+   })
+ 
+===================================================================
+--- a/packages/client/ui-conversation/src/client/contract/input.ts
++++ b/packages/client/ui-conversation/src/client/contract/input.ts
+@@ -217,6 +217,8 @@
+ 
+ /** Session-addressed access to the per-session input facade. */
+ export interface SessionInputResolver {
++  /** Create a separately owned text/skill/command composer over a real Session. */
++  createSurface(options: import('./input-surface.ts').ComposerSurfaceOptions): Promise<import('./input-surface.ts').ComposerSurfaceHandle>
+   /** Resolve the facade for one session-scope ctx. */
+   for(actx: Context): SessionInput
+   /**
+===================================================================
+--- a/packages/client/ui-conversation/src/client/index.ts
++++ b/packages/client/ui-conversation/src/client/index.ts
+@@ -68,6 +68,8 @@
+ export { inspectRequestPrompt } from './contract/request-inspection.ts'
+ export type { SystemPromptState, SystemPromptInspector } from './contract/system-prompt.ts'
+ export type { ConversationStoreState, ConversationViewRequest, ViewTab } from './contract/views.ts'
++export { InputSurfaceView } from './input/InputSurfaceView.tsx'
++export type { ComposerSurfaceHandle, ComposerSurfaceOptions, ComposerSurfaceSinkArgs, ComposerSurfaceViewProps } from './contract/input-surface.ts'
+ 
+ export { ConversationNodeAssembler } from './conversation/assembler.ts'
+ export type {
+===================================================================
+--- a/packages/client/ui-conversation/src/client/input/facade.ts
++++ b/packages/client/ui-conversation/src/client/input/facade.ts
+@@ -41,6 +41,8 @@
+ export interface SessionInputDeps {
+   /** Session-scope ctx handed to claim.submit transactions. */
+   actx: Context
++  /** Detached surfaces keep their real Session reference through async machine effects. */
++  withOperation?<T>(operation: () => T | Promise<T>): Promise<T>
+   /** Snapshot the Session facts before asynchronous command arbitration. */
+   submissionState?: () => MessageSubmissionState
+   /** Notify one ordinary message attempt before reference serialization. */
+@@ -568,10 +570,13 @@
+    * an explicit re-track).
+    * @returns whether the text was applied.
+    */
+-  insertText(text: string, span: TokenSpan, keepCompleting = false): boolean {
++  insertText(text: string, span: TokenSpan, keepCompleting = false, fromLauncher = false): boolean {
+     void keepCompleting
+     if (span.draftRev !== this.rev) return false
+-    return this.draftEditor.replaceText(span, text)
++    // A plus-menu gesture needs a word boundary, unlike replacing a typed /token.
++    // Read detect coordinates so preceding chips do not corrupt the captured span.
++    const prefix = fromLauncher && text.startsWith('/') && /\S$/u.test(this.projection.detectText.slice(0, span.start)) ? ' ' : ''
++    return this.draftEditor.replaceText(span, prefix + text)
+   }
+ 
+   /**
+@@ -689,15 +694,15 @@
+         return
+       }
+       case 'adjudicate': {
+-        this.adjudicate(fx.attempt, fx.draft)
++        this.trackOperation(() => this.adjudicate(fx.attempt, fx.draft))
+         return
+       }
+       case 'begin-submit': {
+-        this.beginSubmit(fx.attempt, fx.claim, fx.args)
++        this.trackOperation(() => this.beginSubmit(fx.attempt, fx.claim, fx.args))
+         return
+       }
+       case 'default-sink': {
+-        this.sinkSerialized(fx.attempt, fx.draft, fx.mode)
++        this.trackOperation(() => this.sinkSerialized(fx.attempt, fx.draft, fx.mode))
+         return
+       }
+       case 'commit-draft': {
+@@ -732,7 +737,7 @@
+     attempt: SubmitAttempt,
+     draft: string,
+     mode: InputSubmitMode,
+-  ): void {
++  ): Promise<void> {
+     this.notifySubmission(attempt.submission)
+     const attachmentIds = [...this.attachmentIds]
+     this.attachmentIds = []
+@@ -744,11 +749,10 @@
+       this.failedRestoreRev = undefined
+     }
+     if (occurrences.length === 0) {
+-      this.settleSink(attempt, this.deps.defaultSink(draft.trim(), attachmentIds, mode, attempt.signal))
+-      return
++      return this.settleSink(attempt, this.deps.defaultSink(draft.trim(), attachmentIds, mode, attempt.signal))
+     }
+     const inputTriggers = this.deps.inputTriggers?.()
+-    void Promise.all(occurrences.map(async (o) => {
++    return Promise.all(occurrences.map(async (o) => {
+       if (inputTriggers === undefined) throw new Error(`no serializer for reference source "${o.source}"`)
+       return {
+         offset: o.offset,
+@@ -768,7 +772,7 @@
+           cursor = part.offset + part.length
+         }
+         out += draft.slice(cursor)
+-        this.settleSink(attempt, this.deps.defaultSink(out.trim(), attachmentIds, mode, attempt.signal))
++        return this.settleSink(attempt, this.deps.defaultSink(out.trim(), attachmentIds, mode, attempt.signal))
+       },
+       (error: unknown) => {
+         if (this.dead(attempt)) return
+@@ -787,8 +791,8 @@
+   private settleSink(
+     attempt: SubmitAttempt,
+     pending: Promise<SubmitOutcome>,
+-  ): void {
+-    pending.then(
++  ): Promise<void> {
++    return pending.then(
+       (outcome) => {
+         if (this.dead(attempt)) return
+         if (outcome.kind !== 'success') {
+@@ -854,14 +858,14 @@
+   }
+ 
+   /** Enter adjudication: poll the session controller; failure = notice + draft retained (never a silent downgrade). */
+-  private adjudicate(attempt: SubmitAttempt, draft: string): void {
++  private adjudicate(attempt: SubmitAttempt, draft: string): Promise<void> {
+     const inputTriggers = this.deps.inputTriggers?.()
+     if (inputTriggers === undefined) {
+       // No pipeline mounted: the '/' line is an ordinary message.
+       this.dispatchRun(({ type: 'adjudicated', attempt, outcome: undefined }))
+-      return
++      return Promise.resolve()
+     }
+-    inputTriggers.adjudicate(draft.trim(), attempt.signal, { attachments: this.attachmentIds.length }).then(
++    return inputTriggers.adjudicate(draft.trim(), attempt.signal, { attachments: this.attachmentIds.length }).then(
+       (outcome: PickOutcome) => {
+         if (this.dead(attempt)) return
+         this.dispatchRun(({ type: 'adjudicated', attempt, outcome }))
+@@ -881,9 +885,9 @@
+    * failure (serialize, transport, or handler error) keeps draft and attachments
+    * for correction.
+    */
+-  private beginSubmit(attempt: SubmitAttempt, claim: CommandClaim, args: string): void {
++  private beginSubmit(attempt: SubmitAttempt, claim: CommandClaim, args: string): Promise<void> {
+     const attachmentIds = claim.attachments === true ? [...this.attachmentIds] : []
+-    Promise.resolve()
++    return Promise.resolve()
+       .then(async () => {
+         const attachments = attachmentIds.length > 0 ? await this.deps.commandAttachments.serialize(attachmentIds) : []
+         // Serialization may outlive the attempt (large files, session
+@@ -916,6 +920,18 @@
+       )
+   }
+ 
++  /** Track complete effects, including settlement dispatch and any nested next effect. */
++  private trackOperation(operation: () => Promise<void>): void {
++    try {
++      const pending = this.deps.withOperation === undefined ? operation() : this.deps.withOperation(operation)
++      void pending.catch((error: unknown) => {
++        if (!this.disposed) this.notify('error', error instanceof Error ? error.message : String(error))
++      })
++    } catch (error) {
++      if (!this.disposed) this.notify('error', error instanceof Error ? error.message : String(error))
++    }
++  }
++
+   /** Late-settlement guard: superseded attempts and disposed facades drop silently. */
+   private dead(attempt: SubmitAttempt): boolean {
+     return this.disposed || attempt.signal.aborted
+===================================================================
+--- a/packages/client/ui-conversation/src/client/input/hub.ts
++++ b/packages/client/ui-conversation/src/client/input/hub.ts
+@@ -26,6 +26,8 @@
+ import { SessionInputShell } from './facade.ts'
+ import { reportMessageSubmission } from './submission-analytics.ts'
+ import { readConversationDraft } from '../stores.ts'
++import { createInputSurface } from './surface.ts'
++import type { ComposerSurfaceHandle, ComposerSurfaceOptions } from '../contract/input-surface.ts'
+ 
+ /** Structural command face for per-session popup resolution. */
+ interface CommandFace {
+@@ -69,6 +71,10 @@
+    * @param actx - session-scope context.
+    * @returns the resident per-session facade.
+    */
++  createSurface(options: ComposerSurfaceOptions): Promise<ComposerSurfaceHandle> {
++    return createInputSurface(this.rootCtx, options)
++  }
++
+   for(actx: Context): SessionInput {
+     const sessions = this.sessions()
+     const session = sessions.sessionOf(actx)
+===================================================================
+--- a/packages/client/ui-conversation/src/client/contract/input-surface.ts
++++ b/packages/client/ui-conversation/src/client/contract/input-surface.ts
+@@ -0,0 +1,50 @@
++import type { ComponentType } from 'react'
++import type { SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
++import type { SessionId } from '@deepseek-ai/dsh-session/types'
++import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
++import type { DraftAttachmentId, InputNotice, InputState, SessionInput, SubmitOutcome } from './input.ts'
++import type { InputSubmitMode } from './composer-submission.ts'
++
++/** Ordinary-message interception only; command adjudication has already finished. */
++export interface ComposerSurfaceSinkArgs {
++  readonly binding: SessionBinding
++  readonly text: string
++  readonly attachmentIds: readonly DraftAttachmentId[]
++  readonly mode: InputSubmitMode
++  readonly signal: AbortSignal
++}
++
++export interface ComposerSurfaceOptions {
++  readonly sessionId: SessionId
++  readonly initialDraft?: string
++  readonly signal?: AbortSignal
++  readonly defaultSink?: (args: ComposerSurfaceSinkArgs) => Promise<SubmitOutcome>
++}
++
++/** The caller supplies copy; empty-draft Continue is optional and never overwrites a draft. */
++export interface ComposerSurfaceViewProps {
++  readonly placeholder?: string
++  readonly defaultText?: string
++  readonly onDraftChange?: (text: string) => void
++  readonly submitLabel?: string
++  readonly addLabel?: string
++  readonly searchLabel?: string
++  readonly emptyLabel?: string
++  readonly errorLabel?: string
++  readonly inputLabel?: string
++  readonly disabled?: boolean
++  readonly className?: string
++}
++
++export interface ComposerSurfaceHandle {
++  readonly sessionId: SessionId
++  readonly input: SessionInput
++  readonly state: ObservableSnapshot<InputState>
++  readonly notices: ObservableSnapshot<InputNotice | null>
++  /** Bound view: consumers render this component without importing another Client package. */
++  readonly View: ComponentType<ComposerSurfaceViewProps>
++  /** Resolves after closing AND every admitted business operation settles. */
++  readonly closed: Promise<void>
++  whenSettled(): Promise<void>
++  dispose(): void
++}
+===================================================================
+--- a/packages/client/ui-conversation/src/client/input/InputSurfaceView.module.css
++++ b/packages/client/ui-conversation/src/client/input/InputSurfaceView.module.css
+@@ -0,0 +1,31 @@
++/* Original task-card values, not the main composer's layout. No measured sizing. */
++.host { min-width: 0; width: 100%; }
++.surface { position: relative; box-sizing: border-box; display: flex; flex-direction: column; min-width: 0; width: 100%; border: 1px solid var(--dsw-alias-border-l1); border-radius: 18px; background: var(--dsw-specific-input-major); box-shadow: var(--dsw-elevation-soft); color: var(--dsw-alias-label-primary); cursor: text; }
++.surface:focus-within { border-color: var(--dsw-alias-brand-primary); }
++.scroll { overflow-y: auto; max-height: 120px; min-width: 0; }
++.grow { position: relative; min-height: 32px; }
++.input { box-sizing: border-box; min-width: 0; min-height: 32px; padding: 7px 11px 5px; outline: none; border: 0; border-radius: 18px 18px 0 0; background: transparent; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 12px; line-height: 18px; }
++.input p { margin: 0; }
++.input p:last-child::after { content: var(--dsh-composer-hint); color: var(--dsw-alias-label-caption); }
++.input[data-composer-composing] p:last-child::after { content: none; }
++.inputDisabled { opacity: .6; }
++.placeholder { position: absolute; inset: 7px 11px 5px; pointer-events: none; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; }
++.input:focus + .placeholder, .input[data-composer-composing] + .placeholder { display: none; }
++.actions { box-sizing: border-box; display: flex; justify-content: space-between; align-items: center; min-height: 36px; padding: 1px 6px 6px; }
++.add { display: grid; place-items: center; flex: none; width: 27px; height: 27px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--dsw-alias-label-secondary); cursor: pointer; }
++.add:hover, .add[aria-expanded="true"] { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
++.add:disabled, .send:disabled { opacity: .4; cursor: default; }
++.add:focus-visible, .search:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 1px; }
++.send { corner-shape: round; flex: none; display: grid; place-items: center; box-sizing: border-box; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 999px; background: var(--dsw-alias-button-info-fill); color: #fff; cursor: pointer; transition: background-color .1s; }
++.send:hover:not(:disabled) { background: var(--dsw-alias-button-info-hover); }
++.send:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
++.picker { margin: 0 7px 4px; padding: 7px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 10px; background: var(--dsw-alias-bg-layer-1); box-shadow: var(--dsw-elevation-soft); cursor: default; }
++.picker[hidden] { display: none; }
++.search { box-sizing: border-box; width: 100%; height: 29px; padding: 4px 7px; border: 1px solid var(--dsw-alias-border-l1); border-radius: 6px; background: var(--dsw-specific-input-major); color: var(--dsw-alias-label-primary); font: inherit; font-size: 12px; }
++/* Native inline view supplies an inline cap; this card keeps its original 180px list. */
++.picker [data-trigger-menu] { max-height: 180px !important; margin-top: 5px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
++.picker [role="option"] { min-width: 0; padding: 5px 7px; border-radius: 6px; font-size: 12px; }
++.picker [role="option"][id*="-skill-"] { flex-direction: column; align-items: flex-start; gap: 1px; }
++.status { padding: 6px; color: var(--dsw-alias-label-secondary); font-size: 11px; }
++.popup { margin: 0 7px; cursor: default; }
++.notice { margin-top: 4px; padding: 4px 8px; font-size: 11px; overflow-wrap: anywhere; color: var(--dsw-alias-label-secondary); cursor: default; }
+===================================================================
+--- a/packages/client/ui-conversation/src/client/input/InputSurfaceView.tsx
++++ b/packages/client/ui-conversation/src/client/input/InputSurfaceView.tsx
+@@ -0,0 +1,147 @@
++import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react'
++import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
++import type { ComposerSurfaceViewProps } from '../contract/input-surface.ts'
++import type { SurfaceViewModel } from './surface.ts'
++import { DraftEditor } from './editor/DraftEditor.tsx'
++import { registerComposerKeymap } from './editor/keymap.ts'
++import css from './InputSurfaceView.module.css'
++
++/** Original compact card face over the independent native editor and command pipeline. */
++export function InputSurfaceView({ surface, placeholder = '', defaultText, onDraftChange, submitLabel, addLabel, searchLabel, emptyLabel, errorLabel, inputLabel, disabled = false, className }: ComposerSurfaceViewProps & { surface: SurfaceViewModel }): ReactNode {
++  const shell = surface.shell
++  const state = useSyncExternalStore(shell.state.subscribe, shell.state.getSnapshot)
++  const notice = useSyncExternalStore(shell.notices.subscribe, shell.notices.getSnapshot)
++  const gate = useSyncExternalStore(surface.gate.subscribe, surface.gate.getSnapshot)
++  const menu = useSyncExternalStore(surface.trigger.menu.subscribe, surface.trigger.menu.getSnapshot)
++  const launcher = useSyncExternalStore(surface.trigger.launcher.subscribe, surface.trigger.launcher.getSnapshot)
++  const scroll = useRef<HTMLDivElement>(null)
++  const host = useRef<HTMLDivElement>(null)
++  const search = useRef<HTMLInputElement>(null)
++  const searchComposing = useRef(false)
++  const composingUntil = useRef(0)
++  const [query, setQuery] = useState('')
++  const [dismissedNotice, setDismissedNotice] = useState<number | undefined>()
++  // Dismiss a captured old sequence at user gestures, never on programmatic
++  // optimistic clear/failed-draft restore (which may arrive with a newer notice).
++  const visibleNotice = notice !== null && notice.seq !== dismissedNotice ? notice : null
++  const busy = state.phase === 'adjudicating' || state.phase === 'submitting'
++  const locked = disabled || gate.disabled || busy
++  const launched = menu.open && launcher !== null
++  const latest = useRef({ locked, defaultText })
++  latest.current = { locked, defaultText }
++  const composing = (): boolean => searchComposing.current || Date.now() < composingUntil.current || shell.editor.isComposing()
++  const dismissNotice = (): void => { setDismissedNotice(notice?.seq) }
++  const send = (mode: 'queue' | 'steer', source: 'click' | 'enter'): void => {
++    if (locked || !surface.canInteract() || composing()) return
++    dismissNotice()
++    surface.submit(defaultText, mode, source)
++  }
++  useLayoutEffect(() => {
++    surface.setDisabled(disabled)
++    return () => { surface.setDisabled(true) }
++  }, [surface, disabled])
++  useEffect(() => { onDraftChange?.(state.draft) }, [state.draft, onDraftChange])
++  useLayoutEffect(() => {
++    if (launched) search.current?.focus()
++    else { setQuery(''); searchComposing.current = false; composingUntil.current = 0 }
++    // Closing by outside pointer/disable/popup handoff must not steal focus.
++  }, [launched])
++  useEffect(() => registerComposerKeymap(shell.editor, {
++    arbitrate: (key, inComposition) => latest.current.locked ? 'pass' : shell.arbitrate(key, inComposition),
++    space: () => !latest.current.locked && shell.space(),
++    dismissPopup: () => shell.dismissPopup(),
++    canSubmit: () => !latest.current.locked && surface.canInteract(),
++    submit: accelerated => { setDismissedNotice(shell.notices.getSnapshot()?.seq); surface.submit(latest.current.defaultText, accelerated ? 'steer' : 'queue', 'enter') },
++    intakeFiles: () => shell.notify('error', surface.translate('attachment.dropBlocked')),
++    pasteText: text => { if (!latest.current.locked) { setDismissedNotice(shell.notices.getSnapshot()?.seq); shell.paste(text) } },
++  }), [shell, surface])
++  const restoreAfterPick = (): void => {
++    if (surface.command.popup.state?.getSnapshot().open || surface.trigger.menu.getSnapshot().open) return
++    const active = document.activeElement
++    // A command may intentionally open another dialog. Never take its focus back.
++    if (active === document.body || active === search.current || host.current?.contains(active)) shell.focus()
++  }
++  const pick = (source: string, index: number, action?: 'pick' | 'drill'): void => {
++    if (locked || !surface.canInteract() || composing()) return
++    const revision = shell.snapshot.draftRev
++    surface.trigger.pick(source, index, action)
++    if (shell.snapshot.draftRev !== revision || shell.snapshot.phase === 'claimed') dismissNotice()
++    restoreAfterPick()
++  }
++  const searchKey = (event: KeyboardEvent<HTMLInputElement>): void => {
++    if (event.nativeEvent.isComposing || event.keyCode === 229 || composing()) return
++    if (event.key === 'Enter' && event.repeat) { event.preventDefault(); event.stopPropagation(); return }
++    if (event.key === 'Escape') {
++      event.preventDefault(); event.stopPropagation()
++      surface.trigger.dismiss(); shell.focus(); return
++    }
++    const key = event.key === 'ArrowDown' ? 'down' : event.key === 'ArrowUp' ? 'up'
++      : event.key === 'Enter' ? 'enter' : event.key === 'Tab' ? event.shiftKey ? 'tabBack' : 'tab' : undefined
++    if (key === undefined) return
++    // Enter is selection-only, but an empty list must not trap forward Tab.
++    event.stopPropagation()
++    if (locked || !surface.canInteract()) { if (key !== 'tab') event.preventDefault(); return }
++    const revision = shell.snapshot.draftRev
++    const result = shell.arbitrate(key, false)
++    if (key === 'tab' && result === 'pass') { surface.trigger.dismiss(); return }
++    event.preventDefault()
++    if (shell.snapshot.draftRev !== revision || shell.snapshot.phase === 'claimed') dismissNotice()
++    if (result === 'pick-highlighted' || key === 'tabBack') restoreAfterPick()
++  }
++  const toggle = (): void => {
++    if (locked || !surface.canInteract() || composing()) return
++    if (menu.open) { surface.trigger.dismiss(); shell.focus(); return }
++    setQuery(''); surface.launchMenu()
++  }
++  const MenuView = surface.trigger.View
++  const PopupView = surface.command.View
++  const groups = menu.groups ?? []
++  const failed = groups.some(group => group.failed === true)
++  const empty = groups.length > 0 && groups.every(group => group.status === 'ready' && !group.failed && group.items.length === 0)
++  const add = addLabel ?? surface.translate('input.commands')
++  const searchText = searchLabel ?? `${surface.menuTranslate('skill')} / ${surface.menuTranslate('command')}`
++  return <div ref={host} className={css.host} data-input-surface={surface.id}>
++    <div className={[css.surface, className].filter(Boolean).join(' ')} data-composer-card>
++      <div onBeforeInputCapture={dismissNotice} onInputCapture={dismissNotice}
++        onPointerDown={() => { if (launched) surface.trigger.dismiss() }}>
++      <DraftEditor classNames={css} editor={shell.editor} scrollRef={scroll}
++        editable={!locked} editorDisabled={locked} phase={state.phase}
++        placeholderText={placeholder} ariaLabel={inputLabel ?? (placeholder || surface.translate('input.send'))}
++        workspaceTrigger={false} workspacePickerOpen={false} onWorkspaceKeyDown={() => {}}
++        hint={(state.phase === 'claimed' || state.phase === 'submitting') && state.claim !== undefined && state.draft.startsWith(state.claim.token) && state.draft.slice(state.claim.token.length).trim() === '' ? state.claim.hint ?? null : null} showPlaceholder={state.draft === ''} />
++      </div>
++      <div className={css.picker} hidden={!menu.open} id={`${surface.id}-picker`} role="dialog" aria-label={searchText} data-no-card-drag>
++        {launched && <input ref={search} className={css.search} value={query} placeholder={searchText} aria-label={searchText}
++          role="combobox" aria-expanded={menu.open} aria-controls={`${surface.id}-listbox`}
++          aria-activedescendant={menu.highlight == null ? undefined : `${surface.id}-${menu.highlight.source}-${menu.highlight.index}`}
++          disabled={locked} onChange={event => { const value = event.target.value; setQuery(value); surface.filterMenu(value) }}
++          onCompositionStart={() => { searchComposing.current = true }}
++          onCompositionEnd={() => { searchComposing.current = false; composingUntil.current = Date.now() + 10 }} onKeyDown={searchKey} />}
++        <MenuView menu={surface.trigger.menu} headers={surface.trigger.headers} onPick={pick}
++          onCrumb={(source: string, index: number) => { if (!locked && surface.canInteract() && !composing()) surface.trigger.pickCrumb(source, index) }}
++          onHover={(source: string, index: number) => surface.trigger.hover(source, index)}
++          onDismiss={() => surface.trigger.dismiss()} t={surface.menuTranslate} idPrefix={surface.id} inline />
++        {empty && <div className={css.status} role="status">{emptyLabel ?? surface.commandTranslate('status.empty')}</div>}
++        {failed && <div className={css.status} role="alert">{errorLabel ?? 'Unable to load suggestions'}</div>}
++      </div>
++      <div className={css.popup} data-input-popup data-no-card-drag><PopupView popup={surface.command.popup} t={surface.commandTranslate} inline /></div>
++      <div className={css.actions}>
++        <Tooltip label={add} side="top" delayMs={500}>
++          <button type="button" className={css.add} aria-label={add} aria-haspopup="dialog" aria-expanded={menu.open}
++            aria-controls={`${surface.id}-picker`} disabled={locked} onMouseDown={event => event.preventDefault()} onClick={toggle}>
++            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 5v14" /><path d="M5 12h14" /></svg>
++          </button>
++        </Tooltip>
++        <Tooltip label={submitLabel ?? surface.translate('input.send')} side="top" delayMs={500}>
++          <button type="button" className={css.send} aria-label={submitLabel ?? surface.translate('input.send')}
++            disabled={locked || (state.draft.trim() === '' && !defaultText?.trim())}
++            onMouseDown={event => event.preventDefault()} onClick={() => send('queue', 'click')}>
++            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden><path fill="currentColor" d="M8.3125 0.980183C8.66767 1.0531 8.97902 1.20418 9.2627 1.43233C9.48724 1.61297 9.73029 1.85793 9.97949 2.10714L14.707 6.83468L13.293 8.24874L9 3.95577V15.0417H7V3.95577L2.70703 8.24874L1.29297 6.83468L6.02051 2.10714C6.26971 1.85793 6.51277 1.61297 6.7373 1.43233C6.97662 1.23986 7.28445 1.04402 7.6875 0.980183C7.8973 0.947006 8.1031 0.95516 8.3125 0.980183Z" /></svg>
++          </button>
++        </Tooltip>
++      </div>
++    </div>
++    {visibleNotice !== null && <div className={css.notice} role={visibleNotice.level === 'error' ? 'alert' : 'status'}>{visibleNotice.text}</div>}
++    {gate.reason !== undefined && <div className={css.notice} role="status">{gate.reason}</div>}
++  </div>
++}
+===================================================================
+--- a/packages/client/ui-conversation/src/client/input/surface-lifetime.ts
++++ b/packages/client/ui-conversation/src/client/input/surface-lifetime.ts
+@@ -0,0 +1,57 @@
++/** One detached editor owns a real Session reference until all admitted work settles. */
++export interface SurfaceLifetime {
++  readonly closing: boolean
++  readonly flights: number
++  readonly closed: Promise<void>
++  isAvailable(): boolean
++  withOperation<T>(operation: () => T | Promise<T>): Promise<T>
++  whenSettled(): Promise<void>
++  dispose(): void
++}
++
++export function createSurfaceLifetime(callbacks: {
++  close(): void
++  release(): void
++  changed?(closing: boolean, flights: number): void
++}): SurfaceLifetime {
++  let closing = false
++  let released = false
++  let flights = 0
++  const waiters = new Set<() => void>()
++  let finishClosed!: () => void
++  const closed = new Promise<void>(resolve => { finishClosed = resolve })
++  const changed = () => callbacks.changed?.(closing, flights)
++  const settle = () => {
++    if (flights !== 0) return
++    for (const resolve of waiters) resolve()
++    waiters.clear()
++    if (!closing || released) return
++    released = true
++    try { callbacks.release() } finally { finishClosed() }
++  }
++  return {
++    get closing() { return closing },
++    get flights() { return flights },
++    closed,
++    isAvailable: () => !closing && flights === 0,
++    async withOperation<T>(operation: () => T | Promise<T>): Promise<T> {
++      if (closing) throw new Error('Input surface is closing')
++      flights += 1
++      changed()
++      try { return await operation() } finally {
++        flights -= 1
++        changed()
++        settle()
++      }
++    },
++    whenSettled(): Promise<void> {
++      return flights === 0 ? Promise.resolve() : new Promise(resolve => { waiters.add(resolve) })
++    },
++    dispose(): void {
++      if (closing) return
++      closing = true
++      changed()
++      try { callbacks.close() } finally { settle() }
++    },
++  }
++}
+===================================================================
+--- a/packages/client/ui-conversation/src/client/input/surface.ts
++++ b/packages/client/ui-conversation/src/client/input/surface.ts
+@@ -0,0 +1,226 @@
++import type { Context } from '@deepseek-ai/cordis'
++import { createElement, type ComponentType } from 'react'
++import { createSnapshotStore, type ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
++import type { ISessions, SessionFace } from '@deepseek-ai/dsh-api-session-controller/client'
++import type { InboxState } from '@deepseek-ai/dsh-agent/types'
++import type { ComposerSurfaceHandle, ComposerSurfaceOptions, ComposerSurfaceViewProps } from '../contract/input-surface.ts'
++import type { InputTriggerController, SessionInput, DraftAttachmentId, SubmitOutcome } from '../contract/input.ts'
++import type { ComposerBlocks } from '../contract/composer-blocks.ts'
++import type { InputSurfaceTarget, InputSurfaceToken } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
++import { SessionInputShell } from './facade.ts'
++import { createSurfaceLifetime } from './surface-lifetime.ts'
++import { InputSurfaceView } from './InputSurfaceView.tsx'
++
++/** Views travel through services, never runtime imports of another Client plugin. */
++export interface SurfaceTrigger extends InputTriggerController {
++  readonly View: ComponentType<any>
++  readonly menu: ObservableSnapshot<{ readonly open: boolean; readonly highlight?: { source: string; index: number } | null; readonly groups: readonly { status: string; failed?: boolean; items: readonly unknown[] }[] }>
++  toggleAll(hit: Parameters<InputTriggerController['toggleSource']>[1]): void
++  filterLauncher(query: string): void
++  readonly headers: ObservableSnapshot<unknown>
++  pick(source: string, index: number, action?: 'pick' | 'drill'): void
++  pickCrumb(source: string, index: number): void
++  hover(source: string, index: number): void
++  dismiss(): void
++  dispose(): void
++}
++export interface SurfaceCommand {
++  readonly popup: { readonly state?: ObservableSnapshot<{ open: boolean }>; dismiss(options?: { focusComposer?: boolean }): void }
++  readonly View: ComponentType<any>
++  dispose(): void
++}
++interface TriggerProvider {
++  createSurface(actx: Context, token: InputSurfaceToken, target: InputSurfaceTarget): SurfaceTrigger
++}
++interface CommandProvider {
++  attachSurface(actx: Context, token: InputSurfaceToken, target: InputSurfaceTarget): SurfaceCommand
++}
++interface ConversationSink {
++  readonly blocks: ComposerBlocks
++  sendSession(session: SessionFace, text: string, attachmentIds: readonly DraftAttachmentId[], mode: 'queue' | 'steer', signal?: AbortSignal): Promise<SubmitOutcome>
++}
++interface StatusSource {
++  getSnapshot(): ReadonlyMap<string, { running?: boolean; pendingInteraction?: unknown }>
++  subscribe(fn: () => void): () => void
++}
++export interface SurfaceViewModel {
++  readonly shell: SessionInputShell
++  readonly trigger: SurfaceTrigger
++  readonly command: SurfaceCommand
++  readonly id: string
++  readonly gate: ObservableSnapshot<{ disabled: boolean; running: boolean; reason?: string }>
++  readonly menuTranslate: (...args: any[]) => string
++  readonly commandTranslate: (...args: any[]) => string
++  readonly translate: (...args: any[]) => string
++  submit(defaultText?: string, mode?: 'queue' | 'steer', source?: 'click' | 'enter'): void
++  canInteract(): boolean
++  setDisabled(disabled: boolean): void
++  launchMenu(source?: string): void
++  filterMenu(query: string): void
++}
++
++let surfaceSequence = 0
++
++/** Create an independently owned editor over one exact, retained Session generation. */
++export async function createInputSurface(root: Context, options: ComposerSurfaceOptions): Promise<ComposerSurfaceHandle> {
++  const sessions = root.get('sessions') as ISessions | undefined
++  const triggers = root.get('inputTriggers') as unknown as TriggerProvider | undefined
++  const commands = root.get('commandUi') as unknown as CommandProvider | undefined
++  const locale = root.get('locale')
++  const ui = root.get('uiSession') as { sessionStatus: StatusSource } | undefined
++  const conversation = root.get('conversation') as unknown as ConversationSink | undefined
++  if (sessions === undefined || typeof triggers?.createSurface !== 'function'
++    || typeof commands?.attachSurface !== 'function' || locale === undefined || ui === undefined || typeof conversation?.sendSession !== 'function') {
++    throw new Error('Independent input surfaces are unavailable')
++  }
++  options.signal?.throwIfAborted()
++  const reference = sessions.retain(options.sessionId, { source: 'controllerOperation', signal: options.signal })
++  let handedOff = false
++  try {
++    const binding = await reference.ready
++    options.signal?.throwIfAborted()
++    const state = binding.session.getSnapshot()
++    if (state.openState !== 'open' || state.removed) throw state.openError ?? new Error('Session is not open')
++    const token: InputSurfaceToken = Object.freeze({ id: `dsh-input-surface-${++surfaceSequence}` })
++    const interaction = new AbortController()
++    const gate = createSnapshotStore<{ disabled: boolean; running: boolean; reason?: string }>({ disabled: false, running: state.running })
++    const blocks = (conversation.blocks as ComposerBlocks).storeFor(binding.sessionId)
++    let shell: SessionInputShell | undefined
++    let trigger: SurfaceTrigger | undefined
++    let command: SurfaceCommand | undefined
++    let viewDisabled = false
++    const disposers: Array<() => void> = []
++    let removeOwner: (() => unknown) | undefined
++    let removeGeneration: (() => unknown) | undefined
++    const basicRefusal = (): string | undefined => {
++      const snapshot = binding.session.getSnapshot()
++      if (sessions.binding(binding.sessionId) !== binding || snapshot.removed || snapshot.openState !== 'open') return 'Session is unavailable'
++      if (ui.sessionStatus.getSnapshot().get(binding.sessionId)?.pendingInteraction != null) return 'Session is awaiting an interaction'
++      if (snapshot.subagent?.address.mode === 'continuable' && snapshot.subagent.parentAvailable !== true) return 'Parent Session is unavailable'
++      return undefined
++    }
++    const publishGate = () => {
++      const reason = basicRefusal()
++      // A new business refusal or caller lock revokes transient UI, but an
++      // operation's own flight count must not dismiss its in-flight popup.
++      if (viewDisabled || reason !== undefined) { trigger?.dismiss(); command?.popup.dismiss() }
++      gate.set({ disabled: viewDisabled || lifetime.closing || lifetime.flights !== 0 || reason !== undefined,
++        running: binding.session.getSnapshot().running, ...(reason === undefined ? {} : { reason }) })
++    }
++    const lifetime = createSurfaceLifetime({
++      changed: publishGate,
++      close: () => {
++        interaction.abort(new Error('Input surface closed'))
++        command?.dispose()
++        trigger?.dispose()
++        for (const dispose of disposers.splice(0)) dispose()
++        options.signal?.removeEventListener('abort', onAbort)
++      },
++      release: () => {
++        try { shell?.dispose() } finally {
++          reference.release()
++          void removeOwner?.()
++          void removeGeneration?.()
++        }
++      },
++    })
++    const onAbort = () => lifetime.dispose()
++    const canInteract = () => !viewDisabled && lifetime.isAvailable() && basicRefusal() === undefined
++    const target: InputSurfaceTarget = {
++      signal: interaction.signal,
++      beginCommand: (claim, span) => !lifetime.closing && shell?.beginCommand(claim, span) === true,
++      insertText: (text, span, keep, fromLauncher) => !lifetime.closing && shell?.insertText(text, span, keep, fromLauncher) === true,
++      insertReference: (value, span) => !lifetime.closing && shell?.insertReference(value, span) === true,
++      consumeToken: guard => !lifetime.closing && shell?.consumeToken(guard) === true,
++      focus: () => { if (!lifetime.closing) shell?.focus() },
++      notify: (level, text) => { if (!lifetime.closing) shell?.notify(level, text) },
++      isAvailable: canInteract,
++      withOperation: operation => lifetime.withOperation(operation),
++    }
++    const t = locale.bind('conversation')
++    try {
++      shell = new SessionInputShell({
++        actx: binding.ctx,
++        withOperation: operation => lifetime.withOperation(operation),
++        inputTriggers: () => trigger,
++        popup: () => command?.popup,
++        inbox: binding.session.projections.faceOf('inbox') as ObservableSnapshot<InboxState | undefined>,
++        defaultSink: async (text, attachmentIds, mode, signal) => {
++          // Adjudication/reference serialization can await. Recheck immediately before admission.
++          signal.throwIfAborted()
++          if (lifetime.closing || viewDisabled) throw new Error('Input surface closed or disabled before admission')
++          const refusal = basicRefusal() ?? blocks.getSnapshot()?.reason
++          if (refusal !== undefined) throw new Error(refusal)
++          if (attachmentIds.length !== 0) throw new Error('This input surface accepts text only')
++          if (options.defaultSink !== undefined) return options.defaultSink({ binding, text, attachmentIds, mode, signal })
++          return conversation.sendSession(binding.session, text, attachmentIds, mode, signal)
++        },
++        commandAttachments: {
++          serialize: async ids => { if (ids.length !== 0) throw new Error('This input surface accepts text only'); return [] },
++          release: () => {},
++          unsupportedNotice: token => t('command.attachmentsUnsupported', { command: token.trim().replace(/^\//u, '') }),
++        },
++      })
++      command = commands.attachSurface(binding.ctx, token, target)
++      trigger = triggers.createSurface(binding.ctx, token, target)
++      if (typeof command.View !== 'function' || typeof trigger.View !== 'function') throw new Error('Input surface views are unavailable')
++      if (options.initialDraft !== undefined) shell.setDraft(options.initialDraft)
++      const ownedShell = shell
++      const submit = (defaultText?: string, mode: 'queue' | 'steer' = 'queue', source?: 'click' | 'enter') => {
++        if (!canInteract()) return
++        if (ownedShell.snapshot.phase === 'adjudicating' || ownedShell.snapshot.phase === 'submitting') return
++        if (ownedShell.snapshot.draft.trim() === '' && defaultText?.trim()) ownedShell.setDraft(defaultText)
++        ownedShell.submit(mode, source)
++      }
++      const model: SurfaceViewModel = { shell, trigger, command, id: token.id, gate,
++        menuTranslate: locale.bind('slash.menu'), commandTranslate: locale.bind('command'), translate: t,
++        submit, canInteract,
++        setDisabled: disabled => { if (viewDisabled === disabled) return; viewDisabled = disabled; publishGate() },
++        launchMenu: source => {
++          if (!canInteract()) return
++          // Match InputBar's combobox launch ordering: restore this editor's
++          // focus/selection before tracking the launcher, never the main input.
++          ownedShell.dismissPopup()
++          ownedShell.focus()
++          const span = { ...ownedShell.caretSpan(), draftRev: ownedShell.snapshot.draftRev }
++          const hit = { trigger: '/' as const, query: '', quoted: false,
++            position: ownedShell.snapshot.draft.slice(0, span.start).trim() === '' ? 'leading' as const : 'inline' as const, span }
++          if (source === undefined) trigger!.toggleAll(hit)
++          else trigger!.toggleSource(source, hit)
++        },
++        filterMenu: query => { if (canInteract()) trigger!.filterLauncher(query) },
++      }
++      const input: SessionInput = {
++        state: shell.state,
++        setDraft: text => { if (canInteract()) ownedShell.setDraft(text) },
++        beginCommand: (claim, span) => canInteract() && ownedShell.beginCommand(claim, span),
++        insertReference: (value, span) => canInteract() && ownedShell.insertReference(value, span),
++        addAttachments: () => false,
++        removeAttachment: () => false,
++        pruneAttachments: () => {},
++        submit: (mode, source) => submit(undefined, mode, source),
++        notify: target.notify,
++        focus: target.focus,
++      }
++      const handle: ComposerSurfaceHandle = {
++        sessionId: binding.sessionId, input, state: shell.state, notices: shell.notices,
++        View: (props: ComposerSurfaceViewProps) => createElement(InputSurfaceView, { ...props, surface: model }),
++        closed: lifetime.closed, whenSettled: lifetime.whenSettled, dispose: lifetime.dispose,
++      }
++      disposers.push(binding.session.subscribe(publishGate), ui.sessionStatus.subscribe(publishGate), blocks.subscribe(publishGate))
++      options.signal?.addEventListener('abort', onAbort, { once: true })
++      removeOwner = root.effect(() => () => lifetime.dispose(), 'conversation: detached input surface')
++      removeGeneration = binding.ctx.effect(() => () => lifetime.dispose(), 'conversation: detached input generation')
++      handedOff = true
++      publishGate()
++      if (options.signal?.aborted) lifetime.dispose()
++      return handle
++    } catch (error) {
++      lifetime.dispose()
++      handedOff = true // lifetime owns the one release, including partial construction
++      throw error
++    }
++  } finally {
++    if (!handedOff) reference.release()
++  }
++}

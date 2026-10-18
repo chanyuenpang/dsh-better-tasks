@@ -1,0 +1,1270 @@
+===================================================================
+--- a/packages/client/ui-workspace/src/client/index.ts
++++ b/packages/client/ui-workspace/src/client/index.ts
+@@ -38,7 +38,8 @@
+ // Type-only: pulls the Session root standard-hook merge.
+ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+ import {
+-  type ArchiveSessionInjected, type ForkSessionInjected, menuOpenStateFactory, type PinSessionInjected,
++  type ArchiveSessionInjected, type ForkSessionInjected, menuOpenStateFactory,
++  type PinSessionInjected,
+   type SessionArchiveConfirmInjected, type SessionArchiveConfirmRequest,
+   type RenameSessionInjected, type RowToast, type RowToastInjected, type RowToastState, type SessionRenameDialogInjected,
+   type SessionIdInjected, type WorkspaceBrowserInjected, type WorkspacePickerInjected,
+@@ -47,6 +48,7 @@
+ import { UiWorkspaceService } from './navigation.ts'
+ import { createWorkspaceViewStore } from './stores.ts'
+ import { WorkspaceBrowser } from './rows/WorkspaceBrowser.tsx'
++import { withRegionBoundary } from './region-boundary.tsx'
+ import { ArchiveSessionMenuItem, ArchiveSessionRowButton, SessionArchiveConfirmDialog } from './session-actions/ArchiveSession.tsx'
+ import { derive } from './session-actions/derived.ts'
+ import { ForkSessionMenuItem } from './session-actions/ForkSession.tsx'
+@@ -99,7 +101,7 @@
+  * provides a waitable service. apply therefore depends on each slot
+  * declaration through `slots.inject()` instead of assuming order.
+  */
+-export const inject = [
++export const inject: string[] = [
+   'slots', 'sessions', 'workspaces', 'locale', 'remote', 'remote.directoryPicker', 'layout', 'shortcuts', 'remoteAccess',
+ ]
+ 
+@@ -308,7 +310,7 @@
+       inject: browserInjected,
+       locale: NS,
+     },
+-    WorkspaceBrowser,
++    withRegionBoundary('sidebar.workspaces', WorkspaceBrowser),
+   ))
+   // The shipped row actions take the same route as a plugin's: `slots.inject`
+   // waits for the browser registration above to declare each list, and the
+===================================================================
+--- a/packages/client/ui-workspace/src/client/locales.ts
++++ b/packages/client/ui-workspace/src/client/locales.ts
+@@ -27,6 +27,12 @@
+   'orderBy.label': '排序方式',
+   'orderBy.manual': '手动排序',
+   'orderBy.updated': '最近更新',
++  'activityRange.label': '活动范围',
++  'activityRange.all': '不限',
++  'activityRange.1d': '1天',
++  'activityRange.3d': '3天',
++  'activityRange.7d': '7天',
++  'activityRange.14d': '14天',
+   'filterBy.label': '筛选会话',
+   'viewOptions.hideArchived': '隐藏已归档',
+   'viewOptions.showArchived': '全部对话（显示已归档）',
+@@ -104,6 +110,13 @@
+   'actions.unpin': '取消置顶',
+   'actions.newSession': '新会话',
+   'actions.newSession.aria': '在“{name}”中新建会话',
++  'appearance.menu': '设置图标和颜色',
++  'appearance.pickerTitle': '设置项目图标和颜色',
++  'appearance.search': '搜索图标',
++  'appearance.cancel': '取消',
++  'appearance.save': '保存',
++  'appearance.loadFailed': '无法载入图标目录',
++  'appearance.saveFailed': '保存项目外观失败',
+   'status.running': '进行中',
+   'status.subagentsRunning.one': '{n} 个子智能体运行中',
+   'status.subagentsRunning.other': '{n} 个子智能体运行中',
+@@ -125,13 +138,13 @@
+   'time.months': '{n}个月',
+   'time.years': '{n}年',
+   'time.ago': '{t}前',
+-} satisfies Record<string, string>
++} as const
+ 
+ /** The workspace namespace key union. */
+ export type WorkspaceKey = keyof typeof zh
+ 
+ /** English dictionary, checked complete against the zh key set. */
+-export const en = {
++export const en: Record<WorkspaceKey, string> = {
+   'defaultWorkspace.failed': 'Unable to create default workspace. Use Choose workspace to select a folder.',
+   'draft.workspaceRequired': 'Choose a workspace first.',
+   'draft.initializationFailed': 'Could not fill the draft. Please try again shortly.',
+@@ -153,6 +166,12 @@
+   'orderBy.label': 'Order by',
+   'orderBy.manual': 'Manual',
+   'orderBy.updated': 'Last updated',
++  'activityRange.label': 'Activity range',
++  'activityRange.all': 'Any time',
++  'activityRange.1d': '1 day',
++  'activityRange.3d': '3 days',
++  'activityRange.7d': '7 days',
++  'activityRange.14d': '14 days',
+   'filterBy.label': 'Filter sessions',
+   'viewOptions.hideArchived': 'Hide archived',
+   'viewOptions.showArchived': 'All conversations (show archived)',
+@@ -230,6 +249,13 @@
+   'actions.unpin': 'Unpin',
+   'actions.newSession': 'New session',
+   'actions.newSession.aria': 'New session in {name}',
++  'appearance.menu': 'Set icon and colour',
++  'appearance.pickerTitle': 'Project icon and colour',
++  'appearance.search': 'Search icons',
++  'appearance.cancel': 'Cancel',
++  'appearance.save': 'Save',
++  'appearance.loadFailed': 'Could not load the icon catalog',
++  'appearance.saveFailed': 'Could not save the project appearance',
+   'status.running': 'Running',
+   'status.subagentsRunning.one': '{n} subagent running',
+   'status.subagentsRunning.other': '{n} subagents running',
+@@ -251,4 +277,4 @@
+   'time.months': '{n}mo',
+   'time.years': '{n}y',
+   'time.ago': '{t} ago',
+-} satisfies Record<WorkspaceKey, string>
++}
+===================================================================
+--- a/packages/client/ui-workspace/src/client/navigation.ts
++++ b/packages/client/ui-workspace/src/client/navigation.ts
+@@ -79,13 +79,26 @@
+    */
+   connectWorkspace(workspaceId: WorkspaceId, options?: Pick<StartSessionOptions, 'agentPreset'>): Promise<SessionId>
+   /**
++   * Observe Sessions created by this service's New Session flows. Better Tasks hangs
++   * its pin-on-create command off this, so the hook must fire for the same creation
++   * the navigation opens and before that Session is revealed.
++   * @param listener - receives the created SessionId; a rejection is logged, never propagated.
++   * @returns disposer removing the listener.
++   */
++  onSessionCreated(listener: SessionCreatedListener): () => void
++  /**
+    * Create a fresh Session, or reuse a blank when preparing an explicit draft. A creation the Host
+    * refuses is shown through the Workspace notice and leaves the selection as it was.
+    * @param workspaceId - explicit target; absent inherits the current or most recent Workspace.
+-   * @param options - initial content and the reused blank's preset; existing text or attachments
+-   * are preserved unless clearPreviousDraft is true.
++   * @param beforeOpenOrOptions - either a synchronous preparation for the created Session
++   * (skipped after supersession; a throw aborts the open and releases the retained reference),
++   * or the initial-content options. The UI passes a callback, programmatic callers pass
++   * options; a function is unambiguous because options is always a plain object.
+    */
+-  startSession(workspaceId?: WorkspaceId, options?: StartSessionOptions): void
++  startSession(
++    workspaceId?: WorkspaceId,
++    beforeOpenOrOptions?: StartSessionOptions | ((sessionId: SessionId) => void),
++  ): void
+   /**
+    * Archive a Session and clear it when it is the current selection.
+    * @param sessionId - Session to archive.
+@@ -138,6 +151,12 @@
+   }
+ }
+ 
++/**
++ * A New Session observer. A listener may be async; its rejection is reported on the
++ * console and never reaches the navigation that created the Session.
++ */
++export type SessionCreatedListener = (sessionId: SessionId) => void | Promise<void>
++
+ /** Structured directory failure exposed to directory UI consumers. */
+ export class DirectoryBrowseError extends Error {
+   override readonly name = 'DirectoryBrowseError'
+@@ -160,6 +179,8 @@
+     {}, { persist: { name: 'dsh.sessions.current' } },
+   )
+   private mainReference: SessionReference | undefined
++  /** New Session observers; Better Tasks pins a created Session through this. */
++  private readonly sessionCreatedListeners = new Set<SessionCreatedListener>()
+ 
+   /**
+    * @param ctx - Client root Context.
+@@ -183,6 +204,7 @@
+       return () => {
+         stop()
+         this.lifetime.abort()
++        this.sessionCreatedListeners.clear()
+         const reference = this.mainReference
+         this.mainReference = undefined
+         reference?.release()
+@@ -195,6 +217,34 @@
+   }
+ 
+   /**
++   * Observe Sessions created by this service's New Session flows. A listener may be
++   * async; its rejection is reported and never reaches the navigation.
++   * @param listener - receives the created SessionId.
++   * @returns disposer removing the listener.
++   */
++  onSessionCreated(listener: SessionCreatedListener): () => void {
++    this.sessionCreatedListeners.add(listener)
++    return () => { this.sessionCreatedListeners.delete(listener) }
++  }
++
++  /**
++   * Tell every observer about a newly created Session. One bad observer must not
++   * abort the navigation that created it.
++   * @param sessionId - the Session just created.
++   */
++  private notifySessionCreated(sessionId: SessionId): void {
++    for (const listener of this.sessionCreatedListeners) {
++      try {
++        Promise.resolve(listener(sessionId)).catch((reason: unknown) => {
++          console.warn('new session hook failed:', reason)
++        })
++      } catch (reason: unknown) {
++        console.warn('new session hook failed:', reason)
++      }
++    }
++  }
++
++  /**
+    * @param reuse - preset for the reused or created blank; absent creates a fresh Session.
+    */
+   private async connectBlank(
+@@ -301,6 +351,7 @@
+       throw error
+     }
+     if (navigation.aborted) return
++    this.notifySessionCreated(sessionId)
+     this.replaceMain(sessionId, navigation, 'reveal', beforeOpen)
+   }
+ 
+@@ -317,7 +368,13 @@
+     })
+   }
+ 
+-  startSession(workspaceId?: WorkspaceId, options?: StartSessionOptions): void {
++  startSession(
++    workspaceId?: WorkspaceId,
++    beforeOpenOrOptions?: StartSessionOptions | ((sessionId: SessionId) => void),
++  ): void {
++    // The sidebar passes a preparation callback; programmatic callers pass options.
++    const beforeOpen = typeof beforeOpenOrOptions === 'function' ? beforeOpenOrOptions : undefined
++    const options = typeof beforeOpenOrOptions === 'function' ? undefined : beforeOpenOrOptions
+     const { agentPreset, ...draft } = options ?? {}
+     const draftOptions = options === undefined ? undefined : draft
+     const initializeDraft = draftOptions !== undefined
+@@ -340,13 +397,19 @@
+       this.clearMain()
+       return
+     }
+-    const opening = draftOptions === undefined
+-      ? this.openWorkspaceSession(target, undefined, undefined)
+-      : this.openWorkspace(target, initializeDraft ? (id) => {
++    const prepareDraft = draftOptions === undefined || !initializeDraft
++      ? undefined
++      : (id: SessionId): void => {
+         const binding = this.sessions.binding(id)
+         if (binding === undefined) this.draftPreparationFailed()
+         this.prepareDraft(binding, draftOptions)
+-      } : undefined, agentPreset === undefined ? {} : { agentPreset })
++      }
++    const runBeforeOpen = beforeOpen === undefined
++      ? prepareDraft
++      : prepareDraft === undefined
++        ? beforeOpen
++        : (id: SessionId): void => { beforeOpen(id); prepareDraft(id) }
++    const opening = this.openWorkspace(target, runBeforeOpen, agentPreset === undefined ? {} : { agentPreset })
+     void opening.catch(
+       (reason: unknown) => { console.warn('new session failed:', reason) },
+     )
+===================================================================
+--- a/packages/client/ui-workspace/src/client/rows/Rows.tsx
++++ b/packages/client/ui-workspace/src/client/rows/Rows.tsx
+@@ -11,7 +11,7 @@
+  * session and workspace hover cards are suppressed while a menu is open.
+  */
+ import { useEffect, useMemo, useRef, useState } from 'react'
+-import type { RefObject } from 'react'
++import type { ReactNode, RefObject } from 'react'
+ import clsx from 'clsx'
+ import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
+ import {
+@@ -25,6 +25,7 @@
+ import { abbreviateHomePath } from '@deepseek-ai/dsh-util-workspace-path'
+ import type { MenuOpenState, WorkspaceBrowserProps } from '../contract/slots.ts'
+ import type { GroupNode, SearchResultNode, SessionNode } from '../tree.ts'
++import { ProjectAppearanceIcon, type ProjectAppearance } from '../project-appearance.tsx'
+ import css from './Rows.module.css'
+ 
+ /** The standard locale seat, prop-passed from the browser root. */
+@@ -216,26 +217,29 @@
+  * @param props.t - the browser root's locale seat.
+  * @returns the row element.
+  */
+-export function ProjectRowItem({ group, containsCurrentDescendant = false, onToggle, onCreate, actions, drag, home, newShortcut, t }: {
++export function ProjectRowItem({ group, appearance, containsCurrentDescendant = false, onToggle, onCreate, actions, drag, home, newShortcut, t }: {
+   group: GroupNode
++  /** Better Tasks project appearance for this Workspace; absent uses the folder glyph. */
++  appearance?: ProjectAppearance | undefined
+   newShortcut?: ShortcutCatalogEntry | undefined
+   containsCurrentDescendant?: boolean
+   onToggle: () => void
+   onCreate: () => void
+   /** Real-Workspace actions; absent for the ungrouped bucket (no menu shown). */
+-  actions?: { rename: () => void; delete: () => void } | undefined
++  actions?: { appearance: () => void; rename: () => void; delete: () => void } | undefined
+   /** Present only for real Workspace rows in the grouped view. */
+   drag?: WorkspaceRowDragProps | undefined
+   /** Host account home; POSIX home-rooted hover paths display as `~`. */
+   home?: string | undefined
+   t: RowTranslate
+-}) {
++}): ReactNode {
+   const row = group
+   // The ungrouped bucket has no workspace title: its label is dictionary copy.
+   const label = row.workspaceId === undefined ? t('group.ungrouped') : row.label
+   const active = containsCurrentDescendant || (group.expanded && group.containsCurrent)
+   const [menuOpen, setMenuOpen] = useState(false)
+   const workspaceMenuItems = [
++    { id: 'appearance', label: t('appearance.menu'), icon: <IconEditOutlineRegular /> },
+     { id: 'rename', label: t('rename'), icon: <IconEditOutlineRegular /> },
+     { id: 'delete', label: t('delete.workspace'), icon: <IconTrashOutlineRegular />, danger: true },
+   ]
+@@ -257,7 +261,9 @@
+       onDragEnd={drag?.end}
+     >
+       <span className={clsx(css.slot, css.folder, active && css.folderActive)}>
+-        {row.expanded ? <IconFolderOpenRegular /> : <IconFolderCloseRegular />}
++        {appearance !== undefined
++          ? <ProjectAppearanceIcon appearance={appearance} />
++          : row.expanded ? <IconFolderOpenRegular /> : <IconFolderCloseRegular />}
+       </span>
+       <span className={clsx(css.slot, css.chevron)}>
+         <IconTriangleRightFillRegular className={clsx(css.arrow, row.expanded && css.arrowOpen)} />
+@@ -275,9 +281,10 @@
+               setMenuOpen(false)
+               // Unknown ids leave before the dispatch: a future menu row must
+               // not inherit the destructive branch as an else fallback.
+-              /* v8 ignore next -- Menu can emit only the rename and delete rows supplied above. */
+-              if (id !== 'rename' && id !== 'delete') return
+-              if (id === 'rename') actions.rename()
++              /* v8 ignore next -- Menu can emit only the appearance, rename and delete rows supplied above. */
++              if (id !== 'appearance' && id !== 'rename' && id !== 'delete') return
++              if (id === 'appearance') actions.appearance()
++              else if (id === 'rename') actions.rename()
+               else actions.delete()
+             }}
+             portal
+@@ -475,7 +482,7 @@
+   onOpen: (id: SearchResultNode['id']) => void
+   onUnarchive: (id: SearchResultNode['id']) => void
+   t: RowTranslate
+-}) {
++}): ReactNode {
+   const selected = result.id === currentId
+   const statuses = sessionStatuses(result, t)
+   const primaryStatus = statuses[0]
+@@ -543,7 +550,8 @@
+  * @returns the session row.
+  */
+ export function SessionNodeItem({
+-  node, currentId, now, onOpen, onRenameRequest, renderSlot, onReveal, drag, t,
++  node, currentId, now, onOpen, onRenameRequest, renderSlot, onReveal,
++  drag, flat = false, t,
+ }: {
+   node: SessionNode
+   currentId: string | undefined
+@@ -555,13 +563,18 @@
+   onReveal?: (() => void) | undefined
+   /** Present on reorderable-list rows so every row can remain a drop target. */
+   drag?: RowDragProps | undefined
++  /**
++   * This row belongs to the flat "In one list" body. Project icons are only
++   * meaningful there: grouped rows already sit under their Workspace header.
++   */
++  flat?: boolean
+   t: RowTranslate
+ } & PropsRenderSlots<
+   | 'sidebar.workspaces.session.menu.item'
+   | 'sidebar.workspaces.session.row.action'
+   | 'sidebar.session.row.leading'
+   | 'sidebar.session.row.hover'
+->) {
++>): ReactNode {
+   const row = node
+   const title = displayTitle(node, t)
+   const selected = node.id === currentId
+@@ -634,6 +647,10 @@
+           ? <SessionStatusDots statuses={statuses} />
+           : renderSlot('sidebar.session.row.leading', { sessionId: node.id }))}
+       </span>
++      {/* Better Tasks project icon, flat view only: the grouped views put the
++          Workspace's own icon on its header row instead. */}
++      {flat && row.projectAppearance !== undefined
++        && <ProjectAppearanceIcon appearance={row.projectAppearance} />}
+       <span
+         ref={titleRef}
+         className={css.title}
+===================================================================
+--- a/packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx
++++ b/packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx
+@@ -39,9 +39,23 @@
+ import { ProjectRowItem, SearchResultItem, SessionNodeItem } from './Rows.tsx'
+ import { AnimatedRows } from './AnimatedRows.tsx'
+ import { FLAT_SESSION_ORDER_KEY, type SessionGroupBy } from '../stores.ts'
++import {
++  ACTIVITY_RANGE_ORDER, sessionInActivityRange, type ActivityRange,
++} from '../activity-range.ts'
++import { openProjectAppearancePicker, useProjectAppearances, type ProjectAppearance } from '../project-appearance.tsx'
++import type { WorkspaceKey } from '../locales.ts'
+ import { WorkspacePickFlow } from '../WorkspacePicker.tsx'
+ import css from './WorkspaceBrowser.module.css'
+ 
++/** Locale key per activity window, so the menu labels stay type-checked. */
++const ACTIVITY_RANGE_LABELS: Record<ActivityRange, WorkspaceKey> = {
++  all: 'activityRange.all',
++  '1d': 'activityRange.1d',
++  '3d': 'activityRange.3d',
++  '7d': 'activityRange.7d',
++  '14d': 'activityRange.14d',
++}
++
+ /**
+  * Column slide length (--ds-transition-duration-slow): rail-search focus waits it out —
+  * focus() forces a synchronous layout and would jank the slide.
+@@ -138,13 +152,15 @@
+   }, [active])
+ }
+ 
+-/** Grouping, ordering, and archived-filter menu; own open state so it resets with the wide chrome. */
+-function ViewOptionsMenu({ groupBy, orderBy, archivedFilter, onGroupPick, onOrderPick, onArchivedFilterPick, t }: {
++/** Grouping, ordering, activity-range, and archived-filter menu; own open state so it resets with the wide chrome. */
++function ViewOptionsMenu({ groupBy, orderBy, activityRange, archivedFilter, onGroupPick, onOrderPick, onActivityPick, onArchivedFilterPick, t }: {
+   groupBy: SessionGroupBy
+   orderBy: SessionOrderBy
++  activityRange: ActivityRange
+   archivedFilter: ArchivedFilter
+   onGroupPick: (mode: SessionGroupBy) => void
+   onOrderPick: (mode: SessionOrderBy) => void
++  onActivityPick: (range: ActivityRange) => void
+   onArchivedFilterPick: (filter: ArchivedFilter) => void
+   t: WorkspaceBrowserProps['t']
+ }) {
+@@ -162,6 +178,9 @@
+         { type: 'label' as const, id: 'order-by', text: t('orderBy.label') },
+         { id: 'manual', label: t('orderBy.manual'), icon: <IconChevronsUpDownOutlineRegular /> },
+         { id: 'updated', label: t('orderBy.updated'), icon: <IconClockOutlineRegular /> },
++        { type: 'separator' as const, id: 'activity-range-separator' },
++        { type: 'label' as const, id: 'activity-range', text: t('activityRange.label') },
++        ...ACTIVITY_RANGE_ORDER.map(id => ({ id: `activity:${id}`, label: t(ACTIVITY_RANGE_LABELS[id]) })),
+         { type: 'separator' as const, id: 'archived-filter-separator' },
+         { type: 'label' as const, id: 'filter-by', text: t('filterBy.label') },
+         { id: 'hide-archived', label: t('viewOptions.hideArchived'), icon: <IconArchiveOffOutlineRegular /> },
+@@ -171,11 +190,13 @@
+       selectedIds={[
+         groupBy,
+         orderBy,
++        `activity:${activityRange}`,
+         { default: 'hide-archived', show: 'show-archived', only: 'only-archived' }[archivedFilter],
+       ]}
+       onSelect={(id) => {
+         if (id === 'workspace' || id === 'workspace-tree' || id === 'flat') onGroupPick(id)
+         else if (id === 'manual' || id === 'updated') onOrderPick(id)
++        else if (id.startsWith('activity:')) onActivityPick(id.slice('activity:'.length) as ActivityRange)
+         else if (id === 'hide-archived') onArchivedFilterPick('default')
+         else if (id === 'show-archived') onArchivedFilterPick('show')
+         else if (id === 'only-archived') onArchivedFilterPick('only')
+@@ -263,6 +284,10 @@
+   shortcuts: readonly import('@deepseek-ai/dsh-client-shortcuts/client').ShortcutCatalogEntry[]
+   /** Always-mounted Session list snapshot. */
+   list: SessionListState
++  /** Selected activity window; rows outside it are dropped from every group. */
++  activityRange: ActivityRange
++  /** Better Tasks project appearances by Workspace id, for the group rows. */
++  appearances: ReadonlyMap<string, ProjectAppearance>
+   /** Host account home for POSIX hover-path abbreviation. */
+   home?: string | undefined
+   /** Workspaces in Host group order with browser-projected Session order. */
+@@ -324,6 +349,7 @@
+   nestWorkspaces, groupExpansion, setGroupExpanded,
+   setSessionOrder, home, t,
+   revealSessionId, onSessionRevealed, shortcuts,
++  activityRange, appearances,
+ }: SessionTreeProps) {
+   const panelActive = usePanelInfo(info => info.activePanelId !== null)
+   const statuses = useSessionStatus(s => s)
+@@ -372,13 +398,23 @@
+     return [...workspaces.map(workspace => workspace.workspaceId), UNGROUPED_KEY]
+       .filter(key => groupExpansion[key] ?? ancestorKeys.has(key))
+   }, [groupExpansion, parents, workspaces])
+-  const groups = useMemo(
++  const allGroups = useMemo(
+     () => deriveGroups(list, workspaces, rowState, statuses, {
+       expandedGroups,
+       ungroupedOrder: ungroupedSessionIds,
+     }),
+     [list, workspaces, rowState, statuses, expandedGroups, ungroupedSessionIds],
+   )
++  // One reference instant per render pass, so every row and the search body
++  // below agree on where the activity window ends.
++  const now = Date.now()
++  const groups = useMemo(
++    () => allGroups.map(group => ({
++      ...group,
++      sessions: group.sessions.filter(row => sessionInActivityRange(row, activityRange, now)),
++    })),
++    [allGroups, activityRange, now],
++  )
+   useEffect(() => {
+     for (let key = revealGroup; key !== undefined; key = parents.get(key)) {
+       if (groupExpansion[key] === false || (key === revealGroup && groupExpansion[key] !== true)) {
+@@ -414,7 +450,6 @@
+     }
+     return false
+   }
+-  const now = Date.now()
+   const commitSessionDrag = (activeDrag: DragState, over: NonNullable<DragState['over']>): void => {
+     if (sessionDropCommitted.current) return
+     sessionDropCommitted.current = true
+@@ -557,6 +592,9 @@
+         <ProjectRowItem
+           newShortcut={shortcuts.find(row => row.id === 'session.new')}
+           group={group}
++          appearance={group.workspaceId === undefined
++            ? undefined
++            : appearances.get(String(group.workspaceId))}
+           containsCurrentDescendant={currentAncestors.has(group.key)}
+           home={home}
+           t={t}
+@@ -574,6 +612,14 @@
+           actions={group.workspaceId === undefined
+             ? undefined
+             : {
++              appearance: () => {
++              /* v8 ignore next -- narrowing guard: the actions object exists only for real-workspace groups. */
++                if (group.workspaceId !== undefined) {
++                  void openProjectAppearancePicker(String(group.workspaceId), t).catch((reason: unknown) => {
++                    console.warn('project appearance picker failed:', reason)
++                  })
++                }
++              },
+               rename: () => {
+               /* v8 ignore next -- narrowing guard: the actions object exists only for real-workspace groups. */
+                 if (group.workspaceId !== undefined) onRenameRequest(group.workspaceId, group.label)
+@@ -690,6 +736,7 @@
+   list, sessionIds, rowState, onLeaveArchivedOnly, useSessionStatus, open, onSessionRenameRequest,
+   usePanelInfo, setSessionOrder, workspaceReady, animationResetKey,
+   revealSessionId, onSessionRevealed, renderSlot, t,
++  workspaces, appearances, activityRange,
+ }: Pick<
+   SessionTreeProps,
+   | 'useSessionStatus'
+@@ -704,6 +751,9 @@
+   | 'onSessionRevealed'
+   | 'rowState'
+   | 'onLeaveArchivedOnly'
++  | 'workspaces'
++  | 'appearances'
++  | 'activityRange'
+   | 't'
+ > & {
+   list: SessionListState
+@@ -711,9 +761,16 @@
+ }) {
+   const panelActive = usePanelInfo(info => info.activePanelId !== null)
+   const statuses = useSessionStatus(s => s)
++  // Order authority stays the unfiltered list: hiding rows by activity window
++  // must not rewrite the saved manual order, so drags read `orderedRows`.
++  const orderedRows = useMemo(
++    () => deriveFlat(list, sessionIds, rowState, statuses, workspaces, appearances),
++    [list, sessionIds, rowState, statuses, workspaces, appearances],
++  )
++  const now = Date.now()
+   const rows = useMemo(
+-    () => deriveFlat(list, sessionIds, rowState, statuses),
+-    [list, sessionIds, rowState, statuses],
++    () => orderedRows.filter(row => sessionInActivityRange(row, activityRange, now)),
++    [orderedRows, activityRange, now],
+   )
+   const [drag, setDrag] = useState<DragState | null>(null)
+   const dropCommitted = useRef(false)
+@@ -725,10 +782,9 @@
+     if (dropCommitted.current) return
+     dropCommitted.current = true
+     setDrag(null)
+-    const nextOrder = sessionDragOrder(sessionIds, rows, activeDrag, over)
++    const nextOrder = sessionDragOrder(sessionIds, orderedRows, activeDrag, over)
+     if (nextOrder !== undefined) setSessionOrder(FLAT_SESSION_ORDER_KEY, nextOrder)
+   }
+-  const now = Date.now()
+   return (
+     <HoverCardGroup className={clsx(css.treeBody, css.wide)}>
+       <AnimatedRows
+@@ -757,6 +813,7 @@
+               onReveal={node.id === revealSessionId
+                 ? () => { onSessionRevealed(node.id) }
+                 : undefined}
++              flat
+               drag={{
+                 start: () => {
+                   dropCommitted.current = false
+@@ -807,6 +864,7 @@
+   query,
+   remote,
+   resultLimit,
++  activityRange,
+   usePanelInfo,
+   t,
+ }: Pick<WorkspaceBrowserProps, 'useSessions' | 'useSessionStatus' | 'open' | 't' | 'usePanelInfo'> & {
+@@ -819,6 +877,8 @@
+   query: string
+   remote: RemoteSearchState
+   resultLimit: number
++  /** Search results follow the activity window selected for the list. */
++  activityRange: ActivityRange
+ }) {
+   const panelActive = usePanelInfo(info => info.activePanelId !== null)
+   const list = useSessions(s => s)
+@@ -827,17 +887,28 @@
+     ? remote
+     : { query, status: 'loading' as const, items: [], hasMore: false }
+   const results = useMemo(
+-    () => deriveSearchResults(
+-      list,
+-      workspaces,
+-      query,
+-      archivedSessionIds,
+-      archivedFilter,
+-      statuses,
+-      currentRemote,
+-      resultLimit,
+-    ),
+-    [list, workspaces, query, archivedSessionIds, archivedFilter, statuses, currentRemote, resultLimit],
++    () => {
++      const all = deriveSearchResults(
++        list,
++        workspaces,
++        query,
++        archivedSessionIds,
++        archivedFilter,
++        statuses,
++        currentRemote,
++        resultLimit,
++      )
++      // The activity window applies to local and Host matches alike.
++      const now = Date.now()
++      return {
++        ...all,
++        items: all.items.filter(item => sessionInActivityRange(list.byId[item.id], activityRange, now)),
++      }
++    },
++    [
++      list, workspaces, query, archivedSessionIds, archivedFilter, statuses, currentRemote, resultLimit,
++      activityRange,
++    ],
+   )
+   const pending = currentRemote.status === 'loading'
+   const currentId = panelActive
+@@ -923,7 +994,7 @@
+   setDirectoryBusy,
+   renderSlot,
+   t,
+-}: WorkspaceBrowserProps) {
++}: WorkspaceBrowserProps): ReactNode {
+   const home = useHostInfo(info => info.home)
+   const shortcuts = useShortcuts(rows => rows)
+   const searchShortcut = shortcuts.find(row => row.id === 'session.search')
+@@ -951,6 +1022,11 @@
+   const directoryFlowAvailable = useDirectoryFlow(occupied => occupied)
+   const groupBy = useStore(s => s.groupBy)
+   const orderBy = useStore(s => s.orderBy)
++  // Persisted view blobs written before the activity window existed rehydrate
++  // without the field; they read as the unbounded window.
++  const activityRange = useStore(s => s.activityRange ?? 'all')
++  // One fetch per browser instance, shared by the group rows and the flat list.
++  const appearances = useProjectAppearances()
+   // Persisted view blobs written before the archived filter existed rehydrate
+   // without the field; they read as the default hide-archived view.
+   const archivedFilter = useStore(s => s.archivedFilter ?? 'default')
+@@ -1333,9 +1409,11 @@
+             <ViewOptionsMenu
+               groupBy={groupBy}
+               orderBy={orderBy}
++              activityRange={activityRange}
+               archivedFilter={archivedFilter}
+               onGroupPick={actions.setGroupBy}
+               onOrderPick={(mode) => { actions.setOrderBy(mode, activeSessionOrders) }}
++              onActivityPick={actions.setActivityRange}
+               onArchivedFilterPick={actions.setArchivedFilter}
+               t={t}
+             />
+@@ -1414,6 +1492,7 @@
+               query={normalizedQuery}
+               remote={remoteSearch}
+               resultLimit={searchResultLimit}
++              activityRange={activityRange}
+               t={t}
+             />
+           )
+@@ -1434,6 +1513,9 @@
+                 setSessionOrder={saveSessionOrder}
+                 revealSessionId={revealSessionId}
+                 onSessionRevealed={acknowledgeSessionReveal}
++                workspaces={orderedWorkspaces}
++                appearances={appearances}
++                activityRange={activityRange}
+                 t={t}
+               />
+             )
+@@ -1461,6 +1543,8 @@
+                 revealSessionId={revealSessionId}
+                 onSessionRevealed={acknowledgeSessionReveal}
+                 home={home}
++                activityRange={activityRange}
++                appearances={appearances}
+                 t={t}
+                 onRenameRequest={(workspaceId, displayTitle) => {
+                   setRenameTarget({
+===================================================================
+--- a/packages/client/ui-workspace/src/client/stores.ts
++++ b/packages/client/ui-workspace/src/client/stores.ts
+@@ -9,6 +9,7 @@
+ import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
+ import type { SessionId } from '@deepseek-ai/dsh-session/types'
+ import { reconcileManualOrder, type ArchivedFilter, type SessionRowState } from './tree.ts'
++import type { ActivityRange } from './activity-range.ts'
+ 
+ /** Browser-local order account for the hierarchy-free flat Session list. */
+ export const FLAT_SESSION_ORDER_KEY = '__flat_session_order__'
+@@ -28,6 +29,8 @@
+   sessionOrderByAccount: Record<string, string[]>
+   /** Archived-row visibility; omitted in pre-filter v5 snapshots and read as 'default'. */
+   archivedFilter?: ArchivedFilter
++  /** Activity window the session list is narrowed to; omitted in pre-range snapshots. */
++  activityRange?: ActivityRange
+ }
+ 
+ type SessionOrderSource = {
+@@ -66,6 +69,7 @@
+     source: SessionOrderSource,
+   ) => void
+   setArchivedFilter: (draft: WorkspaceViewState, filter: ArchivedFilter) => void
++  setActivityRange: (draft: WorkspaceViewState, range: ActivityRange) => void
+ }
+ 
+ /** Copy read-only projections into the persisted mutable store representation. */
+@@ -87,6 +91,7 @@
+       groupExpansion: {},
+       sessionOrderByAccount: {},
+       archivedFilter: 'default',
++      activityRange: 'all',
+     }),
+     persist: 'dsh.workspace.view.v5',
+     actions: {
+@@ -125,6 +130,7 @@
+         }))
+       },
+       setArchivedFilter: (d, filter: ArchivedFilter) => { d.archivedFilter = filter },
++      setActivityRange: (d, range: ActivityRange) => { d.activityRange = range },
+     },
+   })
+ }
+===================================================================
+--- a/packages/client/ui-workspace/src/client/tree.ts
++++ b/packages/client/ui-workspace/src/client/tree.ts
+@@ -13,6 +13,7 @@
+ import type { SessionId } from '@deepseek-ai/dsh-session/types'
+ import { assertNever } from '@deepseek-ai/dsh-util-values'
+ import { workspaceTitleOf } from '@deepseek-ai/dsh-util-workspace-path'
++import type { ProjectAppearance } from './project-appearance.tsx'
+ 
+ /** Group key for Sessions outside every Workspace. */
+ export const UNGROUPED_KEY = ''
+@@ -59,6 +60,12 @@
+   /** In the registry-global archive set: shown grayed in place and not openable. */
+   archived: boolean
+   updatedAt: number
++  /**
++   * Better Tasks project appearance of the Workspace that owns this Session.
++   * Absent when the Workspace has no stored appearance or the caller supplied no
++   * appearance map; the flat list renders it and the grouped views ignore it.
++   */
++  projectAppearance?: ProjectAppearance
+ }
+ 
+ /** Session order selected by the Workspace browser. */
+@@ -498,12 +505,39 @@
+ }
+ 
+ /**
++ * Map every Session to the appearance of the Workspace that owns it.
++ *
++ * A Session claimed by more than one Workspace keeps the first match, which is
++ * the Workspace the browser groups it under.
++ * @param workspaces - authoritative Workspace membership in Host group order.
++ * @param appearances - stored appearances by Workspace id; absent when not loaded.
++ * @returns Session id to appearance; empty when there is nothing to attach.
++ */
++function appearanceIndex(
++  workspaces: readonly WorkspaceView[],
++  appearances: ReadonlyMap<string, ProjectAppearance> | undefined,
++): ReadonlyMap<SessionId, ProjectAppearance> {
++  const index = new Map<SessionId, ProjectAppearance>()
++  if (appearances === undefined || appearances.size === 0) return index
++  for (const workspace of workspaces) {
++    const appearance = appearances.get(String(workspace.workspaceId))
++    if (appearance === undefined) continue
++    for (const sessionId of workspace.sessionIds) {
++      if (!index.has(sessionId)) index.set(sessionId, appearance)
++    }
++  }
++  return index
++}
++
++/**
+  * Derive flat rows from the browser's complete ordered Session ids, with
+  * pinned rows fronted ahead of the supplied order.
+  * @param list - sessions list snapshot used to select the ids.
+  * @param sessionIds - complete account members in the selected order, including hidden archives.
+  * @param rowState - registry-global pin and archive sets plus the archived filter.
+  * @param statuses - unified UI status by Session.
++ * @param workspaces - Workspace membership, used only to attach project appearances.
++ * @param appearances - Better Tasks project appearances by Workspace id; absent attaches none.
+  * @returns flat rows in sectioned order with current status indicators.
+  */
+ export function deriveFlat(
+@@ -511,9 +545,12 @@
+   sessionIds: readonly SessionId[],
+   rowState: SessionRowState,
+   statuses: SessionStatuses,
++  workspaces: readonly WorkspaceView[] = [],
++  appearances?: ReadonlyMap<string, ProjectAppearance>,
+ ): SessionNode[] {
+   const archived = new Set(rowState.archivedSessionIds)
+   const pinned = new Set(rowState.pinnedSessionIds)
++  const appearanceBySession = appearanceIndex(workspaces, appearances)
+   const current = mainSessionId(list)
+   const members = sessionIds.flatMap((id) => {
+     const session = list.byId[id]
+@@ -522,7 +559,11 @@
+       : []
+   })
+   return sectionMembers(members, pinned, archived)
+-    .map(session => sessionNode(session, list, statuses, pinned, archived))
++    .map((session) => {
++      const node = sessionNode(session, list, statuses, pinned, archived)
++      const appearance = appearanceBySession.get(session.id)
++      return appearance === undefined ? node : { ...node, projectAppearance: appearance }
++    })
+ }
+ 
+ /**
+===================================================================
+--- a/packages/client/ui-workspace/src/client/activity-range.ts
++++ b/packages/client/ui-workspace/src/client/activity-range.ts
+@@ -0,0 +1,77 @@
++/**
++ * Activity-range filtering for the workspace browser: the `all / 1d / 3d / 7d / 14d`
++ * window the view-options menu selects.
++ *
++ * Better Tasks adds this filter on top of upstream's grouping and ordering. It is a
++ * pure predicate over one Session summary so it can be applied to the grouped tree,
++ * the flat list amd the search results through the same rule.
++ */
++
++/** Selectable activity windows, in menu order; `null` days means "no bound". */
++export const ACTIVITY_RANGE_DAYS: Readonly<{
++  all: null
++  '1d': 1
++  '3d': 3
++  '7d': 7
++  '14d': 14
++}> = Object.freeze({
++  all: null,
++  '1d': 1,
++  '3d': 3,
++  '7d': 7,
++  '14d': 14,
++})
++
++/** One activity window id. */
++export type ActivityRange = keyof typeof ACTIVITY_RANGE_DAYS
++
++/** Menu order of the activity windows. */
++export const ACTIVITY_RANGE_ORDER: readonly ActivityRange[] = Object.freeze(
++  ['all', '1d', '3d', '7d', '14d'] as const,
++)
++
++/** Milliseconds in one day; the predicate's only time unit. */
++export const ACTIVITY_DAY_MS = 86_400_000
++
++/** The Session fields the predicate reads; a structural subset of the Session summary. */
++export interface ActivityRangeSession {
++  readonly blank?: boolean
++  readonly updatedAt?: number
++}
++
++/**
++ * Whether a Session belongs to the selected activity window.
++ * @param session - Session summary; an unknown Session never matches a bounded window.
++ * @param activityRange - selected window.
++ * @param now - reference instant, read once per render so every row agrees.
++ * @returns true when the Session is inside the window; blank Sessions always are.
++ */
++export function sessionInActivityRange(
++  session: ActivityRangeSession | undefined,
++  activityRange: ActivityRange,
++  now: number,
++): boolean {
++  if (session?.blank === true || activityRange === 'all') return true
++  const days = ACTIVITY_RANGE_DAYS[activityRange]
++  return typeof days === 'number'
++    && typeof session?.updatedAt === 'number'
++    && session.updatedAt >= now - days * ACTIVITY_DAY_MS
++}
++
++/**
++ * Narrow one Session-id list to the selected window. Keeps the input order.
++ * @param ids - candidate Session ids.
++ * @param byId - Session summaries by id.
++ * @param activityRange - selected window.
++ * @param now - reference instant.
++ * @returns the ids inside the window.
++ */
++export function filterSessionIdsByActivityRange(
++  ids: readonly string[],
++  byId: Readonly<Record<string, ActivityRangeSession | undefined>>,
++  activityRange: ActivityRange,
++  now: number,
++): string[] {
++  if (activityRange === 'all') return [...ids]
++  return ids.filter(id => sessionInActivityRange(byId[id], activityRange, now))
++}
+===================================================================
+--- a/packages/client/ui-workspace/src/client/project-appearance.tsx
++++ b/packages/client/ui-workspace/src/client/project-appearance.tsx
+@@ -0,0 +1,287 @@
++/**
++ * Project appearance: the per-Workspace icon and colour Better Tasks shows on
++ * Session rows, and the picker that writes them.
++ *
++ * The Host owns the data (`/api/project-appearance`, backed by the
++ * `workspace_appearance` storage domain) and publishes the full icon catalog with
++ * every GET, so the client keeps no catalog of its own: it renders whatever the
++ * Host sends and falls back to a small built-in set until the first load lands.
++ */
++import { useEffect, useState, type ReactNode } from 'react'
++
++/** One stored appearance as the Host reports it. */
++export interface ProjectAppearance {
++  workspaceId: string
++  iconKey: string
++  colorKey: string
++  updatedAt?: string
++}
++
++/** One catalog icon: a Tabler glyph as `[tag, props]` node pairs. */
++interface CatalogIcon {
++  key: string
++  label: string
++  category?: string
++  nodes: [string, Record<string, unknown>][]
++}
++
++/** The swatch palette; every `COLOR_KEYS` entry the Host accepts has a value here. */
++export const PROJECT_APPEARANCE_COLORS: Readonly<Record<string, string>> = Object.freeze({
++  blue: '#3b82f6',
++  cyan: '#06b6d4',
++  green: '#22c55e',
++  orange: '#f97316',
++  pink: '#ec4899',
++  purple: '#8b5cf6',
++  red: '#ef4444',
++  yellow: '#eab308',
++  teal: '#14b8a6',
++  indigo: '#6366f1',
++  amber: '#f59e0b',
++  slate: '#64748b',
++  black: '#111827',
++})
++
++/** Colour for an appearance; an unknown key falls back to the first palette entry. */
++function colorOf(colorKey: string): string {
++  return PROJECT_APPEARANCE_COLORS[colorKey] ?? PROJECT_APPEARANCE_COLORS.blue
++}
++
++/**
++ * The last catalog the Host sent, keyed by icon key. Module-level because the
++ * glyph lookup happens while rendering rows far from the fetch that filled it.
++ */
++const projectIconCatalog = new Map<string, CatalogIcon>()
++
++/* Fallback glyphs, drawn only until the Host catalog arrives. A fixed 20x20 grid
++   so a row's icon slot never reflows when the catalog replaces them. */
++const FALLBACK_ICON_PATHS: Readonly<Record<string, string>> = Object.freeze({
++  briefcase: 'M5 7h10v8H5z M7 7V5h6v2 M5 10h10',
++  code: 'M7 6 3 10l4 4 M13 6l4 4-4 4',
++  database: 'M4 6c0-2 8-2 8 0s-8 2-8 0m0 0v8c0 2 8 2 8 0V6m-8 4c0 2 8 2 8 0',
++  flask: 'M8 3v5l-4 7h8l-4-7V3 M6 12h4',
++  folder: 'M3 6h5l1 2h6v7H3z',
++  globe: 'M10 3a7 7 0 1 0 0 14a7 7 0 0 0 0-14m-7 7h14M10 3c2 2 2 12 0 14m0-14c-2 2-2 12 0 14',
++  layers: 'm4 7 6-3 6 3-6 3z m-6 3 6 3 6-3 m-6 3 6 3 6-3',
++  palette: 'M10 3a7 7 0 1 0 0 14h1a2 2 0 0 0 0-4h-1a1 1 0 0 1 0-2a8 8 0 0 0 4-8 M6 8h.01M9 6h.01M13 8h.01',
++  rocket: 'M12 3c3 1 4 4 4 7l-5 5-4-4 5-5c3 0 6 1 7 4 M7 12l-3 1 3 2m5-5 1-3 2 3',
++  shield: 'M10 3 16 5v4c0 4-3 6-6 8-3-2-6-4-6-8V5z',
++  sparkles: 'm10 3 .8 3.2L14 7l-3.2.8L10 11l-.8-3.2L6 7l3.2-.8z M4 13l.4 1.6L6 15l-1.6.4L4 17l-.4-1.6L2 15l1.6-.4z',
++  terminal: 'M4 5h12v10H4z M6 8l2 2-2 2m4 0h3',
++})
++
++/**
++ * One row's project icon: the Host catalog glyph when known, otherwise a built-in
++ * fallback, always tinted with the appearance's colour.
++ * @param props.appearance - the Workspace's stored appearance.
++ * @returns the icon element, sized for a Session row.
++ */
++export function ProjectAppearanceIcon({ appearance }: { appearance: ProjectAppearance }): ReactNode {
++  const color = colorOf(appearance.colorKey)
++  const catalogIcon = projectIconCatalog.get(appearance.iconKey)
++  const frame = {
++    display: 'inline-flex', flex: '0 0 auto', width: 16, height: 16, marginRight: 6, color,
++  } as const
++
++  if (catalogIcon !== undefined) {
++    return (
++      <span style={frame} aria-label={`Project icon: ${appearance.iconKey}`} role="img">
++        <svg
++          viewBox="0 0 24 24"
++          width={16}
++          height={16}
++          fill="none"
++          stroke="currentColor"
++          strokeWidth={2}
++          strokeLinecap="round"
++          strokeLinejoin="round"
++        >
++          {catalogIcon.nodes.map(([tag, attrs], index) => {
++            // The catalog carries a `key` attribute per node; React needs its own.
++            const { key: _ignored, ...rest } = attrs as Record<string, unknown> & { key?: unknown }
++            const Node = tag as 'path'
++            return <Node key={index} {...rest} />
++          })}
++        </svg>
++      </span>
++    )
++  }
++
++  return (
++    <span style={frame} aria-label={`Project icon: ${appearance.iconKey}`} role="img">
++      <svg
++        viewBox="0 0 20 20"
++        width={16}
++        height={16}
++        fill="none"
++        stroke="currentColor"
++        strokeWidth={1.7}
++        strokeLinecap="round"
++        strokeLinejoin="round"
++      >
++        <path d={FALLBACK_ICON_PATHS[appearance.iconKey] ?? FALLBACK_ICON_PATHS.folder} />
++      </svg>
++    </span>
++  )
++}
++
++/**
++ * Fetch the Host's project appearances and keep them live.
++ *
++ * Reloads on the `project-appearance-changed` window event, which the picker
++ * dispatches after a successful save, so every mounted row repaints without a
++ * reload and without a second polling channel.
++ * @returns Workspace id to appearance; empty until the first load resolves.
++ */
++export function useProjectAppearances(): ReadonlyMap<string, ProjectAppearance> {
++  const [appearances, setAppearances] = useState<ReadonlyMap<string, ProjectAppearance>>(new Map())
++  useEffect(() => {
++    let alive = true
++    const load = (): void => {
++      void fetch('/api/project-appearance', { cache: 'no-store' })
++        .then(response => (response.ok ? response.json() : null))
++        .then((data: { items?: ProjectAppearance[], icons?: CatalogIcon[] } | null) => {
++          if (!alive || data === null) return
++          projectIconCatalog.clear()
++          for (const icon of data.icons ?? []) projectIconCatalog.set(icon.key, icon)
++          setAppearances(new Map((data.items ?? []).map(item => [item.workspaceId, item])))
++        })
++        .catch(() => {})
++    }
++    load()
++    window.addEventListener('project-appearance-changed', load)
++    return () => {
++      alive = false
++      window.removeEventListener('project-appearance-changed', load)
++    }
++  }, [])
++  return appearances
++}
++
++/** Copy the picker needs; the browser passes its own translator. */
++type AppearanceTranslate = (key: string) => string
++
++/**
++ * Open the modal icon/colour picker for one Workspace.
++ *
++ * Imperative DOM rather than a React portal: the picker is a single native
++ * `<dialog>` with no interaction with the React tree, and this keeps it usable
++ * from a menu callback without threading state through the row components.
++ * @param workspaceId - Workspace to edit.
++ * @param t - translator bound to this package's namespace.
++ */
++export async function openProjectAppearancePicker(
++  workspaceId: string,
++  t: AppearanceTranslate,
++): Promise<void> {
++  const data = await fetch('/api/project-appearance', { cache: 'no-store' })
++    .then(response => (response.ok ? response.json() : Promise.reject(new Error('load failed'))))
++  const items = (data.items ?? []) as ProjectAppearance[]
++  const icons = (data.icons ?? []) as CatalogIcon[]
++  const current = items.find(item => item.workspaceId === workspaceId)
++  let iconKey = current?.iconKey ?? 'folder'
++  let colorKey = current?.colorKey ?? 'black'
++
++  const dialog = document.createElement('dialog')
++  dialog.style.cssText = 'width:min(680px,92vw);border:0;border-radius:12px;padding:20px;'
++    + 'color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-1)'
++  const title = document.createElement('h3')
++  title.textContent = t('appearance.pickerTitle')
++  dialog.append(title)
++
++  const search = document.createElement('input')
++  search.placeholder = t('appearance.search')
++  search.style.cssText = 'width:100%;box-sizing:border-box;margin:8px 0;padding:8px'
++  dialog.append(search)
++
++  const grid = document.createElement('div')
++  grid.style.cssText = 'display:grid;grid-template-columns:repeat(8,1fr);gap:6px;max-height:448px;overflow:auto'
++  dialog.append(grid)
++
++  const swatches = document.createElement('div')
++  swatches.style.cssText = 'display:flex;gap:8px;margin:14px 0;flex-wrap:wrap'
++  dialog.append(swatches)
++
++  for (const [key, color] of Object.entries(PROJECT_APPEARANCE_COLORS)) {
++    const button = document.createElement('button')
++    button.type = 'button'
++    button.title = key
++    button.style.cssText = `width:24px;height:24px;border-radius:50%;background:${color};`
++      + `border:${key === colorKey ? '3px solid white' : '1px solid transparent'}`
++    button.onclick = () => {
++      colorKey = key
++      for (const child of swatches.children) (child as HTMLElement).style.outline = ''
++      button.style.outline = '2px solid currentColor'
++      render()
++    }
++    swatches.append(button)
++  }
++
++  const render = (): void => {
++    const query = search.value.toLowerCase()
++    const cells = icons
++      .filter(icon => icon.label.includes(query))
++      .slice(0, 240)
++      .map((icon) => {
++        const button = document.createElement('button')
++        button.type = 'button'
++        button.title = icon.label
++        button.setAttribute('aria-label', icon.label)
++        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
++        svg.setAttribute('viewBox', '0 0 24 24')
++        svg.setAttribute('width', '22')
++        svg.setAttribute('height', '22')
++        svg.setAttribute('fill', 'none')
++        svg.setAttribute('stroke', 'currentColor')
++        svg.setAttribute('stroke-width', '2')
++        svg.setAttribute('stroke-linecap', 'round')
++        svg.setAttribute('stroke-linejoin', 'round')
++        for (const [tag, props] of icon.nodes) {
++          const child = document.createElementNS('http://www.w3.org/2000/svg', tag)
++          for (const [name, value] of Object.entries(props)) child.setAttribute(name, String(value))
++          svg.append(child)
++        }
++        button.append(svg)
++        button.style.cssText = 'display:grid;place-items:center;aspect-ratio:1;padding:4.5px;border-radius:6px;'
++          + `border:${icon.key === iconKey ? '2px solid #6366f1' : '1px solid color-mix(in srgb,currentColor 22%,transparent)'};`
++          + `background:${icon.key === iconKey ? 'color-mix(in srgb,#6366f1 16%,transparent)' : 'transparent'};`
++          + `color:${colorOf(colorKey)};cursor:pointer`
++        button.onclick = () => {
++          iconKey = icon.key
++          render()
++        }
++        return button
++      })
++    grid.replaceChildren(...cells)
++  }
++  search.oninput = render
++  render()
++
++  const footer = document.createElement('div')
++  footer.style.cssText = 'display:flex;justify-content:flex-end;gap:8px'
++  const cancel = document.createElement('button')
++  cancel.textContent = t('appearance.cancel')
++  cancel.onclick = () => { dialog.close() }
++  const save = document.createElement('button')
++  save.textContent = t('appearance.save')
++  save.onclick = () => {
++    void (async () => {
++      const response = await fetch('/api/project-appearance', {
++        method: 'PUT',
++        headers: { 'content-type': 'application/json' },
++        body: JSON.stringify({ workspaceId, iconKey, colorKey }),
++      })
++      if (!response.ok) {
++        window.alert(t('appearance.saveFailed'))
++        return
++      }
++      window.dispatchEvent(new Event('project-appearance-changed'))
++      dialog.close()
++    })()
++  }
++  footer.append(cancel, save)
++  dialog.append(footer)
++  dialog.addEventListener('close', () => { dialog.remove() })
++  document.body.append(dialog)
++  dialog.showModal()
++}
+===================================================================
+--- a/packages/client/ui-workspace/src/client/region-boundary.tsx
++++ b/packages/client/ui-workspace/src/client/region-boundary.tsx
+@@ -0,0 +1,48 @@
++/**
++ * Contain one region's render failure at this package's own registration.
++ *
++ * The framework's `SlotErrorBoundary` wraps the whole occupancy, so any throw in a
++ * region retired that entry and blanked the area. This boundary sits directly
++ * around the component this package registers, records the failure — including
++ * `info.componentStack`, which names the offending descendant — and renders a
++ * compact fallback instead of rethrowing, so the rest of the shell stays usable
++ * while the real adaptation is written.
++ */
++import { Component, createElement, type ComponentType, type ReactNode } from 'react'
++
++/** Stamped at build time by scripts/build-forks-from-source.mjs. */
++const BUILD_REVISION = '__BUILD_REVISION__'
++
++export function withRegionBoundary(
++  region: string,
++  Inner: ComponentType<any>,
++): ComponentType<any> {
++  return class RegionBoundary extends Component<Record<string, unknown>, { failed: boolean }> {
++    override state: { failed: boolean } = { failed: false }
++
++    static getDerivedStateFromError(): { failed: boolean } {
++      return { failed: true }
++    }
++
++    override componentDidCatch(error: unknown, info: { componentStack?: string | null }): void {
++      try {
++        localStorage.setItem(`dbt-region-error:${region}`, JSON.stringify({
++          revision: BUILD_REVISION,
++          region,
++          message: String((error as Error | undefined)?.message ?? error),
++          stack: String((error as Error | undefined)?.stack ?? '').slice(0, 2000),
++          componentStack: String(info?.componentStack ?? '').slice(0, 2000),
++        }))
++      } catch {}
++    }
++
++    override render(): ReactNode {
++      if (this.state.failed) {
++        return createElement('div', {
++          style: { padding: '8px', font: '11px ui-monospace, monospace', color: '#ff9f9f' },
++        }, `${region}: render failed`)
++      }
++      return createElement(Inner, this.props)
++    }
++  }
++}
+\ No newline at end of file

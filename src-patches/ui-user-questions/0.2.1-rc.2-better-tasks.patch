@@ -1,0 +1,1399 @@
+===================================================================
+--- a/packages/client/ui-user-questions/src/client/contract/slots.ts
++++ b/packages/client/ui-user-questions/src/client/contract/slots.ts
+@@ -258,6 +258,8 @@
+   #deadline: number | undefined
+   #remainingMs: number | undefined
+   #focused = false
++  readonly #focusOwners = new Set<object>()
++  readonly #defaultFocusOwner = {}
+   #engaged = false
+   #held = false
+   #closed = false
+@@ -323,7 +325,7 @@
+   readonly snapshot = (): QuestionCardSnapshot => this.#snapshot
+ 
+   /** Observable snapshot read by the renderer's keyed Hook. */
+-  readonly getSnapshot = this.snapshot
++  readonly getSnapshot: () => QuestionCardSnapshot = this.snapshot
+ 
+   private createSnapshot(): QuestionCardSnapshot {
+     const channel = this.#waterfall !== undefined
+@@ -451,6 +453,7 @@
+   takeTime(): void {
+     if (this.#held) return
+     this.#held = true
++    this.#focusOwners.clear()
+     this.#focused = false
+     this.#remainingMs = undefined
+     this.#deadline = undefined
+@@ -461,8 +464,10 @@
+    * Record focus even before the request arrives, freezing a pristine countdown once attached.
+    * @param now - current Client epoch time.
+    */
+-  holdFocus(now = Date.now()): void {
+-    if (this.#held || this.#engaged || this.#focused) return
++  holdFocus(now: number = Date.now(), owner: object = this.#defaultFocusOwner): void {
++    if (this.#closed || this.#held || this.#engaged || this.#focusOwners.has(owner)) return
++    this.#focusOwners.add(owner)
++    if (this.#focused) return
+     this.#remainingMs = this.#deadline === undefined ? undefined : Math.max(0, this.#deadline - now)
+     this.#deadline = undefined
+     this.#focused = true
+@@ -473,8 +478,8 @@
+    * Resume a pristine countdown after the answer surface loses focus.
+    * @param now - current Client epoch time.
+    */
+-  releaseFocus(now = Date.now()): void {
+-    if (!this.#focused) return
++  releaseFocus(now: number = Date.now(), owner: object = this.#defaultFocusOwner): void {
++    if (!this.#focusOwners.delete(owner) || this.#focusOwners.size > 0 || !this.#focused) return
+     this.#focused = false
+     this.#deadline = this.#timedWait && this.#remainingMs !== undefined ? now + this.#remainingMs : undefined
+     this.#remainingMs = undefined
+@@ -485,12 +490,13 @@
+    * Keep the first edited draft answerable without a foreground deadline.
+    * @param now - current Client epoch time used to preserve the remaining duration.
+    */
+-  engage(now = Date.now()): void {
++  engage(now: number = Date.now()): void {
+     if (this.#held || this.#engaged) return
+     if (this.#remainingMs === undefined && this.#deadline !== undefined) {
+       this.#remainingMs = Math.max(0, this.#deadline - now)
+     }
+     this.#engaged = true
++    this.#focusOwners.clear()
+     this.#focused = false
+     this.#deadline = undefined
+     this.publish()
+@@ -517,6 +523,8 @@
+   close(): void {
+     if (this.#closed) return
+     this.#closed = true
++    this.#focusOwners.clear()
++    this.#focused = false
+     this.publish()
+   }
+ 
+===================================================================
+--- a/packages/client/ui-user-questions/src/client/draft-store.ts
++++ b/packages/client/ui-user-questions/src/client/draft-store.ts
+@@ -35,30 +35,44 @@
+   prune: (draft: QuestionDraftState, keep: readonly string[]) => void
+ }
+ 
++/** Fresh per-instance state; shared by both declarations below. */
++const draftInit = (): QuestionDraftState => ({ progressByRequest: {} })
++
+ /**
++ * The composer's draft write set. Declared once so the persisted seat store and
++ * the persist-free surface store below cannot drift apart.
++ */
++const draftActions: QuestionDraftActions = {
++  replace: (draft, requestKey, progress) => {
++    draft.progressByRequest[requestKey] = progress
++  },
++  clear: (draft, requestKey) => {
++    draft.progressByRequest = Object.fromEntries(
++      Object.entries(draft.progressByRequest).filter(([key]) => key !== requestKey),
++    )
++  },
++  prune: (draft, keep) => {
++    const live = new Set(keep)
++    draft.progressByRequest = Object.fromEntries(
++      Object.entries(draft.progressByRequest).filter(([key]) => live.has(key)),
++    )
++  },
++}
++
++/**
+  * Declare the question composer's Session store. Drafts persist per Session so
+  * leaving the Session or restarting the Client does not erase an unfinished answer.
+  * @returns a persisted store handle whose instance is owned by the Slot registry.
+  */
+ export function createQuestionDraftStore(): EngineStoreHandle<QuestionDraftState, QuestionDraftActions> {
+   return defineStore({
+-    init: (): QuestionDraftState => ({ progressByRequest: {} }),
++    init: draftInit,
+     persist: 'dsh.user-questions.drafts.v1',
+-    actions: {
+-      replace: (draft, requestKey, progress) => {
+-        draft.progressByRequest[requestKey] = progress
+-      },
+-      clear: (draft, requestKey) => {
+-        draft.progressByRequest = Object.fromEntries(
+-          Object.entries(draft.progressByRequest).filter(([key]) => key !== requestKey),
+-        )
+-      },
+-      prune: (draft, keep) => {
+-        const live = new Set(keep)
+-        draft.progressByRequest = Object.fromEntries(
+-          Object.entries(draft.progressByRequest).filter(([key]) => live.has(key)),
+-        )
+-      },
+-    },
++    actions: draftActions,
+   })
+ }
++
++// 0.2 resolves persistence as `${persist}.${scopeKey}`. The surface registry
++// caches exactly one createQuestionDraftStore().create(sessionId) instance and
++// supplies it to BOTH the native Slot handle and card views. A second transient
++// or persisted instance here would split drafts or cross-pollute one key.
+===================================================================
+--- a/packages/client/ui-user-questions/src/client/index.ts
++++ b/packages/client/ui-user-questions/src/client/index.ts
+@@ -11,6 +11,8 @@
+  * the generic question flow. Both use the same carrier and composer seat.
+  */
+ import type { Context as ClientContext } from '@deepseek-ai/cordis'
++import { createElement, type ReactNode } from 'react'
++import { withRegionBoundary } from './region-boundary.tsx'
+ import type { InboxWireState } from '@deepseek-ai/dsh-agent/types'
+ import type {} from '@deepseek-ai/dsh-api-remotes/client'
+ import type { SessionId } from '@deepseek-ai/dsh-session/types'
+@@ -25,17 +27,22 @@
+ import type { UserQuestionPanels, UserQuestionRecord } from '@deepseek-ai/dsh-client-ui-tool/client'
+ import type { ToolCallId } from '@deepseek-ai/dsh-llm'
+ import { brandString } from '@deepseek-ai/dsh-brand'
+-import { createWaterfallRequest, PendingQuestion, type QuestionRpcChannel } from './contract/slots.ts'
+-import { createQuestionDraftStore } from './draft-store.ts'
+-import { QuestionComposer } from './QuestionComposer.tsx'
++import { createWaterfallRequest, PendingQuestion, type QuestionComposerProps, type QuestionRpcChannel } from './contract/slots.ts'
++import { QuestionComposer, QuestionSurface } from './QuestionComposer.tsx'
++import { QuestionSurfaceRegistry, type QuestionSurfaceProvider } from './question-surface.ts'
++import { createQuestionCard, createQuestionCardHook, findQuestionCard, queuedQuestionReplies, runQuestionOperation } from './surface-card.tsx'
+ import { questionReplyDefinition } from './question-reply.ts'
+ import { QuestionReplyView } from './QuestionReplyView.tsx'
+ import { en, zh, type QuestionKey } from './locales.ts'
++import composerCss from './QuestionComposer.module.css'
++import reviewCss from './PlanReviewPanel.module.css'
+ 
+ export type {
+   PendingQuestion, PlanReview, QuestionAnswer, QuestionComposerProps, QuestionWait,
+ } from './contract/slots.ts'
+ export type { QuestionKey } from './locales.ts'
++export type { QuestionCardTarget, QuestionCardOptions, QuestionCardHandle, QuestionCardState, QuestionCardViewProps } from './surface-card.tsx'
++export type { QuestionSurfaceProvider } from './question-surface.ts'
+ 
+ declare module '@deepseek-ai/dsh-client-ui-slots' {
+   interface LocaleNamespaceMap {
+@@ -53,7 +60,7 @@
+ type ClientQuestionAnswer = Awaited<ReturnType<QuestionListener>>
+ 
+ /** Required services: Agent scopes, Remote Events, Session UI, Slot registry, conversation nodes, and copy. */
+-export const inject = ['sessions', 'remote', 'remote.userQuestions', 'uiSession', 'slots', 'locale', 'uiConversation']
++export const inject: string[] = ['sessions', 'remote', 'remote.userQuestions', 'uiSession', 'slots', 'locale', 'uiConversation']
+ 
+ /** One card and the composer seat it moves in and out of. */
+ interface QuestionCard {
+@@ -81,9 +88,18 @@
+  */
+ class QuestionCards {
+   readonly #cards = new Map<string, QuestionCard>()
++  readonly #listeners = new Map<string, Set<() => void>>()
+ 
+-  constructor(private readonly publish: PendingInteractionPublisher<PendingQuestion>) {}
++  constructor(private readonly publish: PendingInteractionPublisher<PendingQuestion>, private readonly removed: (pending: PendingQuestion) => void) {}
+ 
++  subscribe(key: string, listener: () => void): () => void {
++    const listeners = this.#listeners.get(key) ?? new Set<() => void>()
++    listeners.add(listener); this.#listeners.set(key, listeners)
++    return () => { listeners.delete(listener); if (listeners.size === 0) this.#listeners.delete(key) }
++  }
++
++  #notify(key: string): void { for (const listener of [...(this.#listeners.get(key) ?? [])]) listener() }
++
+   byCallId(sessionId: SessionId, callId: string): QuestionCard | undefined {
+     return this.#cards.get(PendingQuestion.keyOf(sessionId, callId))
+   }
+@@ -139,8 +155,10 @@
+         if (this.#cards.get(pending.key) !== card) return
+         this.#cards.delete(pending.key)
+         pending.close()
++        this.removed(pending)
+         unpublish?.()
+         unpublish = undefined
++        this.#notify(pending.key)
+       },
+       trackRequest: (completion) => {
+         requests.add(completion)
+@@ -152,6 +170,7 @@
+     // the tool call row builds another one from the same transcript record.
+     pending.attachSeat({ hide: pending.review === undefined ? card.hide : card.remove })
+     this.#cards.set(pending.key, card)
++    this.#notify(pending.key)
+     return card
+   }
+ 
+@@ -274,6 +293,8 @@
+     }
+     // A blocking request without a call id is not in the projection; its card ends with its waterfall.
+     if (callId === undefined) card.remove()
++    // A timed waterfall ending may leave this same call continued. Its shared
++    // gate/drafts remain owned until the card actually leaves the registry.
+     completed.resolve()
+     finishRequest()
+   }
+@@ -283,9 +304,9 @@
+  * Mirror answerable calls onto cards. A submitted reply in the durable Inbox
+  * removes the editable card until the reply is admitted or discarded.
+  */
+-function publishContinuedQuestions(ctx: ClientContext, cards: QuestionCards): () => void {
++function publishContinuedQuestions(ctx: ClientContext, cards: QuestionCards): { reconcile(): void; dispose(): void } {
+   const sessions = ctx.sessions
+-  const stopProjections = new Map<SessionId, () => void>()
++  const stopProjections = new Map<SessionId, { binding: NonNullable<ReturnType<typeof sessions.binding>>; stop(): void }>()
+ 
+   const unwrap = <T>(result: { ok: true; value: T } | { ok: false; error: { message: string } }): T => {
+     if (!result.ok) throw new Error(result.error.message)
+@@ -301,29 +322,23 @@
+       const binding = sessions.binding(summary.id)
+       return binding === undefined ? [] : [[summary.id, binding] as const]
+     }))
+-    for (const [sessionId, stop] of stopProjections) {
+-      if (bound.has(sessionId)) continue
+-      stop()
++    for (const [sessionId, entry] of stopProjections) {
++      if (bound.get(sessionId) === entry.binding) continue
++      entry.stop()
+       stopProjections.delete(sessionId)
+     }
+     for (const [sessionId, binding] of bound) {
+       if (stopProjections.has(sessionId)) continue
+       const stopQuestions = binding.session.projections.faceOf('userQuestions').subscribe(reconcile)
+       const stopInbox = binding.session.projections.faceOf('inbox').subscribe(reconcile)
+-      stopProjections.set(sessionId, () => { stopQuestions(); stopInbox() })
++      stopProjections.set(sessionId, { binding, stop: () => { stopQuestions(); stopInbox() } })
+     }
+     const rows = new Map<string, { sessionId: SessionId; row: PendingUserQuestion }>()
+     for (const [sessionId, binding] of bound) {
+       const projected = binding.session.projections.faceOf('userQuestions').getSnapshot() as
+         UserQuestionProjectionView | undefined
+       const inbox = binding.session.projections.faceOf('inbox').getSnapshot() as InboxWireState | undefined
+-      const queued = new Set<string>()
+-      for (const message of [...(inbox?.['next-step'] ?? []), ...(inbox?.['next-turn'] ?? [])]) {
+-        if (typeof message !== 'object' || message === null || Array.isArray(message)) continue
+-        const source = message.source
+-        if (typeof source !== 'object' || source === null || Array.isArray(source)) continue
+-        if (source.kind === 'user-question-reply' && typeof source.callId === 'string') queued.add(source.callId)
+-      }
++      const queued = queuedQuestionReplies(inbox)
+       for (const row of projected?.active ?? []) {
+         if (row.state === 'continued' && queued.has(row.callId)) continue
+         rows.set(PendingQuestion.keyOf(sessionId, row.callId), { sessionId, row })
+@@ -351,14 +366,49 @@
+ 
+   reconcile()
+   const stopList = sessions.list.subscribe(reconcile)
+-  return () => {
++  return { reconcile, dispose: () => {
+     stopList()
+-    for (const stop of stopProjections.values()) stop()
++    for (const entry of stopProjections.values()) entry.stop()
+     stopProjections.clear()
+-  }
++  } }
+ }
+ 
+ /**
++ * Task-card presentation for a host-mounted surface. Scoped by the
++ * `data-question-surface` discriminator so it cannot reach the composer seat,
++ * and built from this package's own class maps so a CSS-module hash change
++ * cannot silently detach it.
++ * @returns the stylesheet text for the `task-card` variant.
++ */
++function taskCardCss(): string {
++  const c = composerCss
++  const r = reviewCss
++  const scope = '[data-question-surface="task-card"]'
++  const font = 'var(--dsh-question-card-font-size,var(--dbt-projection-font-size,13px))'
++  return [
++    `${scope}{min-width:0;max-width:100%;overflow:hidden;font-size:${font};line-height:1.5}`,
++    `${scope} .${c.frame},${scope} .${r.frame}{display:block;padding:4px 0 0}`,
++    `${scope} .${c.card},${scope} .${r.card}{width:100%;min-width:0;max-width:none;max-height:min(55vh,420px);border-radius:10px;box-shadow:none}`,
++    `${scope} .${c.header}{gap:6px;flex-wrap:wrap;padding:9px 8px 6px 10px}`,
++    `${scope} .${c.headerActions}{min-width:0;flex-wrap:wrap}`,
++    `${scope} .${c.title}{overflow-wrap:anywhere;font-size:${font};line-height:1.5}`,
++    `${scope} .${c.body}{min-width:0;padding:8px 10px 2px;font-size:${font};line-height:1.5}`,
++    `${scope} .${c.footer},${scope} .${r.footer}{min-width:0;flex-wrap:wrap;gap:7px;padding:7px 10px 9px}`,
++    `${scope} .${c.footerActions},${scope} .${r.actions}{min-width:0;flex-wrap:wrap}`,
++    `${scope} .${c.footerActions}{gap:6px}`,
++    `${scope} .${c.footerActions} button{height:auto;min-height:28px;padding:4px 9px;font-size:${font};line-height:1.5}`,
++    `${scope} button,${scope} textarea{font-family:inherit;font-size:inherit;line-height:inherit}`,
++    `${scope} .${c.option}{min-width:0;padding:8px 9px;font-size:${font};line-height:1.5}`,
++    `${scope} .${c.optionLabel}{overflow-wrap:anywhere;font-size:${font};line-height:1.5}`,
++    `${scope} .${c.description}{overflow-wrap:anywhere;font-size:${font};line-height:1.5}`,
++    `${scope} .${c.fieldMirror},${scope} .${c.fieldInput}{font-size:${font};line-height:1.5}`,
++    `${scope} .${c.eyebrow},${scope} .${c.progress},${scope} .${c.feedback},${scope} .${c.waitStatus},${scope} .${c.badge}{font-size:${font};line-height:1.5;white-space:normal}`,
++    `${scope} .${c.number}{font-size:${font};line-height:1.2;flex:0 0 1.5em;min-width:20px;width:1.5em;height:1.5em;margin-top:0}`,
++    `${scope} .${c.waitButton}{font-size:${font};line-height:1.5;height:auto;min-height:28px;padding:4px 9px}`,
++  ].join('')
++}
++
++/**
+  * Client plugin body: register the `question` dictionaries, the question
+  * composer into the composer chain, and the late-reply conversation node.
+  * Zero business face — data and verbs live on the matched carrier; t rides
+@@ -367,29 +417,70 @@
+  */
+ export function apply(ctx: ClientContext): void {
+   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-user-questions: dictionaries')
+-  const questionDraftStore = createQuestionDraftStore()
+   const registerPendingInteraction = ctx.uiSession.registerPendingInteraction<PendingQuestion>(
+     pending => pending.kind === 'plan-review' ? 2 : 1,
+   )
+-  const cards = new QuestionCards(registerPendingInteraction)
++  const cards = new QuestionCards(registerPendingInteraction, pending => { registry.forget(pending) })
+   ctx.effect(() => () => { cards.dispose() }, 'ui-user-questions: cards')
++  // One draft store and one settlement gate for every surface that presents a
++  // question, including a host-mounted one (the Better Tasks task card). Both
++  // seams coexist: `userQuestionPanels` stays the native seat protocol, and
++  // `questionSurface` is the render-into-my-own-seat protocol a host uses.
++  const t = ctx.locale.bind(NS)
++  const registry = new QuestionSurfaceRegistry({
++    isCurrent: pending => cards.source(pending.key) === pending,
++    bindingOf: sessionId => ctx.sessions.binding(sessionId as SessionId),
++    runOperation: (record, send) => runQuestionOperation(ctx, record, send),
++    resubmitMessage: () => t('error.resubmit'),
++  })
++  const continuation = publishContinuedQuestions(ctx, cards)
++  ctx.effect(() => continuation.dispose, 'ui-user-questions: continued questions')
++  const supported = (pending: unknown): pending is PendingQuestion => pending instanceof PendingQuestion
++    && pending.kind === 'question' && pending.review === undefined && !pending.snapshot().closed
++    && cards.source(pending.key) === pending && ctx.sessions.binding(pending.sessionId) !== undefined
++  const questionSurface: QuestionSurfaceProvider = Object.freeze({
++    find: sessionId => findQuestionCard(ctx, cards, sessionId),
++    createCard: options => createQuestionCard(ctx, cards, registry, continuation.reconcile, options, t),
++    isSupported: supported,
++    render: (pending: unknown, variant = 'task-card') => supported(pending)
++      ? createElement(QuestionSurface, {
++        pending, registry, variant, store: registry.storeFor(pending.sessionId), t,
++        useQuestionCard: createQuestionCardHook(pending), renderSlot: () => null,
++        isAvailable: () => supported(pending),
++      }) : null,
++  })
++  ctx.effect(() => {
++    const dispose = ctx.reflect.provide('questionSurface', questionSurface)
++    return () => {
++      dispose()
++      registry.dispose()
++    }
++  }, 'ui-user-questions: shared surface')
++  ctx.effect(() => {
++    const style = document.createElement('style')
++    style.dataset.plugin = '@deepseek-ai/dsh-client-ui-user-questions'
++    style.dataset.pluginCss = '@deepseek-ai/dsh-client-ui-user-questions/task-card'
++    style.textContent = taskCardCss()
++    document.head.appendChild(style)
++    return () => style.remove()
++  }, 'ui-user-questions: task-card styles')
+   const disposePanels = ctx.reflect.provide('userQuestionPanels', {
+     reveal: (sessionId, callId) => cards.reveal(sessionId, callId),
+     review: (sessionId, callId, record) => cards.review(sessionId, callId, record),
+   } satisfies UserQuestionPanels)
+   ctx.effect(() => disposePanels, 'ui-user-questions: answer panels')
+-  ctx.effect(() => publishContinuedQuestions(ctx, cards), 'ui-user-questions: continued questions')
++  const registeredComposer = (props: QuestionComposerProps): ReactNode => createElement(QuestionComposer, { ...props, registry })
+   ctx.slots.inject('conversation.composer', () => ctx.slots.register(
+     {
+       name: 'conversation.composer',
+       select: ({ pendingInteraction }: ComposerChainProps): PendingQuestion | null =>
+         pendingInteraction instanceof PendingQuestion ? pendingInteraction : null,
+       locale: NS,
+-      store: questionDraftStore,
++      store: registry.draftStore,
+       inject: () => ({ keyedHooks: { questionCard: (key: string) => cards.source(key) } }),
+       children: { 'conversation.plan-review.actions': { kind: 'list', scope: 'session' } },
+     },
+-    QuestionComposer,
++    withRegionBoundary('conversation.composer', registeredComposer),
+   ))
+   ctx.uiConversation.events.register(questionReplyDefinition)
+   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({
+@@ -400,4 +491,4 @@
+   ctx.remote.$on('user-questions/request', function (request, next) {
+     return answerQuestion(ctx, this, request, next, cards)
+   })
+-}
++}
+\ No newline at end of file
+===================================================================
+--- a/packages/client/ui-user-questions/src/client/PlanReviewPanel.tsx
++++ b/packages/client/ui-user-questions/src/client/PlanReviewPanel.tsx
+@@ -1,13 +1,14 @@
+-import { useMemo, useState } from 'react'
++import { useEffect, useMemo, useState, type ReactNode } from 'react'
+ import {
+   Button, extractMarkdownPlainText, IconEditOutlineRegular, StateDot,
+ } from '@deepseek-ai/dsh-client-ui-primitives'
+ import type { PendingQuestion, PlanReview, QuestionComposerProps } from './contract/slots.ts'
++import type { QuestionSurfaceGate } from './question-surface.ts'
+ import css from './PlanReviewPanel.module.css'
+ 
+-/** The panel's own props: the question domain face, the narrowed review, and the locale seat. */
++/** The panel's own props: the question domain face, the narrowed review, the settlement gate, and the locale seat. */
+ export type PlanReviewPanelProps =
+-  { pending: PendingQuestion; review: PlanReview } & Pick<QuestionComposerProps, 't' | 'renderSlot'>
++  { pending: PendingQuestion; review: PlanReview; gate: QuestionSurfaceGate } & Pick<QuestionComposerProps, 't' | 'renderSlot'>
+ 
+ /**
+  * Optional-prop spread for a decision button's tooltip: `title` is optional on
+@@ -26,27 +27,34 @@
+  * @param props - the question domain face, the narrowed plan review, and `t`.
+  * @returns The plan-review takeover for this request.
+  */
+-export function PlanReviewPanel({ pending, review, t, renderSlot }: PlanReviewPanelProps) {
++export function PlanReviewPanel({ pending, review, t, renderSlot, gate }: PlanReviewPanelProps): ReactNode {
+   // Foreground decisions wait for the resolved frame; accepted Remote decisions
+   // hide the panel. A failed send re-enables the buttons and shows the error.
+   const [busy, setBusy] = useState(false)
+   const [error, setError] = useState<string | null>(null)
+-  const settle = (send: () => Promise<void>, remote = false): void => {
++  // Once ANY surface of this request begins settling, this panel stands down.
++  const locked = busy || gate.locked
++  const cardState = pending.snapshot().state
++  useEffect(() => {
++    if (cardState === 'continued' && !gate.locked) setBusy(false)
++  }, [cardState, gate.locked])
++  const settle = (send: () => Promise<void>, channel: 'none' | 'waterfall' | 'rpc' = 'none'): void => {
++    if (!gate.canInteract() || !gate.beginSettlement()) return
+     setBusy(true)
+     setError(null)
+-    void send()
++    void gate.settle(send, channel)
+       .then(() => {
+-        if (!remote) return
++        if (channel !== 'rpc') return
+         setBusy(false)
+         void pending.dismiss().catch(() => { setError(t('status.sent')) })
+       })
+-      .catch((cause: unknown) => {
++      .catch(() => {
+         setBusy(false)
+-        setError(cause instanceof Error ? cause.message : String(cause))
++        setError(null) // shared attempt gate owns the failure
+       })
+   }
+   const decide = (label: string): void => {
+-    settle(() => pending.answer({ answers: [{ id: review.id, selected: [label] }] }), pending.snapshot().channel === 'rpc')
++    settle(() => pending.answer({ answers: [{ id: review.id, selected: [label] }] }), pending.snapshot().channel)
+   }
+   const summary = useMemo(() => {
+     const title = extractMarkdownPlainText(review.plan, { mode: 'first-line' })
+@@ -69,17 +77,17 @@
+           {summary.description !== '' && <p className={css.description}>{summary.description}</p>}
+         </div>
+         <div className={css.footer}>
+-          <div className={css.feedback} role="status">{error}</div>
++          <div className={css.feedback} role="status">{error ?? gate.error}</div>
+           <div className={css.actions}>
+             <Button
+               variant="outline" className={css.discuss} icon={<IconEditOutlineRegular size={14} />}
+-              disabled={busy} onClick={() => { settle(() => pending.dismiss()) }}
++              disabled={locked} onClick={() => { settle(() => pending.dismiss()) }}
+             >
+               {t('plan.discuss')}
+             </Button>
+             <Button
+               variant="primary" {...tooltip(review.approve.description)}
+-              disabled={busy} onClick={() => { decide(review.approve.label) }}
++              disabled={locked} onClick={() => { decide(review.approve.label) }}
+             >
+               {t('plan.approve')}
+             </Button>
+===================================================================
+--- a/packages/client/ui-user-questions/src/client/QuestionComposer.tsx
++++ b/packages/client/ui-user-questions/src/client/QuestionComposer.tsx
+@@ -1,6 +1,6 @@
+ import {
+-  useEffect, useMemo, useRef, useState,
+-  type ChangeEvent, type FocusEvent, type KeyboardEvent,
++  useEffect, useId, useMemo, useRef, useState, useSyncExternalStore,
++  type ChangeEvent, type FocusEvent, type KeyboardEvent, type ReactNode,
+ } from 'react'
+ import clsx from 'clsx'
+ import {
+@@ -11,6 +11,7 @@
+ import { planReviewOf, type QuestionAnswer, type QuestionCardSnapshot, type QuestionComposerProps } from './contract/slots.ts'
+ import type { PendingQuestion } from './contract/slots.ts'
+ import type { QuestionDraftAnswer, QuestionDraftProgress } from './draft-store.ts'
++import type { QuestionSurfaceGate, QuestionSurfaceRegistry, QuestionSurfaceStore } from './question-surface.ts'
+ import { PlanReviewPanel } from './PlanReviewPanel.tsx'
+ import css from './QuestionComposer.module.css'
+ 
+@@ -103,7 +104,7 @@
+  * @param props - visual variant, draft text, and the field's event handlers.
+  * @returns The mirrored auto-growing field.
+  */
+-function AnswerField(props: AnswerFieldProps) {
++function AnswerField(props: AnswerFieldProps): ReactNode {
+   return (
+     <div className={clsx(css.field, props.variant === 'inline' ? css.customInline : css.customBlock)}>
+       <div aria-hidden className={css.fieldMirror}>{`${props.value}\n`}</div>
+@@ -136,27 +137,131 @@
+  * @param props - the selector-matched pending question carrier plus the framework standard kit.
+  * @returns The question flow, or the intent's own surface, for this request.
+  */
+-export function QuestionComposer(props: QuestionComposerProps) {
+-  const question = props.matched
+-  const review = useMemo(() => planReviewOf(question.questions), [question])
+-  return review === undefined
+-    ? (
+-      <QuestionFlow
+-        key={question.key}
+-        pending={question}
+-        t={props.t}
+-        useStore={props.useStore}
+-        useQuestionCard={props.useQuestionCard}
+-        actions={props.actions}
+-      />
+-    )
+-    : <PlanReviewPanel key={question.key} pending={question} review={review} t={props.t} renderSlot={props.renderSlot} />
++export function QuestionComposer(props: QuestionComposerProps & { registry: QuestionSurfaceRegistry }): ReactNode {
++  return (
++    <QuestionSurface
++      pending={props.matched}
++      registry={props.registry}
++      variant="composer"
++      t={props.t}
++      useStore={props.useStore}
++      useQuestionCard={props.useQuestionCard}
++      actions={props.actions}
++      renderSlot={props.renderSlot}
++    />
++  )
+ }
+ 
++/**
++ * The settlement gate shared by every surface of one pending request. A surface
++ * asks `beginSettlement` before it sends; the first caller owns the decision and
++ * every other surface re-renders with `locked` and the last failure message.
++ */
++export type { QuestionSurfaceGate } from './question-surface.ts'
++
++/**
++ * The standard-kit subset both presentations read. The composer seat supplies
++ * the framework bindings; a host-mounted surface supplies bindings over the
++ * registry's Session-shared draft store and `renderSlot: () => null`, because a
++ * renderSlot binding is only authorizable inside the entry that declares it
++ * (ui-slots raises SlotOwnershipError / StaleAuthorizationError otherwise).
++ */
++type QuestionSurfaceKit =
++  Pick<QuestionComposerProps, 't' | 'useQuestionCard' | 'renderSlot'>
++  & {
++    /**
++     * A host-mounted surface binds the SAME Session instance that the composer
++     * Slot resolves; the component turns that engine source into the
++     * `useStore`/`actions` pair the presentations read. Exactly one of `store`
++     * and the `useStore`/`actions` pair is supplied.
++     */
++    store?: QuestionSurfaceStore
++    useStore?: QuestionComposerProps['useStore']
++    actions?: QuestionComposerProps['actions']
++  }
++
++/**
++ * One shared surface implementation for every seat a pending question appears
++ * in. It resolves the request's registry record, subscribes to the record's
++ * revision, and publishes the surface discriminator as `data-question-surface`
++ * so a host can target it without reaching into this package's CSS modules.
++ *
++ * @param props - the carrier, its registry, the surface discriminator, and the standard kit.
++ * @returns The question flow, or the intent's own presentation, for this request.
++ */
++export function QuestionSurface({ pending, registry, variant, store, isAvailable, useStore: seatUseStore, actions: seatActions, ...kit }: QuestionSurfaceKit & {
++  pending: PendingQuestion
++  registry: QuestionSurfaceRegistry
++  variant: string
++  isAvailable?: () => boolean
++}): ReactNode {
++  const record = useMemo(() => registry.record(pending), [registry, pending])
++  useSyncExternalStore(
++    (listener) => registry.subscribe(record, listener),
++    () => record.version,
++    () => record.version,
++  )
++  // Called unconditionally so the hook order stays stable for both seats.
++  const hostSnapshot = useSyncExternalStore(
++    store?.subscribe ?? NO_SUBSCRIPTION,
++    store?.getSnapshot ?? NO_SNAPSHOT,
++    store?.getSnapshot ?? NO_SNAPSHOT,
++  )
++  const storeUseStore = useMemo(
++    () => (selector: (state: never) => unknown) => selector(hostSnapshot as never),
++    [hostSnapshot],
++  )
++  // oxlint-disable-next-line typescript/no-non-null-assertion
++  const useStore = store === undefined ? seatUseStore! : storeUseStore as QuestionComposerProps['useStore']
++  // oxlint-disable-next-line typescript/no-non-null-assertion
++  const actions = store === undefined ? seatActions! : store.actions
++  const review = useMemo(() => planReviewOf(pending.questions), [pending])
++  const gate = useMemo<QuestionSurfaceGate>(() => {
++    let attempt: number | undefined
++    const available = (): boolean => (isAvailable?.() ?? true) && registry.canInteract(record)
++    return {
++      locked: record.locked || !registry.isCurrent(record) || !(isAvailable?.() ?? true),
++      error: record.error,
++      canInteract: available,
++      clearError: () => { registry.clearError(record) },
++      beginSettlement: () => {
++        if (!available()) return false
++        attempt = registry.beginSettlement(record)
++        return attempt !== undefined
++      },
++      settle: (send, channel = 'none') => registry.settle(record, attempt, send, channel),
++    }
++  }, [registry, record, record.locked, record.error, record.version, isAvailable])
++  return (
++    <div
++      data-question-surface={variant}
++      data-question-key={pending.key}
++      {...(variant === 'task-card' ? { 'data-no-card-drag': true } : {})}
++      onDragStart={(event) => { if (variant === 'task-card') event.preventDefault() }}
++    >
++      {review === undefined
++        ? <QuestionFlow key={pending.key} pending={pending} gate={gate} useStore={useStore} actions={actions} cardSurface={variant === 'task-card'} {...kit} />
++        : (
++          <PlanReviewPanel
++            key={pending.key} pending={pending} review={review} gate={gate}
++            t={kit.t} renderSlot={kit.renderSlot}
++          />
++        )}
++    </div>
++  )
++}
++
++/** Stable no-op sources for a seat that binds the framework store instead. */
++const NO_SUBSCRIPTION = (): (() => void) => () => {}
++const NO_SNAPSHOT = (): undefined => undefined
++
+ type QuestionFlowProps =
+-  { pending: PendingQuestion } & Pick<QuestionComposerProps, 't' | 'useStore' | 'useQuestionCard' | 'actions'>
++  { pending: PendingQuestion; gate: QuestionSurfaceGate; cardSurface?: boolean }
++  & Pick<QuestionComposerProps, 't' | 'useStore' | 'useQuestionCard' | 'actions'>
+ 
+-function QuestionFlow({ pending, t, useStore, useQuestionCard, actions }: QuestionFlowProps) {
++function QuestionFlow({ pending, gate, t, useStore, useQuestionCard, actions, cardSurface = false }: QuestionFlowProps): ReactNode {
++  const domId = useId()
++  const focusOwner = useRef({})
+   const questions = pending.questions
+   // A read-only card built from a settled call's transcript: the same panel
+   // over the recorded answers, with nothing left to submit.
+@@ -197,9 +302,10 @@
+   const [error, setError] = useState<Feedback | null>(null)
+   const card = useQuestionCard(pending.key, snapshot => snapshot ?? REMOVED_CARD)
+   const canSubmit = card.channel !== 'none'
+-  // The answer surface freezes while a submission is in flight, and for good on
+-  // a review card: its call has already settled.
+-  const locked = busy !== null || review !== undefined
++  // The answer surface freezes while a submission is in flight, for good on a
++  // review card: its call has already settled, and once ANY surface of this
++  // request begins settling (`gate.locked`) every other surface must stand down.
++  const locked = busy !== null || review !== undefined || gate.locked
+   // A waterfall submission is only "sent": the gateway drops an outcome that
+   // arrives after another Client settled the event, without telling anyone.
+   // The draft therefore survives until the projection closes the card, and a
+@@ -251,6 +357,7 @@
+   }
+ 
+   const takeTime = (): void => {
++    if (locked || !gate.canInteract()) return
+     waitDisposition.current = 'waiting'
+     pending.takeTime()
+     replaceProgress(index, drafts)
+@@ -263,21 +370,21 @@
+   }
+ 
+   const focusAnswerSurface = (event: FocusEvent<HTMLDivElement>): void => {
+-    if (!event.currentTarget.contains(event.relatedTarget)) pending.holdFocus()
++    if (!event.currentTarget.contains(event.relatedTarget)) pending.holdFocus(Date.now(), focusOwner.current)
+   }
+ 
+   const blurAnswerSurface = (event: FocusEvent<HTMLDivElement>): void => {
+-    if (!event.currentTarget.contains(event.relatedTarget)) pending.releaseFocus()
++    if (!event.currentTarget.contains(event.relatedTarget)) pending.releaseFocus(Date.now(), focusOwner.current)
+   }
+ 
+   useEffect(() => {
+-    const release = (): void => { pending.releaseFocus() }
++    const release = (): void => { pending.releaseFocus(Date.now(), focusOwner.current) }
+     const refocus = (): void => {
+       if (waitDisposition.current === 'editing') {
+         pending.engage()
+         return
+       }
+-      if (answerSurface.current?.contains(document.activeElement) === true) pending.holdFocus()
++      if (answerSurface.current?.contains(document.activeElement) === true) pending.holdFocus(Date.now(), focusOwner.current)
+     }
+     const visibilityChanged = (): void => { if (document.hidden) release(); else refocus() }
+     window.addEventListener('blur', release)
+@@ -292,6 +399,8 @@
+   }, [pending])
+ 
+   const dismissFlow = (): void => {
++    if (locked || !gate.canInteract()) return
++    if (cardSurface && pending.dismissal === 'hide') { setMinimized(true); return }
+     // A tool-call-keyed panel only leaves the seat; nothing is sent and nothing
+     // is persisted, and the tool call row brings it back.
+     if (pending.dismissal === 'hide') {
+@@ -302,14 +411,15 @@
+       setError({ key: 'error.unavailable' })
+       return
+     }
++    if (!gate.beginSettlement()) return
+     setBusy('cancel')
+     setError(null)
+     sentVia.current = 'waterfall'
+-    void pending.dismiss()
+-      .catch((cause: unknown) => {
++    void gate.settle(() => pending.dismiss(), 'waterfall')
++      .catch(() => {
+         sentVia.current = null
+         setBusy(null)
+-        setError({ text: cause instanceof Error ? cause.message : String(cause) })
++        setError(null) // the attempt gate publishes the shared failure
+       })
+   }
+ 
+@@ -317,6 +427,8 @@
+     update: (current: QuestionDraftAnswer) => QuestionDraftAnswer,
+     nextIndex = index,
+   ): void => {
++    if (locked || !gate.canInteract()) return
++    gate.clearError()
+     engage()
+     const nextDrafts = drafts.map((item, itemIndex) => itemIndex === index ? update(item) : item)
+     replaceProgress(nextIndex, nextDrafts)
+@@ -341,6 +453,7 @@
+   const completed = (item: QuestionDraftAnswer): boolean => answered(item) || item.skipped
+ 
+   const submitDrafts = (values: QuestionDraftAnswer[]): void => {
++    if (locked || !gate.canInteract()) return
+     const missing = values.findIndex(item => !completed(item))
+     if (missing >= 0) {
+       replaceProgress(missing, values)
+@@ -351,6 +464,7 @@
+       setError({ key: 'error.unavailable' })
+       return
+     }
++    if (!gate.beginSettlement()) return
+     const answer: QuestionAnswer = {
+       answers: questions.map((item, itemIndex) => {
+         const value = values[itemIndex] as QuestionDraftAnswer
+@@ -369,7 +483,7 @@
+     // Read the channel used by answer() in this same event turn.
+     const channel = pending.snapshot().channel
+     sentVia.current = channel === 'waterfall' ? 'waterfall' : null
+-    void pending.answer(answer)
++    void gate.settle(() => pending.answer(answer), channel)
+       .then(() => {
+         if (channel !== 'rpc') return
+         sentVia.current = null
+@@ -377,14 +491,15 @@
+         setError(null)
+         void pending.dismiss().catch(() => { setError({ key: 'status.sent' }) })
+       })
+-      .catch((cause: unknown) => {
++      .catch(() => {
+         sentVia.current = null
+         setBusy(null)
+-        setError({ text: cause instanceof Error ? cause.message : String(cause) })
++        setError(null) // the attempt gate publishes the shared failure
+       })
+   }
+ 
+   const continueFlow = (): void => {
++    if (locked || !gate.canInteract()) return
+     if (!answered(draft)) {
+       setError({ key: 'error.unanswered' })
+       return
+@@ -417,6 +532,8 @@
+   }
+ 
+   const skipQuestion = (): void => {
++    if (locked || !gate.canInteract()) return
++    gate.clearError()
+     engage()
+     const nextDrafts = drafts.map((item, itemIndex) => itemIndex === index
+       ? { selected: [], custom: '', skipped: true }
+@@ -433,12 +550,12 @@
+     <div className={css.frame} data-question-key={pending.key}>
+       <section
+         className={clsx(css.card, minimized && css.cardMinimized)}
+-        aria-labelledby={`question-${pending.key}-${String(index)}`}
++        aria-labelledby={`question-${pending.key}-${String(index)}-${domId}`}
+       >
+         <header className={css.header}>
+           <div className={css.headingBlock}>
+             {question.header !== undefined && <div className={css.eyebrow}>{question.header}</div>}
+-            <h2 className={css.title} id={`question-${pending.key}-${String(index)}`}>
++            <h2 className={css.title} id={`question-${pending.key}-${String(index)}-${domId}`}>
+               {question.question}
+             </h2>
+           </div>
+@@ -451,7 +568,7 @@
+               </span>
+             )}
+             {countdown !== undefined && card.waitState !== 'waiting' && card.waitState !== 'editing' && card.waitState !== 'continued' && (
+-              <Button variant="outline" className={css.waitButton} onClick={takeTime}>
++              <Button variant="outline" className={css.waitButton} disabled={locked} onClick={takeTime}>
+                 {t('wait.takeTime')}
+               </Button>
+             )}
+@@ -467,7 +584,7 @@
+               aria-label={t(minimized ? 'nav.maximize' : 'nav.minimize')}
+               title={t(minimized ? 'nav.maximize' : 'nav.minimize')}
+               aria-expanded={!minimized}
+-              disabled={busy !== null}
++              disabled={locked}
+               onClick={() => { setMinimized(current => !current) }}
+             >
+               {minimized ? <IconChevronUpOutlineRegular /> : <IconChevronDownOutlineRegular />}
+@@ -476,7 +593,7 @@
+               type="button" className={css.iconButton}
+               aria-label={t(pending.dismissal === 'hide' ? 'nav.close' : 'nav.cancel')}
+               title={t(pending.dismissal === 'hide' ? 'nav.close' : 'nav.cancel')}
+-              disabled={busy !== null} onClick={dismissFlow}
++              disabled={locked} onClick={dismissFlow}
+             >
+               <IconCloseOutlineRegular />
+             </button>
+@@ -580,7 +697,7 @@
+                     <AnswerField
+                       // A missing countdown does not imply an indefinite request:
+                       // a timed request can still be awaiting its claim's first frame.
+-                      autoFocus={canSubmit && countdown === undefined && !locked && !focusedQuestions.current.has(index)}
++                      autoFocus={!cardSurface && canSubmit && countdown === undefined && !locked && !focusedQuestions.current.has(index)}
+                       variant="block"
+                       value={draft.custom}
+                       disabled={locked}
+@@ -597,7 +714,7 @@
+               <div className={css.pager}>
+                 <button
+                   type="button" className={css.iconButton} aria-label={t('nav.prev')}
+-                  disabled={index === 0 || busy !== null}
++                  disabled={index === 0 || locked}
+                   onClick={() => { replaceProgress(index - 1, drafts); setError(null) }}
+                 >
+                   <IconChevronLeftOutlineRegular />
+@@ -605,24 +722,26 @@
+                 <span className={css.progress}>{index + 1} / {questions.length}</span>
+                 <button
+                   type="button" className={css.iconButton} aria-label={t('nav.next')}
+-                  disabled={index === questions.length - 1 || busy !== null}
++                  disabled={index === questions.length - 1 || locked}
+                   onClick={() => { replaceProgress(index + 1, drafts); setError(null) }}
+                 >
+                   <IconChevronRightOutlineRegular />
+                 </button>
+               </div>
+               <div className={css.feedback} role="status">
+-                {error === null ? null : 'key' in error ? t(error.key) : error.text}
++                {error === null
++                  ? (gate.error === null ? null : gate.error)
++                  : 'key' in error ? t(error.key) : error.text}
+               </div>
+               {/* A review card has nothing to send: the pager alone walks the record. */}
+               {review === undefined && (
+                 <div className={css.footerActions}>
+-                  <Button variant="outline" disabled={busy !== null} onClick={skipQuestion}>
++                  <Button variant="outline" disabled={locked} onClick={skipQuestion}>
+                     {t('action.skip')}
+                   </Button>
+                   <Button
+                     variant="primary"
+-                    disabled={busy !== null || !answered(draft) || (index === questions.length - 1 && !canSubmit)}
++                    disabled={locked || !answered(draft) || (index === questions.length - 1 && !canSubmit)}
+                     onClick={continueFlow}
+                   >
+                     {busy === 'answer'
+===================================================================
+--- a/packages/client/ui-user-questions/src/client/question-surface.ts
++++ b/packages/client/ui-user-questions/src/client/question-surface.ts
+@@ -0,0 +1,187 @@
++/** Shared Session-scoped drafts and single-flight settlement for native and card seats. */
++import { createQuestionDraftStore } from './draft-store.ts'
++import type { PendingQuestion, QuestionCardSnapshot } from './contract/slots.ts'
++import type { QuestionCardHandle, QuestionCardOptions, QuestionCardTarget } from './surface-card.tsx'
++
++type DraftHandle = ReturnType<typeof createQuestionDraftStore>
++export type QuestionSurfaceStore = ReturnType<DraftHandle['create']>
++type Channel = QuestionCardSnapshot['channel']
++interface Attempt {
++  readonly id: number
++  channel: Channel
++  readonly completion: Promise<void>
++  readonly finish: () => void
++}
++export interface QuestionSurfaceRecord {
++  readonly id: string
++  readonly pending: PendingQuestion
++  readonly binding: unknown
++  readonly store: QuestionSurfaceStore
++  locked: boolean
++  error: string | null
++  version: number
++  alive: boolean
++  sentVia: Channel
++  attempt: Attempt | undefined
++  readonly listeners: Set<() => void>
++  offPending: () => void
++}
++export interface QuestionSurfaceGate {
++  readonly locked: boolean
++  readonly error: string | null
++  beginSettlement(): boolean
++  settle(send: () => Promise<void>, channel?: Channel): Promise<void>
++  canInteract(): boolean
++  clearError(): void
++}
++export interface QuestionSurfaceRegistryOptions {
++  isCurrent(pending: PendingQuestion): boolean
++  bindingOf(sessionId: string): unknown
++  runOperation(record: QuestionSurfaceRecord, send: () => Promise<void>): Promise<void>
++  resubmitMessage(): string
++}
++
++/** One store instance per resolved persistence key; card and Slot share the actual object. */
++export class QuestionSurfaceRegistry {
++  readonly #records = new Map<string, QuestionSurfaceRecord>()
++  readonly #stores = new Map<string, QuestionSurfaceStore>()
++  readonly #draft = createQuestionDraftStore()
++  #sequence = 0
++  #disposed = false
++  readonly draftStore: DraftHandle
++
++  constructor(private readonly options: QuestionSurfaceRegistryOptions) {
++    this.draftStore = { spec: this.#draft.spec, create: scopeKey => {
++      if (scopeKey === undefined || scopeKey === '') throw new Error('Question drafts require a Session scope')
++      return this.storeFor(scopeKey)
++    } }
++  }
++
++  storeFor(sessionId: string): QuestionSurfaceStore {
++    const existing = this.#stores.get(sessionId)
++    if (existing !== undefined) return existing
++    if (this.#disposed) throw new Error('Question surface registry is closed')
++    const store = this.#draft.create(sessionId)
++    this.#stores.set(sessionId, store)
++    return store
++  }
++
++  record(pending: PendingQuestion): QuestionSurfaceRecord {
++    const id = `${pending.sessionId}:${pending.key}`, binding = this.options.bindingOf(pending.sessionId)
++    const existing = this.#records.get(id)
++    if (existing?.pending === pending && existing.binding === binding && existing.alive) return existing
++    if (existing !== undefined) this.#invalidate(existing)
++    const record: QuestionSurfaceRecord = {
++      id, pending, binding, store: this.storeFor(pending.sessionId), locked: false, error: null,
++      version: 0, alive: true, sentVia: 'none', attempt: undefined, listeners: new Set(), offPending: () => {},
++    }
++    this.#records.set(id, record)
++    record.offPending = pending.subscribe(() => {
++      if (pending.snapshot().closed || !this.isCurrent(record)) this.#invalidate(record)
++      else {
++        // A sent waterfall can lose the Host race and become a continued question.
++        // Only rearm after the local operation finished; never overlap two sends.
++        if (record.attempt === undefined && record.sentVia === 'waterfall' && pending.snapshot().state === 'continued') {
++          record.locked = false; record.sentVia = 'none'; record.error = this.options.resubmitMessage()
++        }
++        this.#notify(record)
++      }
++    })
++    return record
++  }
++
++  isCurrent(record: QuestionSurfaceRecord): boolean {
++    return !this.#disposed && record.alive && this.#records.get(record.id) === record
++      && this.options.isCurrent(record.pending) && !record.pending.snapshot().closed
++      && record.binding !== undefined && this.options.bindingOf(record.pending.sessionId) === record.binding
++  }
++
++  subscribe(record: QuestionSurfaceRecord, listener: () => void): () => void {
++    record.listeners.add(listener)
++    return () => { record.listeners.delete(listener) }
++  }
++
++  canInteract(record: QuestionSurfaceRecord): boolean { return this.isCurrent(record) && !record.locked }
++
++  beginSettlement(record: QuestionSurfaceRecord): number | undefined {
++    if (!this.canInteract(record)) return undefined
++    const completion = Promise.withResolvers<void>()
++    const id = ++this.#sequence
++    record.attempt = { id, channel: 'none', completion: completion.promise, finish: () => { completion.resolve() } }
++    record.locked = true; record.error = null
++    this.#notify(record)
++    return id
++  }
++
++  settle(record: QuestionSurfaceRecord, token: number | undefined, send: () => Promise<void>, channel: Channel): Promise<void> {
++    const attempt = record.attempt
++    if (token === undefined || attempt?.id !== token) return Promise.reject(new Error('Question settlement is not owned by this surface'))
++    attempt.channel = channel
++    let work: Promise<void>
++    try {
++      if (!this.isCurrent(record)) throw new Error('This question is no longer current')
++      // Invoke the native carrier in this same event turn; no ready-await may
++      // change waterfall versus RPC between capture and answer().
++      work = this.options.runOperation(record, send)
++    } catch (error) { work = Promise.reject(error) }
++    return Promise.resolve(work).then(() => {
++      if (record.attempt !== attempt) return
++      record.sentVia = channel
++      if (channel === 'none') record.locked = false
++      if (channel === 'waterfall' && record.pending.snapshot().state === 'continued') {
++        record.locked = false; record.sentVia = 'none'; record.error = this.options.resubmitMessage()
++      }
++    }, (error: unknown) => {
++      if (record.attempt === attempt && this.isCurrent(record)) {
++        record.locked = false; record.sentVia = 'none'
++        record.error = error instanceof Error ? error.message : String(error)
++      }
++      throw error
++    }).finally(() => {
++      if (record.attempt === attempt) record.attempt = undefined
++      attempt.finish(); this.#notify(record)
++    })
++  }
++
++  clearError(record: QuestionSurfaceRecord): void {
++    if (record.error === null || !this.canInteract(record)) return
++    record.error = null; this.#notify(record)
++  }
++
++  whenSettled(record: QuestionSurfaceRecord): Promise<void> { return record.attempt?.completion ?? Promise.resolve() }
++
++  /** Forget presentation ownership, NOT persisted drafts on ordinary scope release. */
++  forget(pending: PendingQuestion): void {
++    const id = `${pending.sessionId}:${pending.key}`, record = this.#records.get(id)
++    if (record?.pending !== pending) return
++    this.#invalidate(record); this.#records.delete(id)
++  }
++
++  dispose(): void {
++    if (this.#disposed) return
++    this.#disposed = true
++    for (const record of this.#records.values()) this.#invalidate(record)
++    this.#records.clear(); this.#stores.clear()
++  }
++
++  #invalidate(record: QuestionSurfaceRecord): void {
++    if (!record.alive) return
++    record.alive = false; record.locked = true; record.offPending(); this.#notify(record)
++  }
++  #notify(record: QuestionSurfaceRecord): void {
++    record.version += 1
++    for (const listener of [...record.listeners]) listener()
++  }
++}
++
++export interface QuestionSurfaceProvider {
++  find(sessionId: string): QuestionCardTarget | undefined
++  createCard(options: QuestionCardOptions): Promise<QuestionCardHandle>
++  /** Compatibility for existing hosts already holding the current carrier. */
++  isSupported(pending: unknown): pending is PendingQuestion
++  render(pending: unknown, variant?: string): unknown
++}
++
++declare module '@deepseek-ai/cordis' {
++  interface Context { questionSurface: QuestionSurfaceProvider }
++}
+===================================================================
+--- a/packages/client/ui-user-questions/src/client/region-boundary.tsx
++++ b/packages/client/ui-user-questions/src/client/region-boundary.tsx
+@@ -0,0 +1,48 @@
++/**
++ * Contain one region's render failure at this package's own registration.
++ *
++ * The framework's `SlotErrorBoundary` wraps the whole occupancy, so any throw in a
++ * region retired that entry and blanked the area. This boundary sits directly
++ * around the component this package registers, records the failure — including
++ * `info.componentStack`, which names the offending descendant — and renders a
++ * compact fallback instead of rethrowing, so the rest of the shell stays usable
++ * while the real adaptation is written.
++ */
++import { Component, createElement, type ComponentType, type ReactNode } from 'react'
++
++/** Stamped at build time by scripts/build-forks-from-source.mjs. */
++const BUILD_REVISION = '__BUILD_REVISION__'
++
++export function withRegionBoundary(
++  region: string,
++  Inner: ComponentType<any>,
++): ComponentType<any> {
++  return class RegionBoundary extends Component<Record<string, unknown>, { failed: boolean }> {
++    override state: { failed: boolean } = { failed: false }
++
++    static getDerivedStateFromError(): { failed: boolean } {
++      return { failed: true }
++    }
++
++    override componentDidCatch(error: unknown, info: { componentStack?: string | null }): void {
++      try {
++        localStorage.setItem(`dbt-region-error:${region}`, JSON.stringify({
++          revision: BUILD_REVISION,
++          region,
++          message: String((error as Error | undefined)?.message ?? error),
++          stack: String((error as Error | undefined)?.stack ?? '').slice(0, 2000),
++          componentStack: String(info?.componentStack ?? '').slice(0, 2000),
++        }))
++      } catch {}
++    }
++
++    override render(): ReactNode {
++      if (this.state.failed) {
++        return createElement('div', {
++          style: { padding: '8px', font: '11px ui-monospace, monospace', color: '#ff9f9f' },
++        }, `${region}: render failed`)
++      }
++      return createElement(Inner, this.props)
++    }
++  }
++}
+\ No newline at end of file
+===================================================================
+--- a/packages/client/ui-user-questions/src/client/surface-card.tsx
++++ b/packages/client/ui-user-questions/src/client/surface-card.tsx
+@@ -0,0 +1,241 @@
++import { createElement, useSyncExternalStore, type ComponentType, type CSSProperties, type ReactNode } from 'react'
++import { createSnapshotStore, type ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
++import type { Context } from '@deepseek-ai/cordis'
++import type { ISessions, SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
++import type { SessionId } from '@deepseek-ai/dsh-session/types'
++import type { InboxWireState } from '@deepseek-ai/dsh-agent/types'
++import type { UserQuestionProjectionView } from '@deepseek-ai/dsh-user-questions/types'
++import { PendingQuestion, planReviewOf, type QuestionCardSnapshot, type QuestionComposerProps } from './contract/slots.ts'
++import { QuestionSurface } from './QuestionComposer.tsx'
++import type { QuestionSurfaceRecord, QuestionSurfaceRegistry } from './question-surface.ts'
++
++export interface QuestionCardTarget {
++  readonly sessionId: string
++  readonly requestKey: string
++  readonly callId?: string
++  readonly kind: 'question' | 'plan-review'
++}
++export interface QuestionCardOptions {
++  readonly sessionId: string
++  readonly requestKey?: string
++  readonly callId?: string
++  readonly signal?: AbortSignal
++}
++export interface QuestionCardViewProps { readonly fontSize?: number; readonly className?: string }
++export interface QuestionCardState {
++  readonly phase: 'waiting' | 'ready' | 'closed' | 'unsupported' | 'error'
++  readonly kind?: 'question' | 'plan-review'
++  readonly message?: string
++}
++export interface QuestionCardHandle {
++  readonly sessionId: string
++  readonly requestKey: string
++  readonly callId?: string
++  readonly state: ObservableSnapshot<QuestionCardState>
++  readonly View: ComponentType<QuestionCardViewProps>
++  readonly closed: Promise<void>
++  dispose(): void
++}
++export interface QuestionCardsAccess {
++  source(key: string): PendingQuestion | undefined
++  values(): readonly { readonly pending: PendingQuestion }[]
++  subscribe(key: string, listener: () => void): () => void
++}
++
++/** Same durable Inbox exclusion as the native continued-question reconciler. */
++export function queuedQuestionReplies(inbox: InboxWireState | undefined): ReadonlySet<string> {
++  const queued = new Set<string>()
++  for (const message of [...(inbox?.['next-step'] ?? []), ...(inbox?.['next-turn'] ?? [])]) {
++    if (typeof message !== 'object' || message === null || Array.isArray(message)) continue
++    const source = message.source
++    if (typeof source === 'object' && source !== null && !Array.isArray(source)
++      && source.kind === 'user-question-reply' && typeof source.callId === 'string') queued.add(source.callId)
++  }
++  return queued
++}
++
++function projections(sessions: ISessions, sessionId: SessionId): { questions: UserQuestionProjectionView | undefined; inbox: InboxWireState | undefined } {
++  const binding = sessions.binding(sessionId)
++  const list = sessions.list.getSnapshot()
++  const metadata = list.byId[sessionId]?.projectionValues ?? list.projectionsBySession[sessionId]?.values
++  return {
++    questions: binding?.session.projections.faceOf('userQuestions').getSnapshot() ?? metadata?.userQuestions,
++    inbox: (binding?.session.projections.faceOf('inbox').getSnapshot() ?? metadata?.inbox) as InboxWireState | undefined,
++  }
++}
++function targetOf(pending: PendingQuestion): QuestionCardTarget {
++  return { sessionId: pending.sessionId, requestKey: pending.key, kind: pending.kind,
++    ...(pending.callId === undefined ? {} : { callId: pending.callId }) }
++}
++
++/** Discover existing data only. The caller's existing list/status hooks drive refresh. */
++export function findQuestionCard(ctx: Context, cards: QuestionCardsAccess, sessionId: string): QuestionCardTarget | undefined {
++  const sessions = ctx.get('sessions') as ISessions | undefined
++  if (sessions === undefined || sessionId === '') return undefined
++  const id = sessionId as SessionId, view = projections(sessions, id), queued = queuedQuestionReplies(view.inbox)
++  const answerable = (pending: PendingQuestion): boolean => pending.sessionId === id && pending.review === undefined
++    && !pending.snapshot().closed && cards.source(pending.key) === pending
++    && !(pending.snapshot().state === 'continued' && pending.callId !== undefined && queued.has(pending.callId))
++  const active = ctx.get('uiSession')?.sessionStatus.getSnapshot().get(id)?.pendingInteraction
++  if (active instanceof PendingQuestion && answerable(active)) return targetOf(active)
++  const live = cards.values().map(({ pending }) => pending).filter(answerable)
++  const current = live.filter(pending => pending.kind === 'plan-review').at(-1) ?? live.at(-1)
++  if (current !== undefined) return targetOf(current)
++  const candidates = new Map<string, QuestionCardTarget>()
++  for (const row of view.questions?.active ?? []) {
++    if (row.state === 'continued' && queued.has(row.callId)) continue
++    candidates.set(PendingQuestion.keyOf(id, row.callId), { sessionId, callId: row.callId,
++      requestKey: PendingQuestion.keyOf(id, row.callId), kind: planReviewOf(row.questions) === undefined ? 'question' : 'plan-review' })
++  }
++  const values = [...candidates.values()]
++  return values.filter(value => value.kind === 'plan-review').at(-1) ?? values.at(-1)
++}
++
++/** Bind the real PendingQuestion observable, rather than pretending source(key) is a React hook. */
++export function createQuestionCardHook(pending: PendingQuestion): QuestionComposerProps['useQuestionCard'] {
++  return ((key: string, select?: (value: QuestionCardSnapshot | undefined) => unknown) => {
++    const snapshot = useSyncExternalStore(pending.subscribe, pending.getSnapshot, pending.getSnapshot)
++    const value = key === pending.key ? snapshot : undefined
++    return select === undefined ? value : select(value)
++  }) as QuestionComposerProps['useQuestionCard']
++}
++
++/** Retain one exact Session generation and one exact request; never navigate or reveal a native seat. */
++export async function createQuestionCard(
++  ctx: Context, cards: QuestionCardsAccess, registry: QuestionSurfaceRegistry,
++  reconcile: () => void, options: QuestionCardOptions, t: QuestionComposerProps['t'],
++): Promise<QuestionCardHandle> {
++  const sessions = ctx.get('sessions') as ISessions | undefined
++  if (sessions === undefined) throw new Error('Session retention is unavailable')
++  if (typeof options.sessionId !== 'string' || options.sessionId === '') throw new Error('A question Session is required')
++  const id = options.sessionId as SessionId
++  if (options.requestKey === undefined && options.callId === undefined) throw new Error('An exact question identity is required')
++  if (options.callId !== undefined && (typeof options.callId !== 'string' || options.callId === '')) throw new Error('Invalid question call identity')
++  const key = options.requestKey ?? PendingQuestion.keyOf(id, options.callId!)
++  if (typeof key !== 'string' || key === '') throw new Error('Invalid question request identity')
++  if (options.callId !== undefined && key !== PendingQuestion.keyOf(id, options.callId)) throw new Error('Question key and call identity disagree')
++  options.signal?.throwIfAborted()
++  const originalPending = cards.source(key)
++  const reference = sessions.retain(id, { source: 'controllerOperation', signal: options.signal })
++  let handedOff = false
++  try {
++    const binding = reference.binding
++    if (await reference.ready !== binding) throw new Error('Question Session generation changed')
++    options.signal?.throwIfAborted()
++    if (sessions.binding(id) !== binding || binding.session.getSnapshot().removed || binding.session.getSnapshot().openState !== 'open') {
++      throw new Error('Question Session is unavailable')
++    }
++    const state = createSnapshotStore<QuestionCardState>({ phase: 'waiting' })
++    const ended = Promise.withResolvers<void>()
++    const stops: Array<() => void> = []
++    let closing = false, pending: PendingQuestion | undefined, record: QuestionSurfaceRecord | undefined
++    let stopPending: (() => void) | undefined, removeOwner: (() => unknown) | undefined, removeGeneration: (() => unknown) | undefined
++    const available = (): boolean => !closing && sessions.binding(id) === binding && !binding.session.getSnapshot().removed
++      && binding.session.getSnapshot().openState === 'open'
++      && pending !== undefined && cards.source(key) === pending && pending.sessionId === id && pending.key === key
++      && (options.callId === undefined || pending.callId === options.callId) && !pending.snapshot().closed
++      && !(pending.snapshot().state === 'continued' && pending.callId !== undefined
++        && queuedQuestionReplies(projections(sessions, id).inbox).has(pending.callId))
++    const publish = (next: QuestionCardState): void => {
++      const old = state.getSnapshot()
++      if (old.phase !== next.phase || old.kind !== next.kind || old.message !== next.message) state.set(next)
++    }
++    const finish = (terminal: QuestionCardState): void => {
++      if (closing) return
++      closing = true
++      // Start the drain before notifying consumers, which may synchronously unmount.
++      // Cleanup failures must neither reject `closed` nor strand the exact lease.
++      const cleanups = [stopPending, ...stops.splice(0), removeOwner, removeGeneration]
++      options.signal?.removeEventListener('abort', dispose)
++      const drain = async (): Promise<void> => {
++        try {
++          for (const off of cleanups) {
++            try { await off?.() } catch { /* Presentation cleanup is best effort. */ }
++          }
++          if (record !== undefined) await registry.whenSettled(record)
++        } catch { /* A failed admitted operation still ends this presentation. */ }
++        finally {
++          try { reference.release() } catch { /* Generation teardown may already have run. */ }
++          finally { ended.resolve() }
++        }
++      }
++      void drain()
++      publish(terminal)
++    }
++    const dispose = (): void => { finish({ phase: 'closed' }) }
++    const observe = (): void => {
++      if (closing) return
++      if (sessions.binding(id) !== binding || binding.session.getSnapshot().removed) { dispose(); return }
++      const sessionState = binding.session.getSnapshot()
++      if (sessionState.openState === 'error') { finish({ phase: 'error', message: 'Question Session is unavailable' }); return }
++      if (sessionState.openState !== 'open') { publish({ phase: 'waiting' }); return }
++      const candidate = cards.source(key)
++      if (originalPending !== undefined && candidate !== originalPending) { dispose(); return }
++      if (candidate !== undefined) {
++        if (candidate.sessionId !== id || candidate.key !== key || options.callId !== undefined && candidate.callId !== options.callId) {
++          finish({ phase: 'error', message: 'Question identity changed' }); return
++        }
++        if (pending !== undefined && candidate !== pending) { dispose(); return }
++        if (candidate.review !== undefined || candidate.snapshot().closed) { dispose(); return }
++        if (candidate.kind === 'plan-review') { finish({ phase: 'unsupported', kind: 'plan-review' }); return }
++        if (pending === undefined) {
++          pending = candidate; record = registry.record(candidate)
++          stopPending = candidate.subscribe(observe)
++        }
++        const data = projections(sessions, id)
++        if (candidate.snapshot().state === 'continued' && candidate.callId !== undefined && queuedQuestionReplies(data.inbox).has(candidate.callId)) {
++          finish({ phase: 'closed', kind: candidate.kind }); return
++        }
++        publish({ phase: candidate.snapshot().channel === 'none' ? 'waiting' : 'ready', kind: candidate.kind })
++        return
++      }
++      if (pending !== undefined) { dispose(); return }
++      const data = projections(sessions, id)
++      const row = data.questions?.active.find(value => PendingQuestion.keyOf(id, value.callId) === key)
++      if (row !== undefined && !(row.state === 'continued' && queuedQuestionReplies(data.inbox).has(row.callId))) {
++        const kind = planReviewOf(row.questions) === undefined ? 'question' : 'plan-review'
++        if (kind === 'plan-review') finish({ phase: 'unsupported', kind })
++        else publish({ phase: 'waiting', kind })
++      } else if (data.questions !== undefined || options.callId === undefined) dispose()
++    }
++    const refresh = (): void => { if (!closing) { reconcile(); observe() } }
++    const View = ({ fontSize, className }: QuestionCardViewProps): ReactNode => {
++      const snapshot = useSyncExternalStore(state.subscribe, state.getSnapshot, state.getSnapshot)
++      if (snapshot.phase !== 'ready' || pending === undefined || !available()) return null
++      const style = typeof fontSize === 'number' && Number.isFinite(fontSize) && fontSize > 0
++        ? { '--dsh-question-card-font-size': `${fontSize}px` } as CSSProperties : undefined
++      return createElement('div', { className, style, 'data-question-card-key': key }, createElement(QuestionSurface, {
++        pending, registry, variant: 'task-card', store: registry.storeFor(id), t,
++        useQuestionCard: createQuestionCardHook(pending), renderSlot: () => null, isAvailable: available,
++      }))
++    }
++    try {
++      stops.push(cards.subscribe(key, observe))
++      stops.push(binding.session.projections.faceOf('userQuestions').subscribe(refresh))
++      stops.push(binding.session.projections.faceOf('inbox').subscribe(refresh))
++      stops.push(binding.session.subscribe(observe))
++      stops.push(sessions.list.subscribe(observe))
++      options.signal?.addEventListener('abort', dispose, { once: true })
++      removeOwner = ctx.effect(() => dispose, 'user-questions: card surface owner')
++      removeGeneration = binding.ctx.effect(() => dispose, 'user-questions: card surface generation')
++      reconcile(); observe()
++      handedOff = true
++      if (options.signal?.aborted) dispose()
++      return { sessionId: id, requestKey: key, ...(options.callId === undefined ? {} : { callId: options.callId }),
++        state, View, closed: ended.promise, dispose }
++    } catch (error) { dispose(); handedOff = true; throw error }
++  } finally { if (!handedOff) reference.release() }
++}
++
++/** A settlement lease is separate from its view's abort signal and starts synchronously. */
++export function runQuestionOperation(ctx: Context, record: QuestionSurfaceRecord, send: () => Promise<void>): Promise<void> {
++  const sessions = ctx.get('sessions') as ISessions | undefined
++  if (sessions === undefined || sessions.binding(record.pending.sessionId) !== record.binding) return Promise.reject(new Error('Question Session generation changed'))
++  const reference = sessions.retain(record.pending.sessionId, { source: 'controllerOperation' })
++  void reference.ready.catch(() => {})
++  try {
++    const snapshot = (record.binding as SessionBinding).session.getSnapshot()
++    if (reference.binding !== record.binding || snapshot.removed || snapshot.openState !== 'open') throw new Error('Question Session is unavailable')
++    return Promise.resolve(send()).finally(() => { reference.release() })
++  } catch (error) { reference.release(); return Promise.reject(error) }
++}

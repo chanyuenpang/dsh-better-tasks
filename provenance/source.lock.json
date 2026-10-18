@@ -1,12 +1,12 @@
 {
   "package": "deepseek-ai/deepseek-harness",
   "repository": "https://github.com/deepseek-ai/deepseek-harness.git",
-  "tag": "dsh-v0.2.0-rc.2",
-  "version": "0.2.0-rc.2",
-  "commit": "639ed015397290b3745d163aafe02ffee4aa3f84",
-  "tarball": "https://codeload.github.com/deepseek-ai/deepseek-harness/tar.gz/refs/tags/dsh-v0.2.0-rc.2",
-  "tarballSha256": "c126f2f5dc56820e62d07e52eba6455cc20fffb379fc876626993452d86d4010",
-  "vendoredTarball": "third_party/source/dsh-v0.2.0-rc.2.tar.gz",
+  "tag": "dsh-v0.2.1-rc.2",
+  "version": "0.2.1-rc.2",
+  "commit": "332895e0f7c9d4dbfb29729f5eb367fa263ff986",
+  "tarball": "https://codeload.github.com/deepseek-ai/deepseek-harness/tar.gz/refs/tags/dsh-v0.2.1-rc.2",
+  "tarballSha256": "dec9f36f9b25028ca8de2a7520e16029ad36e8328078fb33b85b1b9b338d5690",
+  "vendoredTarball": "third_party/source/dsh-v0.2.1-rc.2.tar.gz",
   "title": "DeepSeek Harness",
   "profile": "official",
   "buildToolchain": {
@@ -18,6 +18,6 @@
     "@types/react-dom": "~18.3.0",
     "typescript": "^5.9.3"
   },
-  "note": "The forks are built from this tag's source through the unmodified official packages/client/tsdown.client.ts preset. Only the preset's node half is dropped (it needs a workspace-wide tsc project graph that the fork does not change); with DSH_BUILD_FACE unset the client entry is src/client/index.ts, so the browser artifact builds straight from TSX. Acquiring the tag: `git fetch` of this tag hangs in this environment (smart-HTTP), so use codeload with a resumable download: curl.exe -sS -L -C - --max-time 120 -o <file> <tarball>.",
-  "fidelity": "Building an UNMODIFIED 0.2.0-rc.2 ui-layout through this root reproduces the published npm artifact exactly after normalizing seed-derived CSS class hashes, build-path region comments, @__PURE__ annotations and require ordering (scripts/compare-client-bundles.mjs prints EQUIVALENT). ui-workspace and ui-user-questions differ from their npm artifacts only by inlined TS downleveling helpers (__create/__defProp et al.) that the CI route had already lowered via the tsc intermediate; the programs are semantically equivalent."
+  "note": "The forks are built from this tag's source through the unmodified official packages/client/tsdown.client.ts preset. Only the preset's node half is dropped (it needs a workspace-wide tsc project graph that the fork does not change); with DSH_BUILD_FACE unset the client entry is src/client/index.ts, so the browser artifact builds straight from TSX. Acquiring the tag: `git fetch` of this tag hangs in this environment (smart-HTTP) and codeload.github.com was unreachable from this network, so the tarball was fetched through https://gh-proxy.com plus the codeload URL and vendored. `commit` is the dshBuildCommit stamped into the desktop application manifest for this runtime (the tarball carries no git sha and the registry publishes no gitHead for these packages).",
+  "fidelity": "0.2.0-rc.2 fidelity was proven by scripts/compare-client-bundles.mjs (EQUIVALENT for ui-layout, semantically equal for ui-workspace/ui-user-questions). The 0.2.1-rc.2 port keeps the same pipeline; parity is re-measured with the same script."
 }

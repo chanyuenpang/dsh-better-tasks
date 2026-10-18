@@ -1,0 +1,633 @@
+===================================================================
+--- a/packages/client/ui-input-trigger/src/client/contract.ts
++++ b/packages/client/ui-input-trigger/src/client/contract.ts
+@@ -5,7 +5,8 @@
+  * per-session controller through sessionOf.
+  */
+ import type { Context as ClientContext } from '@deepseek-ai/cordis'
+-import type { InputTriggerSource } from '../types.ts'
++import type { InputSurfaceTarget, InputSurfaceToken, InputTriggerSource } from '../types.ts'
++import type { MenuView } from './MenuView.tsx'
+ import type { InputTriggerController } from './controller.ts'
+ 
+ /** The `ctx.inputTriggers` service face. */
+@@ -22,4 +23,6 @@
+    * @returns controller that dies with that scope.
+    */
+   sessionOf(actx: ClientContext): InputTriggerController
++  /** Create an independent editor route over the existing native source roster. */
++  createSurface(actx: ClientContext, token: InputSurfaceToken, target: InputSurfaceTarget): InputTriggerController & { readonly View: typeof MenuView }
+ }
+===================================================================
+--- a/packages/client/ui-input-trigger/src/client/controller.ts
++++ b/packages/client/ui-input-trigger/src/client/controller.ts
+@@ -18,9 +18,12 @@
+ import type { MenuEvent, MenuState, TriggerHit } from '../core/contract.ts'
+ import type {
+   ClientSessionContext, InputTriggerCandidate, InputTriggerCrumb, InputTriggerSource, PickAction,
+-  SubmitEnvelope, TriggerChar, TriggerGuard,
++  InputSurfaceTarget, InputSurfaceToken, SubmitEnvelope, TriggerChar, TriggerGuard,
+ } from '../types.ts'
+ 
++// Not a source name: the public launcher store retains its string|null shape.
++const COMBINED_LAUNCHER = '\u0000all-slash-sources'
++
+ /** Token identity a dismissal sticks to: the same trigger, query, and span bounds. */
+ interface DismissedHit {
+   readonly trigger: string
+@@ -50,6 +53,8 @@
+   sessionId: SessionId
+   /** Root-service roster view. */
+   roster: SourceRoster
++  /** Detached surfaces route only to this target, never the native scoped listeners. */
++  surface?: { readonly token: InputSurfaceToken; readonly target: InputSurfaceTarget }
+ }
+ 
+ /**
+@@ -61,8 +66,8 @@
+   /** Menu state store (per-session; survives session switches, dies with the scope). */
+   readonly menu: SnapshotStore<MenuState> = createSnapshotStore<MenuState>(MENU_CLOSED)
+   /**
+-   * Name of the source opened through the programmatic launcher, or null for
+-   * trigger-detected/closed menus. Composer chrome subscribes to this store
++   * Name of the source opened through the programmatic launcher, an opaque
++   * combined-slash marker, or null for trigger-detected/closed menus. Chrome subscribes
+    * for the launcher's expanded state without owning a second menu model.
+    */
+   readonly launcher: SnapshotStore<string | null> = createSnapshotStore<string | null>(null)
+@@ -108,11 +113,17 @@
+     // roster warm here replaces the projection-transition watch — there are
+     // no capability steps to react to.
+     const projection = this.project()
+-    for (const src of deps.roster.all()) {
+-      src.warm?.(projection)
+-      this.watchLexicon(src, projection)
++    try {
++      for (const src of deps.roster.all()) {
++        src.warm?.(projection)
++        this.watchLexicon(src, projection)
++      }
++      this.refreshLexicon()
++    } catch (error) {
++      // Construction can fail after an earlier source subscribed successfully.
++      this.dispose()
++      throw error
+     }
+-    this.refreshLexicon()
+   }
+ 
+   /**
+@@ -125,6 +136,13 @@
+    */
+   track(draft: string, caret: number, guard: TriggerGuard, draftRev: number): void {
+     if (this.disposed) return
++    if (this.launcher.getSnapshot() === COMBINED_LAUNCHER && this.menu.getSnapshot().open) {
++      // A separate search field owns focus. Selection/focus tracking must not
++      // replace its captured insertion span with a detected token or new caret.
++      // A real draft change revokes the old CAS before any source can execute.
++      if (this.hit?.span.draftRev !== draftRev) this.dismiss()
++      return
++    }
+     const launched = this.launcher.getSnapshot() !== null
+     this.clearLauncher()
+     const raw = detectTrigger(draft, caret, guard)
+@@ -205,6 +223,47 @@
+   }
+ 
+   /**
++   * Toggle the combined slash launcher without inserting a trigger in the draft.
++   * The supplied selection/revision remains authoritative until close or pick;
++   * the separate search field can refine candidates without changing that CAS.
++   */
++  toggleAll(hit: TriggerHit): void {
++    if (this.disposed || this.deps.surface?.target.isAvailable() === false || hit.trigger !== '/') return
++    if (this.launcher.getSnapshot() === COMBINED_LAUNCHER && this.menu.getSnapshot().open) {
++      this.dismiss()
++      return
++    }
++    this.stopFetch()
++    this.dismissed = null
++    this.drilled = false
++    this.hit = { ...hit, span: { ...hit.span } }
++    this.launcher.set(COMBINED_LAUNCHER)
++    this.menu.set(seedGroups(this.menu.getSnapshot(), this.deps.roster.sources('/')))
++    this.refreshCombined(this.hit)
++  }
++
++  /** Refine only a combined launcher's candidate query, never the editor draft. */
++  filterLauncher(query: string): void {
++    if (this.disposed || this.deps.surface?.target.isAvailable() === false
++      || this.launcher.getSnapshot() !== COMBINED_LAUNCHER || !this.menu.getSnapshot().open || this.hit === null) return
++    if (query === this.hit.query) return
++    this.refreshCombined({ ...this.hit, query })
++  }
++
++  /** Combined refresh preserves all slash groups, search text and captured CAS. */
++  private refreshCombined(hit: TriggerHit): void {
++    const roster = this.deps.roster.sources('/')
++    const groups = this.menu.getSnapshot().groups
++    if (groups.length !== roster.length || groups.some((group, index) => group.source !== roster[index]?.name)) {
++      this.menu.set(seedGroups(this.menu.getSnapshot(), roster))
++    }
++    this.hit = hit
++    this.reduce({ type: 'hit', hit })
++    this.refreshHeaders(hit, roster)
++    this.fetchCandidates(hit, roster)
++  }
++
++  /**
+    * Pointer pick from MenuView: route the clicked candidate through onPick
+    * and execute claim/insert outcomes via the scoped input events.
+    * @param source - source (group) name.
+@@ -214,7 +273,7 @@
+   pick(source: string, index: number, action: PickAction = 'pick'): void {
+     const state = this.menu.getSnapshot()
+     const hit = this.hit
+-    if (this.disposed || !state.open || hit === null) return
++    if (this.disposed || !state.open || hit === null || this.deps.surface?.target.isAvailable() === false) return
+     const group = state.groups.find(g => g.source === source)
+     const candidate = group !== undefined && group.status === 'ready' ? group.items[index] : undefined
+     if (candidate === undefined) return
+@@ -232,7 +291,8 @@
+    */
+   pickCrumb(source: string, index: number): void {
+     const hit = this.hit
+-    if (this.disposed || !this.menu.getSnapshot().open || hit === null) return
++    if (this.disposed || !this.menu.getSnapshot().open || hit === null
++      || this.launcher.getSnapshot() === COMBINED_LAUNCHER && this.deps.surface?.target.isAvailable() === false) return
+     const crumb = this.headers.getSnapshot().get(source)?.[index]
+     if (crumb === undefined || crumb.current === true) return
+     const src = this.deps.roster.sources(hit.trigger).find(s => s.name === source)
+@@ -266,6 +326,8 @@
+     if (composing || this.disposed) return 'pass'
+     const state = this.menu.getSnapshot()
+     if (!state.open) return 'pass'
++    if (this.launcher.getSnapshot() === COMBINED_LAUNCHER && this.deps.surface?.target.isAvailable() === false
++      && key !== 'escape' && key !== 'tabBack') return 'consumed'
+     switch (key) {
+       case 'up': {
+         this.reduce({ type: 'move', dir: -1 })
+@@ -320,7 +382,7 @@
+    */
+   onSpace(): boolean {
+     const hit = this.hit
+-    if (this.disposed || hit === null || hit.position !== 'leading') return false
++    if (this.disposed || this.launcher.getSnapshot() === COMBINED_LAUNCHER || hit === null || hit.position !== 'leading') return false
+     const token = hit.trigger + hit.query
+     const projection = this.project()
+     for (const src of this.deps.roster.sources(hit.trigger)) {
+@@ -344,6 +406,9 @@
+    * @returns the model representation (e.g. `<skill>name</skill>`).
+    */
+   serializeReference(source: string, ref: string, signal: AbortSignal): Promise<string> {
++    if (this.disposed || signal.aborted || this.deps.surface?.target.signal.aborted) {
++      return Promise.reject(new Error('input reference serialization aborted'))
++    }
+     const owner = this.deps.roster.all().find(s => s.name === source)
+     if (owner?.codec === undefined) {
+       return Promise.reject(new Error(`slash: no serializer for reference source "${source}"`))
+@@ -384,13 +449,15 @@
+    * the caller must not silently downgrade.
+    */
+   async adjudicate(line: string, signal: AbortSignal, envelope: SubmitEnvelope): Promise<PickOutcome> {
++    if (this.disposed || this.deps.surface?.target.signal.aborted) throw new Error('input surface is closed')
+     const projection = this.project()
+     for (const src of this.deps.roster.all()) {
+-      if (signal.aborted) {
++      if (signal.aborted || this.disposed || this.deps.surface?.target.signal.aborted) {
+         throw signal.reason instanceof Error ? signal.reason : new Error('slash adjudication aborted')
+       }
+       if (src.matchEnter === undefined || !line.startsWith(src.trigger)) continue
+       const outcome = await src.matchEnter(projection, line, signal, envelope)
++      if (this.disposed || signal.aborted || this.deps.surface?.target.signal.aborted) throw new Error('input surface is closed')
+       if (outcome !== undefined) return outcome
+     }
+     return undefined
+@@ -430,6 +497,7 @@
+     this.lexiconOffs.get(source)?.()
+     this.lexiconOffs.delete(source)
+     this.refreshLexicon()
++    if (this.launcher.getSnapshot() === COMBINED_LAUNCHER && this.hit?.trigger === source.trigger) this.refreshOpenMenu()
+   }
+ 
+   /**
+@@ -444,6 +512,7 @@
+     source.warm?.(projection)
+     this.watchLexicon(source, projection)
+     this.refreshLexicon()
++    if (this.launcher.getSnapshot() === COMBINED_LAUNCHER && this.hit?.trigger === source.trigger) this.refreshOpenMenu()
+   }
+ 
+   /** External dismiss (e.g. pointer outside the composer area). */
+@@ -458,6 +527,10 @@
+   refreshOpenMenu(): void {
+     if (this.disposed || !this.menu.getSnapshot().open || this.hit === null) return
+     const launched = this.launcher.getSnapshot()
++    if (launched === COMBINED_LAUNCHER) {
++      this.refreshCombined(this.hit)
++      return
++    }
+     const roster = this.deps.roster.sources(this.hit.trigger)
+       .filter(source => launched === null || source.name === launched)
+     if (roster.length === 0) return
+@@ -476,13 +549,20 @@
+ 
+   /** The session projection handed to sources (agent-backed identity; constant per scope). */
+   private project(): ClientSessionContext {
+-    return { sessionId: this.deps.sessionId }
++    return { sessionId: this.deps.sessionId, ...this.deps.surface === undefined ? {} : { surface: this.deps.surface.token } }
+   }
+ 
+   /** Execute a claim/insert/text outcome via the scoped input events (actx as dispatch subject); true = the input applied it. */
+-  private execute(outcome: PickOutcome, span: import('../types.ts').TokenSpan): boolean {
++  private execute(outcome: PickOutcome, span: import('../types.ts').TokenSpan, fromLauncher = false): boolean {
+     const { actx } = this.deps
+-    if (outcome === undefined || outcome === 'handled') return false
++    if (outcome === undefined || outcome === 'handled' || this.disposed) return false
++    const target = this.deps.surface?.target
++    if (target !== undefined) {
++      if (target.signal.aborted) return false
++      if ('claim' in outcome) return target.beginCommand(outcome.claim, span)
++      if ('text' in outcome) return target.insertText(outcome.text, span, outcome.continue, fromLauncher)
++      return target.insertReference(outcome.insert, span)
++    }
+     if ('claim' in outcome) {
+       return actx.bail(actx, 'slash/input-begin-command', { claim: outcome.claim, span }) === true
+     }
+@@ -530,7 +610,8 @@
+       // open menu, so one source cannot contribute its previous catalog.
+       void Promise.resolve().then(() => {
+         if (this.disposed || this.hit !== hit || !this.menu.getSnapshot().open) return
+-        this.fetchCandidates(hit, this.deps.roster.sources(hit.trigger))
++        if (this.launcher.getSnapshot() === COMBINED_LAUNCHER) this.refreshOpenMenu()
++        else this.fetchCandidates(hit, this.deps.roster.sources(hit.trigger))
+       })
+     }))
+   }
+@@ -587,6 +668,7 @@
+     hit: TriggerHit,
+     action: PickAction,
+   ): void {
++    const fromLauncher = this.launcher.getSnapshot() === COMBINED_LAUNCHER
+     const outcome = src.onPick({
+       candidate,
+       session: this.project(),
+@@ -611,7 +693,7 @@
+     // a header off a draft nobody descended into — one that would name a
+     // directory while hiding the locations its rows still need.
+     this.drilled = action === 'drill'
+-    if (!this.execute(outcome, hit.span)) this.drilled = false
++    if (!this.execute(outcome, hit.span, fromLauncher)) this.drilled = false
+   }
+ 
+   /** Re-poll every header-bearing source in the hit roster and publish their crumbs. */
+@@ -655,7 +737,11 @@
+ 
+   private reduce(ev: MenuEvent): void {
+     const cur = this.menu.getSnapshot()
+-    const next = menuReduce(cur, ev)
++    // Native typed/single-source menus still auto-close when empty. A separate
++    // launcher search must remain mounted so a zero-result query can be edited.
++    const event = this.launcher.getSnapshot() === COMBINED_LAUNCHER
++      && (ev.type === 'source-settled' || ev.type === 'source-failed') ? { ...ev, keepOpen: true } : ev
++    const next = menuReduce(cur, event)
+     if (next !== cur) this.menu.set(next)
+     if (next.open) return
+     this.clearLauncher()
+===================================================================
+--- a/packages/client/ui-input-trigger/src/client/index.ts
++++ b/packages/client/ui-input-trigger/src/client/index.ts
+@@ -19,6 +19,7 @@
+ export { InputTriggerController } from './controller.ts'
+ export type { InputTriggerControllerDeps, SourceRoster } from './controller.ts'
+ export type { MenuViewInjected } from './slots.ts'
++export { MenuView } from './MenuView.tsx'
+ export type { MenuViewProps } from './MenuView.tsx'
+ export type { MenuKey } from './locales.ts'
+ export type {
+@@ -26,7 +27,7 @@
+   CommandClaim, ConsumeTokenRequest, HeaderRequest, InsertReferenceRequest, PickOutcome, PickVia,
+   ReferenceCodec, ReferenceInsert, InputTriggerCandidate, InputTriggerCrumb, InputTriggerPick,
+   InputTriggerSource, SubmitAttachment, SubmitEnvelope, SubmitOutcome, TokenSpan, TriggerChar,
+-  TriggerGuard, TriggerPosition,
++  TriggerGuard, TriggerPosition, InputSurfaceToken, InputSurfaceTarget,
+ } from '../types.ts'
+ export type { DetectTrigger, ExactMatch, MenuEvent, MenuReduce, MenuState, TriggerHit } from '../core/contract.ts'
+ export type { InputTriggerServiceContract } from './contract.ts'
+@@ -49,7 +50,7 @@
+ const MENU_NS = 'slash.menu'
+ 
+ /** Required services: controller resolution reads the session scope tree; the menu copy is localized. */
+-export const inject = ['sessions', 'locale']
++export const inject: string[] = ['sessions', 'locale']
+ 
+ /**
+  * Client plugin body: mount the service, then register MenuView into the
+===================================================================
+--- a/packages/client/ui-input-trigger/src/client/MenuView.tsx
++++ b/packages/client/ui-input-trigger/src/client/MenuView.tsx
+@@ -13,7 +13,7 @@
+  * header pinned above the scrolling list.
+  */
+ import { MenuSurface } from '@deepseek-ai/dsh-client-ui-primitives'
+-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
++import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactElement } from 'react'
+ import clsx from 'clsx'
+ import { IconChevronRightOutlineRegular, ReferenceIconRegular, useAnchoredMaxHeight } from '@deepseek-ai/dsh-client-ui-primitives'
+ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+@@ -22,7 +22,7 @@
+ import type { MenuKey } from './locales.ts'
+ 
+ /** Full menu props: injected face + the locale seat. */
+-export type MenuViewProps = MenuViewInjected & PropsLocale<'slash.menu'>
++export type MenuViewProps = MenuViewInjected & PropsLocale<'slash.menu'> & { readonly idPrefix?: string; readonly inline?: boolean }
+ 
+ /** Height cap that fits the two headings and eight built-in command rows. */
+ const MAX_HEIGHT = 400
+@@ -35,8 +35,8 @@
+ const TOP_MARGIN = 84
+ 
+ /** DOM id of one option row (the aria-activedescendant target). */
+-function optionId(source: string, index: number): string {
+-  return `dsh-slash-option-${source}-${index}`
++function optionId(source: string, index: number, prefix = 'dsh-slash-option'): string {
++  return `${prefix}-${source}-${index}`
+ }
+ 
+ /**
+@@ -44,7 +44,7 @@
+  * @param props - injected face (the menu store and the pick route); `t` rides the standard locale seat.
+  * @returns the dropdown while open; null while closed.
+  */
+-export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t }: MenuViewProps) {
++export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t, idPrefix, inline = false }: MenuViewProps): ReactElement | null {
+   const state = useSyncExternalStore(
+     fn => menu.subscribe(fn),
+     () => menu.getSnapshot(),
+@@ -73,9 +73,9 @@
+   // scrolls the active option into view on keyboard moves — do it here.
+   useEffect(() => {
+     if (highlight === null) return
+-    document.getElementById(optionId(highlight.source, highlight.index))
++    document.getElementById(optionId(highlight.source, highlight.index, idPrefix))
+       ?.scrollIntoView({ block: 'nearest' })
+-  }, [highlight])
++  }, [highlight, idPrefix])
+   // Dismiss on pointer outside the menu AND outside the composer card
+   // (clicking the textarea or bottom bar must not close the menu).
+   useEffect(() => {
+@@ -97,7 +97,7 @@
+     <MenuSurface
+       ref={listRef}
+       className={css.menu}
+-      style={{ maxHeight }}
++      style={inline ? { position: 'relative', inset: 'auto', width: '100%', minWidth: 0, maxHeight: MAX_HEIGHT } : { maxHeight }}
+       data-trigger-menu=""
+       data-overflow-below={hasOverflowBelow || undefined}
+     >
+@@ -130,8 +130,9 @@
+         ref={viewportRef}
+         className={css.viewport}
+         role="listbox"
++        id={idPrefix === undefined ? undefined : `${idPrefix}-listbox`}
+         aria-label={t('suggestions.aria')}
+-        aria-activedescendant={highlight !== null ? optionId(highlight.source, highlight.index) : undefined}
++        aria-activedescendant={highlight !== null ? optionId(highlight.source, highlight.index, idPrefix) : undefined}
+         onScroll={updateOverflowHint}
+       >
+         {state.groups.map(group => (group.status === 'ready' && group.items.length === 0)
+@@ -154,12 +155,12 @@
+                 : group.items.map((item, index) => {
+                   const active = highlight !== null && highlight.source === group.source && highlight.index === index
+                   return (
+-                    <Fragment key={optionId(group.source, index)}>
++                    <Fragment key={optionId(group.source, index, idPrefix)}>
+                       {item.section !== undefined && item.section !== group.items[index - 1]?.section
+                         ? <div className={css.sectionTitle} role="presentation">{item.section}</div>
+                         : null}
+                       <button
+-                        id={optionId(group.source, index)}
++                        id={optionId(group.source, index, idPrefix)}
+                         type="button"
+                         role="option"
+                         aria-selected={active}
+===================================================================
+--- a/packages/client/ui-input-trigger/src/client/service.ts
++++ b/packages/client/ui-input-trigger/src/client/service.ts
+@@ -11,7 +11,8 @@
+ import type { ISessions, SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
+ import { WeakMapWithValues } from '@deepseek-ai/dsh-util-values'
+ import type {} from '@deepseek-ai/dsh-client-locale/client'
+-import type { InputTriggerSource } from '../types.ts'
++import type { InputSurfaceTarget, InputSurfaceToken, InputTriggerSource } from '../types.ts'
++import { MenuView } from './MenuView.tsx'
+ import { InputTriggerController } from './controller.ts'
+ import type { InputTriggerServiceContract } from './contract.ts'
+ 
+@@ -25,14 +26,16 @@
+   readonly sources: InputTriggerSource[]
+   /** Per-session controllers; entries are deleted by their scope disposer. */
+   readonly controllers: WeakMapWithValues<SessionBinding, InputTriggerController>
++  readonly surfaces: Map<InputSurfaceToken, InputTriggerController>
++  readonly usedTokens: WeakSet<InputSurfaceToken>
+ }
+ 
+ /** The `ctx.inputTriggers` trigger pipeline service (root registry + controller resolution). */
+ export class InputTriggerService extends Service implements InputTriggerServiceContract {
+-  static inject = ['sessions']
++  static inject: string[] = ['sessions']
+ 
+   private readonly live: LiveState = {
+-    sources: [], controllers: new WeakMapWithValues(),
++    sources: [], controllers: new WeakMapWithValues(), surfaces: new Map(), usedTokens: new WeakSet(),
+   }
+ 
+   /**
+@@ -41,7 +44,7 @@
+   constructor(ctx: Context) {
+     super(ctx, 'inputTriggers')
+     ctx.on('locale/change', () => {
+-      for (const controller of this.live.controllers.values) controller.refreshOpenMenu()
++      for (const controller of this.controllers()) controller.refreshOpenMenu()
+     })
+   }
+ 
+@@ -58,7 +61,7 @@
+       throw new Error(`slash source "${src.trigger}${src.name}" is already registered`)
+     }
+     live.sources.push(src)
+-    for (const controller of live.controllers.values) {
++    for (const controller of this.controllers()) {
+       try {
+         controller.sourceAdded(src)
+       } catch (error) {
+@@ -72,7 +75,7 @@
+       const at = live.sources.indexOf(src)
+       if (at < 0) return
+       live.sources.splice(at, 1)
+-      for (const controller of live.controllers.values) controller.sourceRemoved(src)
++      for (const controller of this.controllers()) controller.sourceRemoved(src)
+     }
+   }
+ 
+@@ -112,6 +115,56 @@
+     return controller
+   }
+ 
++  /** Detached controllers borrow the roster but never the native editor or event route. */
++  createSurface(actx: ClientContext, token: InputSurfaceToken, target: InputSurfaceTarget): InputTriggerController & { readonly View: typeof MenuView } {
++    const sessions = this.sessions()
++    const session = sessions.sessionOf(actx)
++    const binding = session === undefined ? undefined : sessions.binding(session.sessionId)
++    if (binding === undefined || binding.session !== session) throw new Error('slash.createSurface requires a retained Session scope')
++    if (target.signal.aborted || typeof token !== 'object' || token === null || this.live.usedTokens.has(token)) {
++      throw new Error('input surface token is closed or already used')
++    }
++    this.live.usedTokens.add(token)
++    const controller = Object.assign(new InputTriggerController({
++      actx: binding.ctx, sessionId: binding.sessionId, surface: { token, target },
++      roster: {
++        sources: trigger => this.live.sources.filter(s => s.trigger === trigger).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
++        all: () => this.live.sources,
++      },
++    }), { View: MenuView })
++    const originalDispose = controller.dispose.bind(controller)
++    let closed = false
++    let removeBinding: (() => unknown) | undefined
++    let removeOwner: (() => unknown) | undefined
++    controller.dispose = () => {
++      if (closed) return
++      closed = true
++      target.signal.removeEventListener('abort', controller.dispose)
++      this.live.surfaces.delete(token)
++      const releaseBinding = removeBinding
++      const releaseOwner = removeOwner
++      removeBinding = removeOwner = undefined
++      try { originalDispose() } finally {
++        try { void releaseBinding?.() } finally { void releaseOwner?.() }
++      }
++    }
++    this.live.surfaces.set(token, controller)
++    target.signal.addEventListener('abort', controller.dispose, { once: true })
++    try {
++      removeBinding = binding.ctx.effect(() => controller.dispose, 'slash: input surface')
++      removeOwner = this.ctx.effect(() => controller.dispose, 'slash: surface provider lifetime')
++      if (target.signal.aborted) throw new Error('input surface closed during creation')
++      return controller
++    } catch (error) {
++      controller.dispose()
++      throw error
++    }
++  }
++
++  private controllers(): InputTriggerController[] {
++    return [...this.live.controllers.values, ...this.live.surfaces.values()]
++  }
++
+   private sessions(): ISessions {
+     const sessions = this.ctx.get('sessions')
+     if (sessions === undefined) throw new Error('ui-input-trigger: sessions service unavailable')
+===================================================================
+--- a/packages/client/ui-input-trigger/src/core/contract.ts
++++ b/packages/client/ui-input-trigger/src/core/contract.ts
+@@ -40,16 +40,22 @@
+     /** False when candidate section rows own all visible group labeling. */
+     readonly showGroupTitle?: boolean
+     readonly status: 'pending' | 'ready'
++    /** Explicit combined launchers retain failed groups for caller-owned error feedback. */
++    readonly failed?: boolean
+     readonly items: readonly InputTriggerCandidate[]
+   }[]
+   readonly highlight: { readonly source: string; readonly index: number } | null
+ }
+ 
+-/** Menu reduction events. Source failure = silent group removal (log only; no error UI tier). */
++/**
++ * Menu reduction events. Native source failure silently removes its group.
++ * keepOpen retains explicit launcher search and marks failed groups for local feedback;
++ * its absence retains native group-removal and empty-menu auto-close semantics.
++ */
+ export type MenuEvent =
+   | { readonly type: 'hit'; readonly hit: TriggerHit | null }
+-  | { readonly type: 'source-settled'; readonly generation: number; readonly source: string; readonly items?: readonly InputTriggerCandidate[] }
+-  | { readonly type: 'source-failed'; readonly generation: number; readonly source: string }
++  | { readonly type: 'source-settled'; readonly generation: number; readonly source: string; readonly items?: readonly InputTriggerCandidate[]; readonly keepOpen?: boolean }
++  | { readonly type: 'source-failed'; readonly generation: number; readonly source: string; readonly keepOpen?: boolean }
+   | { readonly type: 'move'; readonly dir: 1 | -1 }
+   | { readonly type: 'hover'; readonly source: string; readonly index: number }
+   | { readonly type: 'close' }
+===================================================================
+--- a/packages/client/ui-input-trigger/src/core/menu.ts
++++ b/packages/client/ui-input-trigger/src/core/menu.ts
+@@ -104,7 +104,7 @@
+         // parked where it was while the new fetch runs, and the settled
+         // generation replaces the items and revalidates the highlight
+         // wholesale. Pending status still fences picks off the stale rows.
+-        groups: state.groups.map(g => ({ ...g, status: 'pending' })),
++        groups: state.groups.map(g => ({ ...g, status: 'pending', ...(g.failed === undefined ? {} : { failed: false }) })),
+         highlight: state.highlight,
+       }
+     }
+@@ -114,16 +114,18 @@
+       if (idx < 0) return state
+       const items: readonly InputTriggerCandidate[] = ev.items ?? []
+       const groups = state.groups.map((g, i) =>
+-        i === idx ? { ...g, status: 'ready' as const, items } : g)
+-      if (allReadyEmpty(groups)) return closed(state)
++        i === idx ? { ...g, status: 'ready' as const, items, ...(ev.keepOpen === true ? { failed: false } : {}) } : g)
++      if (allReadyEmpty(groups) && ev.keepOpen !== true) return closed(state)
+       const highlight = validHighlight(state.highlight, groups) ?? firstHighlight(groups)
+       return { ...state, groups, highlight }
+     }
+     case 'source-failed': {
+       if (!state.open || ev.generation !== state.generation) return state
+       if (!state.groups.some(g => g.source === ev.source)) return state
+-      const groups = state.groups.filter(g => g.source !== ev.source)
+-      if (groups.length === 0 || allReadyEmpty(groups)) return closed(state)
++      const groups = ev.keepOpen === true
++        ? state.groups.map(g => g.source === ev.source ? { ...g, status: 'ready' as const, items: [], failed: true } : g)
++        : state.groups.filter(g => g.source !== ev.source)
++      if ((groups.length === 0 || allReadyEmpty(groups)) && ev.keepOpen !== true) return closed(state)
+       const highlight = validHighlight(state.highlight, groups) ?? firstHighlight(groups)
+       return { ...state, groups, highlight }
+     }
+===================================================================
+--- a/packages/client/ui-input-trigger/src/types.ts
++++ b/packages/client/ui-input-trigger/src/types.ts
+@@ -9,7 +9,7 @@
+  */
+ import type { ComponentType } from 'react'
+ import type {
+-  CommandClaim, PickOutcome, ReferenceInsert, TokenSpan,
++  CommandClaim, ConsumeTokenRequest, PickOutcome, ReferenceInsert, TokenSpan,
+ } from '@deepseek-ai/dsh-client-ui-conversation/client'
+ import type { IconProps } from '@deepseek-ai/dsh-client-ui-primitives'
+ import type { SessionId } from '@deepseek-ai/dsh-session/types'
+@@ -28,8 +28,27 @@
+  */
+ export interface ClientSessionContext {
+   readonly sessionId: SessionId
++  /** Opaque browser identity only; callbacks never cross the source projection. */
++  readonly surface?: InputSurfaceToken
+ }
+ 
++/** Identity is this object, never its display/debug id. Tokens cannot be reattached. */
++export interface InputSurfaceToken { readonly id: string }
++
++/** Caller-owned input and operation lifetime; no Session-wide event routing. */
++export interface InputSurfaceTarget {
++  readonly signal: AbortSignal
++  beginCommand(claim: CommandClaim, span: TokenSpan): boolean
++  /** fromLauncher asks the editor to preserve token separation at the captured selection. */
++  insertText(text: string, span: TokenSpan, continuation?: boolean, fromLauncher?: boolean): boolean
++  insertReference(reference: ReferenceInsert, span: TokenSpan): boolean
++  consumeToken(guard: ConsumeTokenRequest['guard']): boolean
++  focus(): void
++  notify(level: 'info' | 'error', text: string): void
++  isAvailable(): boolean
++  withOperation<T>(operation: () => T | Promise<T>): Promise<T>
++}
++
+ /** Trigger character a source binds to. */
+ export type TriggerChar = '/' | '@'
+ 

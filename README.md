@@ -8,18 +8,36 @@ A compositional sidebar and pinned-task view for **DSH Desktop 0.2.x**. The 0.3 
 
 ## Install
 
-In DSH Desktop **Settings → Plugins**, install the public bundle:
+Better Tasks replaces six app-owned Client UI modules, so a DSH Desktop install is **two steps**: the plugin, and the six audited fork payloads that its `cordis.patch.yml` mounts. The fork payloads keep their original `@deepseek-ai/dsh-client-ui-*` names and ModuleLoader ids, so the app's other plugins resolve them unchanged.
 
-```text
-@veewo/dsh-better-tasks@0.3.1
+```powershell
+# 1) the plugin (npm)
+dsh plugin --profile desktop add @veewo/dsh-better-tasks@0.3.2
+
+# 2) the six forks, from the fork-library release for YOUR dsh line
+$tag = 'better-tasks-forks-0.2.1-rc.2-r1'   # 0.2.1 runtime; 0.2.0 runtime uses ...-0.2.0-rc.2-r1
+$base = "https://github.com/chanyuenpang/dsh-better-tasks/releases/download/$tag"
+$forks = 'layout', 'workspace', 'user-questions', 'input-trigger', 'commands', 'conversation'
+dsh plugin --profile desktop add ($forks | ForEach-Object { "$base/deepseek-ai-dsh-client-ui-$_-0.2.1-rc.2.tgz" })
 ```
 
-The npm main package is [`@veewo/dsh-better-tasks`](https://www.npmjs.com/package/@veewo/dsh-better-tasks). It includes all six native-named fork payloads using npm `bundledDependencies`, so default pnpm protection against URL subdependencies remains enabled. The same reviewed archives are available as [GitHub release assets](https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/better-tasks-forks-0.2.0-rc.2-r1); there are no developer-machine paths, URL subdependencies or fork-name renaming. A package-local Loader subtree resolves native names from those bundled payloads and retains the original input/commands/conversation option IDs.
+The profile must keep those six names at its root so `ui-layout`/`ui-conversation`/… resolve to the forks rather than to the shipped modules. `pnpm-workspace.yaml` in the profile:
 
-Restart Desktop if Plugin Manager reports **restart required**. Installing a package is not the same as the running page loading it. Do not enable the shipped `ui-sidebar` simultaneously: the bundle owns the replacement layer and restores native rows when removed. For release/rollback procedure see [release](<docs/release.md>) and [rollback](<docs/rollback.md>).
+```yaml
+nodeLinker: isolated
+autoInstallPeers: false
+publicHoistPattern:
+  - '@deepseek-ai/dsh-client-ui-layout'
+  - '@deepseek-ai/dsh-client-ui-workspace'
+  - '@deepseek-ai/dsh-client-ui-user-questions'
+  - '@deepseek-ai/dsh-client-ui-input-trigger'
+  - '@deepseek-ai/dsh-client-ui-commands'
+  - '@deepseek-ai/dsh-client-ui-conversation'
+```
 
-> **DSH Desktop 0.2.1-rc.2:** 0.3.1 is rejected by the 0.2.1 peer gate. A 0.3.2 package for the 0.2.1 fork line is prepared but not published — its clean-install desktop gate still fails (see the blocker note in [release](<docs/release.md>)). Until that is fixed, run the 0.2.1 line with the procedure in [upgrading-dsh-version](<docs/upgrading-dsh-version.md>): the six forks as direct profile dependencies hoisted to the profile root.
+> `nodeLinker: hoisted` also installs the forks, but the Desktop 0.2.1 client-modules composition then drops this plugin's own client half; `isolated` + `publicHoistPattern` is the layout the real-app gate passes. Run `scripts/desktop-probe.ps1 -SourceProfile desktop` before trusting a new install.
 
+Restart Desktop if Plugin Manager reports **restart required**. Installing a package is not the same as the running page loading it. Do not enable the shipped `ui-sidebar` simultaneously: the bundle owns the replacement layer and restores native rows when removed. For release/rollback procedure see [release](<docs/release.md>) and [rollback](<docs/rollback.md>), and for the next dsh line see [upgrading-dsh-version](<docs/upgrading-dsh-version.md>).
 ## Features
 
 - Switch between the native Session browser and a task swimlane in the same sidebar; native search, Workspace grouping, rename, archive and directory operations remain.

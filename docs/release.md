@@ -1,27 +1,21 @@
 # Better Tasks Desktop public-release procedure
 
-Current release: **0.3.1**, for DSH Desktop **0.2.0-rc.2**. The 0.3.0 preparation tag is retained but was not published to npm: URL subdependencies failed default pnpm `blockExoticSubdeps` protection. Do not force-move that tag or disable the protection.
+Current release: **0.3.2**, for DSH Desktop **0.2.1-rc.2** (0.3.1 remains the 0.2.0-rc.2 line). The 0.3.0 preparation tag is retained but was not published to npm: URL subdependencies failed default pnpm `blockExoticSubdeps` protection. Do not force-move that tag or disable the protection.
 
-> ## 0.3.2 is prepared but NOT published — known blocker (2026-10-18)
+> ## 0.3.2 — the 0.2.1-rc.2 fork line (published 2026-10-18)
 >
-> 0.3.2 exists to ship the six forks rebuilt on the **0.2.1-rc.2** line (see `docs/upgrading-dsh-version.md`).
-> The source work is done and verified — patches, builds and tarballs are in `forks-0.2.1-rc.2/` and
-> `releases/0.2.1-rc.2-forks/`, `npm test` is 417/417 — but the **self-contained packaging shape does not
-> survive the 0.2.1 runtime**, so the tarball is not published:
+> 0.3.2 ships the six forks rebuilt on the **0.2.1-rc.2** line (see `docs/upgrading-dsh-version.md`).
+> Unlike 0.3.1 the package no longer bundles fork payloads: the Desktop 0.2.1 runtime rejects both a
+> nested Loader subtree (its rows never reach `window.__DSH_BOOT__`, leaving 21 client entries pending)
+> and subpath row names (`client-modules` only accepts exact package specifiers). The install is
+> therefore two steps — plugin from npm, six forks from the fork-library release — with the profile
+> keeping those six names at its root via `nodeLinker: isolated` + `publicHoistPattern`. The full
+> procedure is in the README.
 >
-> | check | result |
-> |---|---|
-> | `@veewo/dsh-better-tasks@0.3.1` installed on 0.2.1 | `installation rejected` (exact peers) |
-> | 0.3.1 + exact-version exemption, clean profile, real desktop app | boots, but its client half is **not served** (`1 installed, 0 in boot manifest`) |
-> | 0.3.2 (widened peers, 0.2.1 payloads), clean profile, real desktop app | boots, client half served, but the six fork rows nested under `better-tasks-forks` never provide `layout` / `uiConversation` / `uiWorkspace` → **21 client entries stay pending** (`web boot: 21 entries did not activate`) |
-> | same package with `file://` rows instead of the nested group | boots with no pending entries, but the plugin's own client half is again not served |
->
-> The verified 0.2.1 install path today is **not** this package shape: it is six forks as direct profile
-> dependencies hoisted to the profile root (`publicHoistPattern`) plus better-tasks as a plain profile
-> dependency. That configuration passes the real-app probe with 16/16 client plugins. Reproducing it from a
-> published tarball needs a fix to how a profile-mounted client plugin's nested module tree reaches the
-> client module graph on 0.2.1. Do not publish 0.3.2 until the real-app gate passes for a clean install.
-
+> Release gate used for 0.3.2 (real desktop application, isolated DSH_HOME, clean profile):
+> `scripts/desktop-probe.ps1` → PASS, `7 installed / 7 in boot manifest`, no pending entries.
+> Note for anyone re-running it: with `nodeLinker: hoisted` the same bytes fail the gate (the plugin's
+> own client half is dropped), so the linker layout is part of the acceptance, not a preference.
 ## Self-contained distribution
 
 The public `@veewo/dsh-better-tasks` main tarball uses npm `bundledDependencies` to include six exact native-named Client fork payloads. Dependency specs remain regular `0.2.1-rc.2` versions, not machine-local paths or URL subdependencies. Their original names, ModuleLoader IDs and licenses are retained; nothing is published to the upstream npm scope.

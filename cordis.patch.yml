@@ -1,4 +1,6 @@
-# Removable self-contained fork layer. Native names and option IDs are retained.
+# Removable fork layer. The six fork payloads are installed as profile dependencies from the
+# better-tasks fork library release (see README); this patch disables the app's own rows and
+# mounts the forks by their native package names, which the profile resolves at its root.
 - id: ui-layout
   disabled: true
 - id: ui-sidebar
@@ -14,21 +16,17 @@
 - id: ui-conversation
   disabled: true
 - insert:
-    - id: better-tasks-forks
-      name: '@veewo/dsh-better-tasks/fork-layer'
-      group: true
-      config:
-        - id: ui-layout-dbt
-          name: '@deepseek-ai/dsh-client-ui-layout'
-        - id: ui-workspace-dbt
-          name: '@deepseek-ai/dsh-client-ui-workspace'
-        - id: ui-user-questions-dbt
-          name: '@deepseek-ai/dsh-client-ui-user-questions'
-        - id: ui-input-trigger
-          name: '@deepseek-ai/dsh-client-ui-input-trigger'
-        - id: ui-commands
-          name: '@deepseek-ai/dsh-client-ui-commands'
-        - id: ui-conversation
-          name: '@deepseek-ai/dsh-client-ui-conversation'
+    - id: ui-layout-dbt
+      name: '@deepseek-ai/dsh-client-ui-layout'
+    - id: ui-workspace-dbt
+      name: '@deepseek-ai/dsh-client-ui-workspace'
+    - id: ui-user-questions-dbt
+      name: '@deepseek-ai/dsh-client-ui-user-questions'
+    - id: ui-input-trigger
+      name: '@deepseek-ai/dsh-client-ui-input-trigger'
+    - id: ui-commands
+      name: '@deepseek-ai/dsh-client-ui-commands'
+    - id: ui-conversation
+      name: '@deepseek-ai/dsh-client-ui-conversation'
     - id: better-tasks-ui
       name: '@veewo/dsh-better-tasks'

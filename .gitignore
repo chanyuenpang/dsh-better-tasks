@@ -30,3 +30,24 @@ sandbox/*.png
 .public-release-*/
 sandbox/.desktop-*/
 releases/0.3.0/
+
+# --- local-only evidence and vendored inputs (2026-10-18 cleanup) -----------------
+# Upstream source tarballs and the per-fork official baselines are re-downloadable with
+# npm pack / the codeload URL pinned in provenance/source.lock.json; they are tens of MB.
+/third_party/
+
+# Release staging from older lines: local inspection evidence, not shipped code. The one
+# exception is the audited 0.2.1 fork library, whose candidates.json is referenced by docs.
+/releases/*
+!/releases/0.2.1-rc.2-forks/
+
+# Local sandbox evidence (profiles, screenshots, compose dumps). sandbox/acceptance.md is
+# tracked and stays tracked: git keeps tracked files even under an ignored directory.
+/sandbox/
+
+# Scratch staging roots created by release scripts.
+/.public-release-*/
+/.release-public-lock-*/
+/payload/
+# Archived task state: workflow history, not source.
+/.claw/archive/

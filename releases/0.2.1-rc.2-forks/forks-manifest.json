@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "libraryTag": "better-tasks-forks-0.2.1-rc.2-r1",
+  "dshVersion": "0.2.1-rc.2",
+  "purpose": "Audited Better Tasks compatibility forks; not official npm releases and not a standalone plugin.",
+  "assets": [
+    {
+      "slug": "ui-layout",
+      "name": "@deepseek-ai/dsh-client-ui-layout",
+      "version": "0.2.1-rc.2",
+      "filename": "deepseek-ai-dsh-client-ui-layout-0.2.1-rc.2.tgz",
+      "url": "https://github.com/chanyuenpang/dsh-better-tasks/releases/download/better-tasks-forks-0.2.1-rc.2-r1/deepseek-ai-dsh-client-ui-layout-0.2.1-rc.2.tgz",
+      "sha256": "ff8faca2ae95c3baa78306c17477a8fab5dbb5bbbae35e610d1c70352d47cfcc",
+      "clientSha256": "1eda9593af630accc6b222eefad34d3d70f989bec93db512403884e64e3ec330",
+      "size": 27842
+    },
+    {
+      "slug": "ui-workspace",
+      "name": "@deepseek-ai/dsh-client-ui-workspace",
+      "version": "0.2.1-rc.2",
+      "filename": "deepseek-ai-dsh-client-ui-workspace-0.2.1-rc.2.tgz",
+      "url": "https://github.com/chanyuenpang/dsh-better-tasks/releases/download/better-tasks-forks-0.2.1-rc.2-r1/deepseek-ai-dsh-client-ui-workspace-0.2.1-rc.2.tgz",
+      "sha256": "4e2fa5aee09a02ef40787dbd651ec4f9064725b2e4190392c316c148ce67fe08",
+      "clientSha256": "bb71d7c7e7f7f730e19b9b3e10da8d4174cd93acb411e7ccdbe18fa57a5d621f",
+      "size": 111449
+    },
+    {
+      "slug": "ui-user-questions",
+      "name": "@deepseek-ai/dsh-client-ui-user-questions",
+      "version": "0.2.1-rc.2",
+      "filename": "deepseek-ai-dsh-client-ui-user-questions-0.2.1-rc.2.tgz",
+      "url": "https://github.com/chanyuenpang/dsh-better-tasks/releases/download/better-tasks-forks-0.2.1-rc.2-r1/deepseek-ai-dsh-client-ui-user-questions-0.2.1-rc.2.tgz",
+      "sha256": "55f145bfbbcc1304ac9d648ad0b2e3aceff4d9d3cfd21128e2d18a9faea89d61",
+      "clientSha256": "3a648c170731cc8ce5633705c81483a2b123e4f2e0c58fd2363bae4f9832fe7b",
+      "size": 51040
+    },
+    {
+      "slug": "ui-input-trigger",
+      "name": "@deepseek-ai/dsh-client-ui-input-trigger",
+      "version": "0.2.1-rc.2",
+      "filename": "deepseek-ai-dsh-client-ui-input-trigger-0.2.1-rc.2.tgz",
+      "url": "https://github.com/chanyuenpang/dsh-better-tasks/releases/download/better-tasks-forks-0.2.1-rc.2-r1/deepseek-ai-dsh-client-ui-input-trigger-0.2.1-rc.2.tgz",
+      "sha256": "7ccb4109ae4e7a4b775aa16738e5a85ba8c40c93123e8d2e297d096fc9166cf2",
+      "clientSha256": "5d792ad423fa42aadf688b28d161d5fa7fcb9429cd94daa3d83e8117e6847adb",
+      "size": 43224
+    },
+    {
+      "slug": "ui-commands",
+      "name": "@deepseek-ai/dsh-client-ui-commands",
+      "version": "0.2.1-rc.2",
+      "filename": "deepseek-ai-dsh-client-ui-commands-0.2.1-rc.2.tgz",
+      "url": "https://github.com/chanyuenpang/dsh-better-tasks/releases/download/better-tasks-forks-0.2.1-rc.2-r1/deepseek-ai-dsh-client-ui-commands-0.2.1-rc.2.tgz",
+      "sha256": "7a915e2abac30597396f539b01b9e9edd1767709d519286d17a684ddba23318b",
+      "clientSha256": "b29166760b172c67eaf7c344be4e02da728884c42a7ee85c6738cb8c81ad06b6",
+      "size": 44725
+    },
+    {
+      "slug": "ui-conversation",
+      "name": "@deepseek-ai/dsh-client-ui-conversation",
+      "version": "0.2.1-rc.2",
+      "filename": "deepseek-ai-dsh-client-ui-conversation-0.2.1-rc.2.tgz",
+      "url": "https://github.com/chanyuenpang/dsh-better-tasks/releases/download/better-tasks-forks-0.2.1-rc.2-r1/deepseek-ai-dsh-client-ui-conversation-0.2.1-rc.2.tgz",
+      "sha256": "d73164b3e08b086fe82bef784e3ddca5ab7f114c605bfb74590863a46cd36ded",
+      "clientSha256": "555ae0fd86948c1bd949ce6bcd24e0f96e376e886679d39f7f88fca26135685c",
+      "size": 294845
+    }
+  ]
+}

@@ -8,36 +8,31 @@ A compositional sidebar and pinned-task view for **DSH Desktop 0.2.x**. The 0.3 
 
 ## Install
 
-Better Tasks replaces six app-owned Client UI modules, so a DSH Desktop install is **two steps**: the plugin, and the six audited fork payloads that its `cordis.patch.yml` mounts. The fork payloads keep their original `@deepseek-ai/dsh-client-ui-*` names and ModuleLoader ids, so the app's other plugins resolve them unchanged.
+**See [docs/install.md](<docs/install.md>) — the authoritative, cross-version procedure.** Better Tasks
+replaces six app-owned Client UI modules, so a working install is always **the plugin plus the six fork
+payloads built for the same dsh line**; the npm package alone is not a complete install.
+
+Quick start for DSH Desktop **0.2.1-rc.2**:
 
 ```powershell
-# 1) the plugin (npm)
-dsh plugin --profile desktop add @veewo/dsh-better-tasks@0.3.2
-
-# 2) the six forks, from the fork-library release for YOUR dsh line
-$tag = 'better-tasks-forks-0.2.1-rc.2-r1'   # 0.2.1 runtime; 0.2.0 runtime uses ...-0.2.0-rc.2-r1
+# plugin + six fork payloads (tarballs from the releases below; npm is optional for the plugin)
+$tag  = 'better-tasks-forks-0.2.1-rc.2-r1'
 $base = "https://github.com/chanyuenpang/dsh-better-tasks/releases/download/$tag"
-$forks = 'layout', 'workspace', 'user-questions', 'input-trigger', 'commands', 'conversation'
-dsh plugin --profile desktop add ($forks | ForEach-Object { "$base/deepseek-ai-dsh-client-ui-$_-0.2.1-rc.2.tgz" })
+$forks = 'layout','workspace','user-questions','input-trigger','commands','conversation'
+$specs = $forks | ForEach-Object { "$base/deepseek-ai-dsh-client-ui-$_-0.2.1-rc.2.tgz" }
+$specs += 'https://github.com/chanyuenpang/dsh-better-tasks/releases/download/v0.3.2/veewo-dsh-better-tasks-0.3.2.tgz'
+dsh plugin --profile desktop add @specs
 ```
 
-The profile must keep those six names at its root so `ui-layout`/`ui-conversation`/… resolve to the forks rather than to the shipped modules. `pnpm-workspace.yaml` in the profile:
+The profile must keep those six names at its root — `nodeLinker: isolated` plus a `publicHoistPattern`
+over `@deepseek-ai/dsh-client-ui-{layout,workspace,user-questions,input-trigger,commands,conversation}`
+(exact snippet and the reason are in [docs/install.md](<docs/install.md#3-profile-配置必需>); with
+`nodeLinker: hoisted` the plugin's own client half is dropped).
 
-```yaml
-nodeLinker: isolated
-autoInstallPeers: false
-publicHoistPattern:
-  - '@deepseek-ai/dsh-client-ui-layout'
-  - '@deepseek-ai/dsh-client-ui-workspace'
-  - '@deepseek-ai/dsh-client-ui-user-questions'
-  - '@deepseek-ai/dsh-client-ui-input-trigger'
-  - '@deepseek-ai/dsh-client-ui-commands'
-  - '@deepseek-ai/dsh-client-ui-conversation'
-```
-
-> `nodeLinker: hoisted` also installs the forks, but the Desktop 0.2.1 client-modules composition then drops this plugin's own client half; `isolated` + `publicHoistPattern` is the layout the real-app gate passes. Run `scripts/desktop-probe.ps1 -SourceProfile desktop` before trusting a new install.
-
-Restart Desktop if Plugin Manager reports **restart required**. Installing a package is not the same as the running page loading it. Do not enable the shipped `ui-sidebar` simultaneously: the bundle owns the replacement layer and restores native rows when removed. For release/rollback procedure see [release](<docs/release.md>) and [rollback](<docs/rollback.md>), and for the next dsh line see [upgrading-dsh-version](<docs/upgrading-dsh-version.md>).
+Restart Desktop if Plugin Manager reports **restart required**, then verify with
+`scripts/desktop-probe.ps1 -SourceProfile desktop` (expected `PASS`, all installed client plugins in the
+boot manifest). For the next dsh line see [upgrading-dsh-version](<docs/upgrading-dsh-version.md>);
+for rollback see [rollback](<docs/rollback.md>).
 ## Features
 
 - Switch between the native Session browser and a task swimlane in the same sidebar; native search, Workspace grouping, rename, archive and directory operations remain.

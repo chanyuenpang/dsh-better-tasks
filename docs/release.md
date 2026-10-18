@@ -39,7 +39,14 @@ A new archive or composition must install with **default pnpm protections** and 
 
 Sandbox validation is startup-only, not feature or visual QA. Stop the owned process tree and verify all owned processes/listeners disappear. Never modify/restart the real Desktop to repair a failed package gate. Unit/package/startup evidence does not replace user acceptance.
 
-## Publish verified bytes
+## Publish verified bytes (optional)
+
+> **npm is not the install path.** Since 0.3.2 the authoritative, cross-version procedure is
+> [install](<install.md>): the plugin plus the six fork payloads built for the same dsh line, installed
+> from release tarballs. The npm package is a convenience entry and version marker only — 0.3.2 is
+> published with an `npm deprecate` notice pointing back to `docs/install.md`. Publishing is still
+> useful to keep a version marker public, but it must never be described as a complete install, and no
+> release note may imply that `npm i` alone produces a working Better Tasks.
 
 ```powershell
 npm.cmd publish releases/0.3.1/veewo-dsh-better-tasks-0.3.1.tgz --access public --tag latest --registry=https://registry.npmjs.org/

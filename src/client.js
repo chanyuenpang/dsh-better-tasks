@@ -10,6 +10,7 @@ import {
   summarizeGoal,
   summarizeSession,
   summarizeTodos,
+  taskExecutionWarning,
 } from './task-model.mjs'
 import { createTaskPinsClient } from './pin-client.mjs'
 import { createTaskInputManager } from './task-input-surface.mjs'
@@ -179,6 +180,11 @@ const dictionaries = {
   'tasks.answerHint': '打开该会话的问题面板',
   'tasks.answerFailed': '没能打开问题面板，请打开会话作答',
     'tasks.idleAria': '空闲',
+    'tasks.execution.disconnected': '连接已断开 · 任务状态未知',
+    'tasks.execution.error': '执行失败',
+    'tasks.execution.aborted': '执行已停止',
+    'tasks.execution.interrupted': '执行已中断',
+    'tasks.execution.max-tokens': '执行已中断 · 达到输出上限',
     'tasks.appearanceUnavailable': '项目外观暂不可用',
     'tasks.unknown': '未知',
     'tasks.none': '无',
@@ -276,6 +282,11 @@ const dictionaries = {
   'tasks.answerHint': 'Open this Session’s question panel',
   'tasks.answerFailed': 'Could not open the question panel — open the Session to answer',
     'tasks.idleAria': 'Idle',
+    'tasks.execution.disconnected': 'Connection lost · task status unknown',
+    'tasks.execution.error': 'Execution failed',
+    'tasks.execution.aborted': 'Execution stopped',
+    'tasks.execution.interrupted': 'Execution interrupted',
+    'tasks.execution.max-tokens': 'Execution stopped · token limit reached',
     'tasks.appearanceUnavailable': 'Project appearance is unavailable',
     'tasks.unknown': 'Unknown',
     'tasks.none': 'None',
@@ -374,6 +385,9 @@ html[data-windows-titlebar]:has(.dbt-sidebar[data-wide="false"]){--dsh-windows-m
 .dbt-task-card[data-current="true"]{border-color:var(--dbt-task-border-selected);box-shadow:none;--dbt-task-bg:color-mix(in srgb,var(--dsw-alias-label-primary) 8%,var(--dsw-alias-bg-layer-1))}
 .dbt-task-card[data-current="true"][data-state="running"]{--dbt-task-bg:color-mix(in srgb,var(--dsw-alias-success,#1f9d62) 17%,var(--dsw-alias-bg-layer-1))}
 .dbt-task-card[data-current="true"][data-state="block"]{--dbt-task-bg:color-mix(in srgb,var(--dbt-block-yellow) 23%,var(--dsw-alias-bg-layer-1))}
+.dbt-task-card[data-execution-warning]{--dbt-task-tone:var(--dsw-alias-state-error-primary);--dbt-task-border:color-mix(in srgb,var(--dsw-alias-state-error-primary) 24%,transparent);--dbt-task-border-selected:color-mix(in srgb,var(--dsw-alias-state-error-primary) 58%,transparent);--dbt-task-bg:color-mix(in srgb,var(--dsw-alias-state-error-primary) 12%,var(--dsw-alias-bg-layer-1))}
+.dbt-task-card[data-current="true"][data-execution-warning]{--dbt-task-bg:color-mix(in srgb,var(--dsw-alias-state-error-primary) 17%,var(--dsw-alias-bg-layer-1))}
+.dbt-task-error-icon{flex:none;color:var(--dsw-alias-state-error-primary)}
 .dbt-task-card[data-drop="before"]:before,.dbt-task-card[data-drop="after"]:after{content:"";position:absolute;z-index:2;left:8px;right:8px;height:2px;border-radius:2px;background:var(--dsw-alias-brand-primary);pointer-events:none}
 .dbt-task-card[data-drop="before"]:before{top:1px}.dbt-task-card[data-drop="after"]:after{bottom:1px}
 .dbt-task-list[data-columns="2"] .dbt-task-card[data-drop="before"]:before,.dbt-task-list[data-columns="2"] .dbt-task-card[data-drop="after"]:after{top:8px;bottom:8px;width:2px;height:auto}
@@ -1108,7 +1122,7 @@ export function createFinalClickController(schedule = (callback, ms) => window.s
   }
 }
 
-function TaskSwimlane({ useSessions, useWorkspaces, useSessionStatus, usePanelInfo, useTaskPins, preferences, openSession, moveTaskBefore, unpinTask, revealQuestion, canRevealQuestion, findTaskQuestion, createTaskQuestion, twoColumns, t, submitTaskAction, createTaskInput }) {
+function TaskSwimlane({ useSessions, useWorkspaces, useSessionStatus, useTaskConnection, usePanelInfo, useTaskPins, preferences, openSession, moveTaskBefore, unpinTask, revealQuestion, canRevealQuestion, findTaskQuestion, createTaskQuestion, twoColumns, t, submitTaskAction, createTaskInput }) {
   const React = requireModule('react')
   const {
     MarkdownText,
@@ -1125,6 +1139,7 @@ function TaskSwimlane({ useSessions, useWorkspaces, useSessionStatus, usePanelIn
   // `undefined` at render time: the TypeError retired this slot entry as an
   // abdicating crash and the whole sidebar column vanished.
   const sessionStatuses = useSessionStatus((snapshot) => snapshot)
+  const connectionState = useTaskConnection((snapshot) => snapshot)
   const taskPins = useTaskPins((snapshot) => snapshot)
   const pendingInteractions = React.useMemo(() => {
     const next = new Map()
@@ -1360,7 +1375,14 @@ function TaskSwimlane({ useSessions, useWorkspaces, useSessionStatus, usePanelIn
         const answerable = inlineQuestion || typeof answerCallId === 'string' && canRevealQuestion()
         const goalLabel = task.goal.availability === 'ready' ? `${task.goal.phase}: ${task.goal.objective}` : availabilityLabel(task.goal, t)
         const todoLabel = task.todos.availability === 'ready' ? `${task.todos.completed}/${task.todos.total}` : availabilityLabel(task.todos, t)
-        const stateLabel = task.session.status === 'block' ? t('tasks.blockAria') : task.session.status === 'running' ? t('tasks.runningAria') : t('tasks.idleAria')
+        const executionWarning = taskExecutionWarning({
+          ...list.byId[task.id],
+          running: sessionStatuses.get(task.id)?.running ?? list.byId[task.id].running,
+        }, pendingInteraction, connectionState, list.phase === undefined || list.phase === 'ready')
+        const warningLabel = executionWarning === null ? '' : t(`tasks.execution.${executionWarning.kind}`)
+        const stateLabel = executionWarning === null
+          ? (task.session.status === 'block' ? t('tasks.blockAria') : task.session.status === 'running' ? t('tasks.runningAria') : t('tasks.idleAria'))
+          : [warningLabel, executionWarning.detail].filter(Boolean).join('\n')
         const dropHalf = drag?.overId === task.id ? drag.half : undefined
         const detailRows = []
         if (goalExpanded) detailRows.push(element('div', {
@@ -1448,6 +1470,7 @@ function TaskSwimlane({ useSessions, useWorkspaces, useSessionStatus, usePanelIn
           'data-session-id': task.id,
           'data-current': String(task.current),
           'data-state': task.session.status,
+          'data-execution-warning': executionWarning?.kind,
           'data-drop': dropHalf,
           'aria-label': `${projectName}: ${stateLabel}`,
           title: stateLabel,
@@ -1516,6 +1539,11 @@ function TaskSwimlane({ useSessions, useWorkspaces, useSessionStatus, usePanelIn
           element('div', { className: 'dbt-task-open' },
             element('span', { className: 'dbt-task-project' }, projectName),
             element('span', { className: 'dbt-task-session-line' },
+              executionWarning !== null ? element('svg', {
+                className: 'dbt-task-error-icon', width: 14, height: 14, viewBox: '0 0 24 24',
+                fill: 'none', stroke: 'currentColor', strokeWidth: 2, 'aria-hidden': true,
+              }, element('path', { d: 'M12 3 2 21h20L12 3Z', strokeLinejoin: 'round' }),
+              element('path', { d: 'M12 9v5m0 3v1' })) :
               task.session.status === 'running' ? element(StateDot, { state: 'ongoing' }) : null,
               element('button', { type: 'button', className: 'dbt-task-rename', 'data-no-card-drag': true, draggable: false,
                 title: t('tasks.rename'), 'aria-label': `${t('tasks.rename')}: ${task.title}`,
@@ -1629,7 +1657,7 @@ function TaskSwimlane({ useSessions, useWorkspaces, useSessionStatus, usePanelIn
     }))
 }
 
-function SidebarRegion({ wide, collapsed, view, setView, twoColumns, preferences, toggleSidebar, renderSlot, useSessions, useWorkspaces, useSessionStatus, usePanelInfo, useTaskPins, openSession, moveTaskBefore, unpinTask, revealQuestion, canRevealQuestion, findTaskQuestion, createTaskQuestion, submitTaskAction, createTaskInput, t }) {
+function SidebarRegion({ wide, collapsed, view, setView, twoColumns, preferences, toggleSidebar, renderSlot, useSessions, useWorkspaces, useSessionStatus, useTaskConnection, usePanelInfo, useTaskPins, openSession, moveTaskBefore, unpinTask, revealQuestion, canRevealQuestion, findTaskQuestion, createTaskQuestion, submitTaskAction, createTaskInput, t }) {
   if (!wide) {
     return renderSlot('sidebar.workspaces', { wide: false, expandSidebar: () => { if (collapsed) toggleSidebar() } })
   }
@@ -1641,7 +1669,7 @@ function SidebarRegion({ wide, collapsed, view, setView, twoColumns, preferences
       view === 'native' ? renderSlot('sidebar.workspaces', { wide: true, expandSidebar: () => {} }) : element(TaskSwimlane, {
         useSessions,
         useWorkspaces,
-        useSessionStatus,
+        useSessionStatus, useTaskConnection,
         usePanelInfo,
         useTaskPins,
         openSession,
@@ -1765,7 +1793,7 @@ export function BetterSidebarRoot({
   usePanelInfo,
   useSessions,
   useWorkspaces,
-  useSessionStatus,
+  useSessionStatus, useTaskConnection,
   useTaskPins,
   useTaskPreferences,
   setTaskPreference,
@@ -1874,7 +1902,7 @@ export function BetterSidebarRoot({
       renderSlot,
       useSessions,
       useWorkspaces,
-      useSessionStatus,
+      useSessionStatus, useTaskConnection,
       usePanelInfo,
       useTaskPins,
       openSession,
@@ -2064,6 +2092,7 @@ function mountSidebar(ctx, taskPins, taskPreferences) {
   }
   ctx.effect(() => () => taskInputs.dispose(), 'dsh-better-tasks: input surfaces')
 
+  const taskConnection = ctx.get?.('connection')?.state ?? createSnapshotStore(undefined)
   const injectProps = () => ({
     setTaskPreference: (field, value) => taskPreferences.set(field, value),
     startSession: (workspaceId, beforeOpen) => ctx.uiWorkspace.startSession(workspaceId, beforeOpen),
@@ -2084,7 +2113,7 @@ function mountSidebar(ctx, taskPins, taskPreferences) {
     // button. Probed per render, not memoized: the service may load later.
     canRevealQuestion: () => ctx.get('userQuestionPanels') !== undefined,
     revealQuestion: (sessionId, callId) => ctx.get('userQuestionPanels')?.reveal(sessionId, callId) ?? null,
-    hooks: { panels, taskPins: taskPins.source, taskPreferences: taskPreferences.source },
+    hooks: { panels, taskPins: taskPins.source, taskPreferences: taskPreferences.source, taskConnection },
   })
 
   ctx.slots.inject('sidebar', () => ctx.slots.register({
@@ -2190,4 +2219,5 @@ export const contract = Object.freeze({
   summarizeGoal,
   summarizeSession,
   summarizeTodos,
+  taskExecutionWarning,
 })

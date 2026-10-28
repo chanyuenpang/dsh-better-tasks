@@ -28,6 +28,8 @@ Use exact, project-local compatibility forks of `@deepseek-ai/dsh-client-ui-work
 
 Restore the native Desktop outside-column affordances as part of sidebar replacement: reuse Windows caption positioning for the existing controls and register reopen/New Session in the legal root-scoped `shell.leading` seat. Delegate to native public actions; let the frame own macOS visibility/position and the layout fork own collapse and last positive width. Do not create a second root, layout store, DOM-injected control or new hard service dependency. Preserve browser rail behavior and existing task/child-seat contracts. [Canonical Truth](<../sidebar-replacement-and-task-swimlane.md#desktop-zero-width-sidebar-reopen>) owns current implementation anchors and version-bound release evidence.
 
+For abnormal task execution, extend the existing whole-card state language with a red state rather than adding a banner or a second task-state owner. Derive warning state from durable turn-event projection plus the optional native connection state; a lost connection is explicitly unknown, not evidence that background execution stopped. Preserve normal completion and pending-interaction semantics and existing continuation behavior; do not retry automatically.
+
 Assign ownership as follows:
 
 - Better Tasks Host owns one versioned `better_tasks_pin_queue` record and exposes revision-CAS pin, creation-pin, unpin, and reorder mutations. The ordered Session-id list is the sole task-membership and order truth.

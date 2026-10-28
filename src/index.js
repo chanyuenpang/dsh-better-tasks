@@ -10,6 +10,7 @@ import {
 import { installProjectAppearance } from './project-appearance.mjs'
 import { createFinalMessageHttpHandler } from './final-message.mjs'
 import { createNativePinHost } from './native-pin-host.mjs'
+import { createTaskExecutionProjection } from './task-execution.mjs'
 
 export const name = 'dsh-better-tasks'
 export const inject = ['storageDomain', 'sessionController', 'sessionQuery', 'workspaceRegistry', 'webServer']
@@ -159,6 +160,10 @@ export function createNativePinHttpHandler(controller) {
 }
 
 export async function apply(ctx) {
+  // Optional projection capability must never hold core-shell activation.
+  ctx.inject(['sessionProjections'], (projectionCtx) => {
+    projectionCtx.sessionProjections.register(createTaskExecutionProjection(z))
+  })
   ctx.inject(['settings'], (settingsCtx) => {
     // 0.1.5: the Host settings service accepted a runtime namespace registration.
     if (typeof settingsCtx.settings.register === 'function') {

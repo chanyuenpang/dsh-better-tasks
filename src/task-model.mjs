@@ -101,6 +101,19 @@ export function summarizeTodos(value) {
   return Object.freeze({ availability: 'ready', ...counts, items: Object.freeze(items) })
 }
 
+/** Warning is presentation only: keep idle actions available for stopped tasks. */
+export function taskExecutionWarning(summary, pendingInteraction, connectionState, catalogReady = true) {
+  if (connectionState === 'disconnected' || connectionState === 'connecting') return { kind: 'disconnected', detail: '' }
+  if (pendingInteraction != null || summary.running || !catalogReady) return null
+  const execution = summary.projectionValues?.betterTasksExecution
+  if (execution == null) return null // No capability / not yet hydrated is not failure.
+  if (execution.phase === 'running') return { kind: 'interrupted', detail: '' }
+  if (execution.phase !== 'ended') return null
+  const kind = execution.outcome
+  if (!['error', 'aborted', 'interrupted', 'max-tokens'].includes(kind)) return null
+  return { kind, detail: typeof execution.detail === 'string' ? execution.detail : '' }
+}
+
 export function summarizeSession(summary, pendingInteraction) {
   if (pendingInteraction !== undefined) {
     return Object.freeze({ status: 'block', interaction: pendingInteraction.kind })

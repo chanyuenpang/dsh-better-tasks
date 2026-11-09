@@ -1,0 +1,18 @@
+{
+  "version": "0.2.2-rc.1",
+  "sourceCommit": "c59d10aff167ad7eefead4b3a9082fb57c8fbfe8",
+  "artifacts": {
+    "ui-layout": {
+      "bytes": 42613,
+      "sha256": "ee01573a3f8164c83c0788f1b7de40efaf895ef2586265b153fb767471d72425"
+    },
+    "ui-user-questions": {
+      "bytes": 137771,
+      "sha256": "442a03de469b76a8c5e154bbbe23920c170a0eb2adb7809f16251ed75e147c52"
+    },
+    "ui-workspace": {
+      "bytes": 309079,
+      "sha256": "21d64b566ef8283125ba90fb77706ba14744453aef5b744f8228862bdfd69ea9"
+    }
+  }
+}

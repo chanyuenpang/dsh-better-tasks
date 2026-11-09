@@ -20,8 +20,13 @@ test('native core activation and exactly one official Pin registration per seat 
   assert.doesNotMatch(deps, /betterTask|taskPins/)
   assert.match(source, /new UiWorkspaceService\(/)
   assert.match(source, /provideRoot\(\{\s*hooks: \{ workspaces: workspaces\.list \}/)
-  assert.equal((source.match(/name: 'sidebar\.workspaces\.session\.menu\.item', id: 'pin'/g) ?? []).length, 1)
+  // One official Pin registration per seat. The 0.2.2 upstream moved the Session
+  // menu's entries into the structured contextMenus contract (session-actions/
+  // context-menus.tsx registers `id: 'pin'` there), so the menu half is asserted
+  // against that owner and the row half against the slot registration it kept.
   assert.equal((source.match(/name: 'sidebar\.workspaces\.session\.row\.action', id: 'pin'/g) ?? []).length, 1)
+  const menus = await read('session-actions/context-menus.tsx')
+  assert.equal((menus.match(/register\('pin'/g) ?? []).length, 1)
   assert.match(source, /uiWorkspace\.pinSession\(sessionId\)\.catch\(\(\) => \{ notify\(\{ kind: 'pinFailed' \}\) \}\)/)
   assert.match(source, /uiWorkspace\.unpinSession\(sessionId\)\.catch\(\(\) => \{ notify\(\{ kind: 'unpinFailed' \}\) \}\)/)
 })
@@ -32,11 +37,15 @@ test('rows retain official indicator and action seats without task title emoji o
   assert.match(source, /row\.pinned && !row\.archived && <PinnedIndicator t=\{t\} \/>/)
   assert.match(source, /<IconPinFillRegular size=\{14\} \/>/)
   assert.match(source, /renderSlot\('sidebar\.workspaces\.session\.row\.action'/)
-  assert.match(source, /'sidebar\.workspaces\.session\.menu\.item'/)
+  // The menu seat is still rendered from the rows, but on 0.2.2 it is spelled as a
+  // named slot type (RowRenderSlots) rather than a bare string literal.
+  assert.match(source, /sidebar\.workspaces\.session\.menu\.item/)
   assert.match(source, /rowActions\} onClick=\{\(e\) => \{ e\.stopPropagation\(\) \}\}/)
   const native = await read('session-actions/PinSession.tsx')
   assert.match(native, /pinned \? <IconPinFillRegular size=\{14\} \/> : <IconPinOutlineRegular size=\{14\} \/>/)
-  assert.match(native, /if \(archived\) return null/)
+  // Archived rows and refused access both hide the button; 0.2.2 folds the two
+  // guards into one early return rather than a lone archived check.
+  assert.match(native, /if \(archived \|\| !allowed\) return null/)
 })
 
 test('only duplicate pin copy is removed; official labels and accepted appearance/activity features survive', async () => {

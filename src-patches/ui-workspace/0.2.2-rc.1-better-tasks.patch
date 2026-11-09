@@ -1,0 +1,227 @@
+===================================================================
+--- "a/packages/client/ui-workspace/src/client\\index.ts"
++++ "b/packages/client/ui-workspace/src/client\\index.ts"
+@@ -40,7 +40,8 @@
+ // Type-only: pulls the Session root standard-hook merge.
+ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+ import {
+-  type ArchiveSessionInjected, type ForkSessionInjected, menuOpenStateFactory, type PinSessionInjected,
++  type ArchiveSessionInjected, type ForkSessionInjected, menuOpenStateFactory,
++  type PinSessionInjected,
+   type SessionArchiveConfirmInjected, type SessionArchiveConfirmRequest,
+   type RenameSessionInjected, type RowToast, type RowToastInjected, type RowToastState, type SessionRenameDialogInjected,
+   type WorkspaceActionRequest, type SessionIdInjected, type WorkspaceBrowserInjected, type WorkspacePickerInjected,
+@@ -49,6 +50,8 @@
+ import { UiWorkspaceService } from './navigation.ts'
+ import { createWorkspaceViewStore } from './stores.ts'
+ import { WorkspaceBrowser } from './rows/WorkspaceBrowser.tsx'
++import { withRegionBoundary } from './region-boundary.tsx'
++import { openProjectAppearancePicker } from './project-appearance.tsx'
+ import { ArchiveSessionRowButton, SessionArchiveConfirmDialog } from './session-actions/ArchiveSession.tsx'
+ import { derive } from './session-actions/derived.ts'
+ import { registerSessionMenus } from './session-actions/context-menus.tsx'
+@@ -100,7 +103,7 @@
+  * provides a waitable service. apply therefore depends on each slot
+  * declaration through `slots.inject()` instead of assuming order.
+  */
+-export const inject = ['contextMenus',
++export const inject: string[] = ['contextMenus',
+   'slots', 'sessions', 'workspaces', 'locale', 'remote', 'remote.directoryPicker', 'layout', 'shortcuts', 'remoteAccess',
+ ]
+ 
+@@ -271,12 +274,21 @@
+   ctx.slots.inject('contextMenu.icon', function* () {
+     for (const [key, Icon] of Object.entries({
+       'workspace.rename': IconEditOutlineRegular, 'workspace.delete': IconTrashOutlineRegular,
++      'workspace.appearance': IconEditOutlineRegular,
+       'workspace.pin': IconPinOutlineRegular, 'workspace.unpin': IconPinFillRegular,
+       'workspace.archive': IconArchiveOutlineRegular, 'workspace.unarchive': IconUnarchiveOutlineRegular,
+       'workspace.fork': IconBranchOutlineRegular, 'workspace.copy': IconCopyOutlineRegular,
+     })) yield ctx.slots.register({ name: 'contextMenu.icon', key }, Icon)
+   })
+   ctx.effect(() => ctx.contextMenus.register({
++    id: 'workspace.appearance', target: 'workspace', order: 50,
++    resolve: ({ workspaceId }) => ctx.remoteAccess.source('workspace', workspaceId, 'workspace/rename').getSnapshot()
++      ? [{ id: 'appearance', label: ctx.locale.bind(NS)('appearance.menu'), icon: { key: 'workspace.rename' },
++        run: () => { void openProjectAppearancePicker(String(workspaceId), ctx.locale.bind(NS)).catch((reason: unknown) => {
++          ctx.logger?.warn?.('project appearance picker failed: %s', reason instanceof Error ? reason.message : String(reason))
++        }) } }] : [],
++  }), 'workspace: appearance menu action')
++  ctx.effect(() => ctx.contextMenus.register({
+     id: 'workspace.rename', target: 'workspace', order: 100,
+     resolve: ({ workspaceId, displayTitle }) => ctx.remoteAccess.source('workspace', workspaceId, 'workspace/rename').getSnapshot()
+       ? [{ id: 'rename', label: ctx.locale.bind(NS)('rename'), icon: { key: 'workspace.rename' }, run: () => { requestWorkspaceAction(workspaceId, displayTitle, 'rename') } }] : [],
+@@ -341,7 +353,7 @@
+       inject: browserInjected,
+       locale: NS,
+     },
+-    WorkspaceBrowser,
++    withRegionBoundary('sidebar.workspaces', WorkspaceBrowser),
+   ))
+   ctx.slots.inject('contextMenu.content', () => ctx.slots.register({
+     name: 'contextMenu.content', key: 'session',
+===================================================================
+--- "a/packages/client/ui-workspace/src/client\\locales.ts"
++++ "b/packages/client/ui-workspace/src/client\\locales.ts"
+@@ -27,6 +27,12 @@
+   'orderBy.label': '排序方式',
+   'orderBy.manual': '手动排序',
+   'orderBy.updated': '最近更新',
++  'activityRange.label': '活动范围',
++  'activityRange.all': '不限',
++  'activityRange.1d': '1天',
++  'activityRange.3d': '3天',
++  'activityRange.7d': '7天',
++  'activityRange.14d': '14天',
+   'filterBy.label': '筛选会话',
+   'viewOptions.hideArchived': '隐藏已归档',
+   'viewOptions.showArchived': '全部对话（显示已归档）',
+@@ -104,6 +110,13 @@
+   'actions.unpin': '取消置顶',
+   'actions.newSession': '新会话',
+   'actions.newSession.aria': '在“{name}”中新建会话',
++  'appearance.menu': '设置图标和颜色',
++  'appearance.pickerTitle': '设置项目图标和颜色',
++  'appearance.search': '搜索图标',
++  'appearance.cancel': '取消',
++  'appearance.save': '保存',
++  'appearance.loadFailed': '无法载入图标目录',
++  'appearance.saveFailed': '保存项目外观失败',
+   'status.running': '进行中',
+   'status.subagentsRunning.one': '{n} 个子智能体运行中',
+   'status.subagentsRunning.other': '{n} 个子智能体运行中',
+@@ -125,13 +138,13 @@
+   'time.months': '{n}个月',
+   'time.years': '{n}年',
+   'time.ago': '{t}前',
+-} satisfies Record<string, string>
++} as const
+ 
+ /** The workspace namespace key union. */
+ export type WorkspaceKey = keyof typeof zh
+ 
+ /** English dictionary, checked complete against the zh key set. */
+-export const en = {
++export const en: Record<WorkspaceKey, string> = {
+   'defaultWorkspace.failed': 'Unable to create default workspace. Use Choose workspace to select a folder.',
+   'draft.workspaceRequired': 'Choose a workspace first.',
+   'draft.initializationFailed': 'Could not fill the draft. Please try again shortly.',
+@@ -153,6 +166,12 @@
+   'orderBy.label': 'Order by',
+   'orderBy.manual': 'Manual',
+   'orderBy.updated': 'Last updated',
++  'activityRange.label': 'Activity range',
++  'activityRange.all': 'Any time',
++  'activityRange.1d': '1 day',
++  'activityRange.3d': '3 days',
++  'activityRange.7d': '7 days',
++  'activityRange.14d': '14 days',
+   'filterBy.label': 'Filter sessions',
+   'viewOptions.hideArchived': 'Hide archived',
+   'viewOptions.showArchived': 'All conversations (show archived)',
+@@ -230,6 +249,13 @@
+   'actions.unpin': 'Unpin',
+   'actions.newSession': 'New session',
+   'actions.newSession.aria': 'New session in {name}',
++  'appearance.menu': 'Set icon and colour',
++  'appearance.pickerTitle': 'Project icon and colour',
++  'appearance.search': 'Search icons',
++  'appearance.cancel': 'Cancel',
++  'appearance.save': 'Save',
++  'appearance.loadFailed': 'Could not load the icon catalog',
++  'appearance.saveFailed': 'Could not save the project appearance',
+   'status.running': 'Running',
+   'status.subagentsRunning.one': '{n} subagent running',
+   'status.subagentsRunning.other': '{n} subagents running',
+@@ -308,6 +334,7 @@
+   'delete.desc': '「{name}」をワークスペース一覧から削除します。フォルダとセッションログは保持されます。このワークスペースのセッションは「未分類」に表示されます。',
+   'delete.pending': 'ワークスペースを削除中…',
+   'menu.fork': 'セッションをフォーク',
++  'appearance.menu': 'アイコンと色を設定',
+   'menu.archiveSession': 'セッションをアーカイブ',
+   'menu.unarchiveSession': 'セッションのアーカイブを解除',
+   'menu.pinSession': 'セッションをピン留め',
+@@ -431,6 +458,7 @@
+   'delete.desc': 'Esto elimina "{name}" de la lista de espacios de trabajo. Se conservarán los registros de carpetas y sesiones. Sus sesiones aparecerán en Desagrupadas.',
+   'delete.pending': 'Eliminando espacio de trabajo…',
+   'menu.fork': 'Crear una bifurcación de la sesión',
++  'appearance.menu': 'Establecer icono y color',
+   'menu.archiveSession': 'Sesión de archivo',
+   'menu.unarchiveSession': 'Desarchivar sesión',
+   'menu.pinSession': 'Fijar sesión',
+@@ -554,6 +582,7 @@
+   'delete.desc': 'Cela supprime « {name} » de la liste des espaces de travail. Les journaux de dossiers et de sessions seront conservés. Ses sessions apparaîtront sous Non groupées.',
+   'delete.pending': "Suppression de l'espace de travail…",
+   'menu.fork': 'Créer une branche de la session',
++  'appearance.menu': 'Définir l’icône et la couleur',
+   'menu.archiveSession': "Séance d'archivage",
+   'menu.unarchiveSession': 'Session de désarchivage',
+   'menu.pinSession': 'Épingler la session',
+@@ -677,6 +706,7 @@
+   'delete.desc': 'Dadurch wird „{name}“ aus der Arbeitsbereichsliste entfernt. Die Ordner- und Sitzungsprotokolle werden aufbewahrt. Seine Sitzungen werden unter „Nicht gruppiert“ angezeigt.',
+   'delete.pending': 'Arbeitsbereich wird gelöscht…',
+   'menu.fork': 'Sitzung abzweigen',
++  'appearance.menu': 'Symbol und Farbe festlegen',
+   'menu.archiveSession': 'Archivsitzung',
+   'menu.unarchiveSession': 'Sitzung dearchivieren',
+   'menu.pinSession': 'Sitzung anheften',
+@@ -800,6 +830,7 @@
+   'delete.desc': 'Это удалит «{name}» из списка рабочей области. Журналы папок и сеансов будут сохранены. Его сеансы появятся в разделе «Разгруппировано».',
+   'delete.pending': 'Удаление рабочей области…',
+   'menu.fork': 'Создать ответвление сеанса',
++  'appearance.menu': 'Задать значок и цвет',
+   'menu.archiveSession': 'Архив сеанса',
+   'menu.unarchiveSession': 'Разархивировать сеанс',
+   'menu.pinSession': 'Закрепить сеанс',
+@@ -923,6 +954,7 @@
+   'delete.desc': 'Isso remove “{name}” da lista de espaços de trabalho. A pasta e os logs de sessão serão mantidos. Suas sessões aparecerão em Desagrupado.',
+   'delete.pending': 'Excluindo espaço de trabalho…',
+   'menu.fork': 'Bifurcar sessão',
++  'appearance.menu': 'Definir ícone e cor',
+   'menu.archiveSession': 'Sessão de arquivamento',
+   'menu.unarchiveSession': 'Desarquivar sessão',
+   'menu.pinSession': 'Fixar sessão',
+===================================================================
+--- "a/packages/client/ui-workspace/src/client\\stores.ts"
++++ "b/packages/client/ui-workspace/src/client\\stores.ts"
+@@ -9,6 +9,7 @@
+ import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
+ import type { SessionId } from '@deepseek-ai/dsh-session/types'
+ import { reconcileManualOrder, type ArchivedFilter, type SessionRowState } from './tree.ts'
++import type { ActivityRange } from './activity-range.ts'
+ 
+ /** Browser-local order account for the hierarchy-free flat Session list. */
+ export const FLAT_SESSION_ORDER_KEY = '__flat_session_order__'
+@@ -28,6 +29,8 @@
+   sessionOrderByAccount: Record<string, string[]>
+   /** Archived-row visibility; omitted in pre-filter v5 snapshots and read as 'default'. */
+   archivedFilter?: ArchivedFilter
++  /** Activity window the session list is narrowed to; omitted in pre-range snapshots. */
++  activityRange?: ActivityRange
+ }
+ 
+ type SessionOrderSource = {
+@@ -66,6 +69,7 @@
+     source: SessionOrderSource,
+   ) => void
+   setArchivedFilter: (draft: WorkspaceViewState, filter: ArchivedFilter) => void
++  setActivityRange: (draft: WorkspaceViewState, range: ActivityRange) => void
+ }
+ 
+ /** Copy read-only projections into the persisted mutable store representation. */
+@@ -87,6 +91,7 @@
+       groupExpansion: {},
+       sessionOrderByAccount: {},
+       archivedFilter: 'default',
++      activityRange: 'all',
+     }),
+     persist: 'dsh.workspace.view.v5',
+     actions: {
+@@ -125,6 +130,7 @@
+         }))
+       },
+       setArchivedFilter: (d, filter: ArchivedFilter) => { d.archivedFilter = filter },
++      setActivityRange: (d, range: ActivityRange) => { d.activityRange = range },
+     },
+   })
+ }

@@ -43,7 +43,11 @@ function fixture() {
   const dependencies = {
     react, 'react/jsx-runtime': { jsx: tree, jsxs: tree, Fragment: 'fragment' },
     '@deepseek-ai/dsh-client-ui-primitives': { MenuGroup: 'MenuGroup', MenuSurface: 'MenuSurface', RiskConfirmation: 'RiskConfirmation',
-      IconCheckOutlineRegular: 'Icon', observeStickyMenuGroups: () => () => {}, useAnchoredMaxHeight: () => 320 },
+      IconCheckOutlineRegular: 'Icon', observeStickyMenuGroups: () => () => {}, useAnchoredMaxHeight: () => 320,
+      // The 0.2.2 upstream view consults the platform helper while rendering. The
+      // suite runs the real handlers on a desktop posture, so false is the honest
+      // answer here, not a stub that changes which branch is exercised.
+      isMobileDevice: () => false },
     clsx: { default: (...values) => values.filter(Boolean).join(' ') },
     './popup.ts': { filterOptions: options => options },
     './option-groups.ts': { groupOptions: rows => [{ group: undefined, rows }] },

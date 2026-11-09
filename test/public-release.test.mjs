@@ -6,7 +6,9 @@ const patch = readFileSync(new URL('../cordis.patch.yml', import.meta.url), 'utf
 const slugs = ['ui-layout', 'ui-workspace', 'ui-user-questions', 'ui-input-trigger', 'ui-commands', 'ui-conversation']
 
 test('fork payloads are installed as profile dependencies, never bundled or fetched as subdependencies', () => {
-  assert.equal(manifest.version, '0.3.2')
+  // The release line moved to 0.4.0; asserting a literal here made the suite fail
+  // on a version bump that had already shipped instead of on the rule it guards.
+  assert.match(manifest.version, /^0\.(?:[3-9]|\d{2})\.\d+$/)
   for (const slug of slugs) {
     const name = '@deepseek-ai/dsh-client-' + slug
     // A registry/file/URL dependency would either install the stock module or a URL subdependency.

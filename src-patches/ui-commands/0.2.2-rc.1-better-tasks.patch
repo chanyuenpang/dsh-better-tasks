@@ -1,0 +1,118 @@
+===================================================================
+--- "a/packages/client/ui-commands/src/client\\PopupSelectView.tsx"
++++ "b/packages/client/ui-commands/src/client\\PopupSelectView.tsx"
+@@ -12,7 +12,7 @@
+  * above the composer.
+  */
+ import { MenuGroup, MenuSurface, observeStickyMenuGroups } from '@deepseek-ai/dsh-client-ui-primitives'
+-import { Fragment, useEffect, useMemo, useRef } from 'react'
++import { Fragment, useEffect, useMemo, useRef, type ReactElement } from 'react'
+ import { useSyncExternalStore } from 'react'
+ import clsx from 'clsx'
+ import { IconCheckOutlineRegular, isMobileDevice, RiskConfirmation, useAnchoredMaxHeight } from '@deepseek-ai/dsh-client-ui-primitives'
+@@ -33,14 +33,14 @@
+ }
+ 
+ /** Full shell props: injected face + the locale seat. */
+-export type PopupSelectViewProps = PopupSelectInjected & PropsLocale<'command'>
++export type PopupSelectViewProps = PopupSelectInjected & PropsLocale<'command'> & { readonly inline?: boolean }
+ 
+ /**
+  * Render the popupSelect shell overlay entry.
+  * @param props - injected face: the session's shell controller; `t` rides the standard locale seat.
+  * @returns the select card while open; null while closed.
+  */
+-export function PopupSelectView({ popup, t }: PopupSelectViewProps) {
++export function PopupSelectView({ popup, t, inline = false }: PopupSelectViewProps): ReactElement | null {
+   const state = useSyncExternalStore(
+     fn => popup.state.subscribe(fn),
+     () => popup.state.getSnapshot(),
+@@ -48,6 +48,10 @@
+   const cardRef = useRef<HTMLDivElement>(null)
+   const searchRef = useRef<HTMLInputElement>(null)
+   const viewportRef = useRef<HTMLDivElement>(null)
++  // This search input is outside Lexical: it needs its own composition guard.
++  // Keep the same 10ms post-composition window as the native composer keymap.
++  const composing = useRef(false)
++  const composingUntil = useRef(0)
+   const rows = useMemo(() => filterOptions(state.options, state.search, state.searchMode),
+     [state.options, state.search, state.searchMode])
+   const groups = useMemo(() => groupOptions(rows), [rows])
+@@ -82,6 +86,13 @@
+     return () => { document.removeEventListener('pointerdown', onPointerDown, true) }
+   }, [state.open, state.confirming, popup])
+ 
++  useEffect(() => {
++    // Closing or entering confirmation can unmount the input without compositionend.
++    // A later popup must not inherit that abandoned composition.
++    composing.current = false
++    composingUntil.current = 0
++  }, [state.open, state.command, state.confirming])
++
+   // Focus the search input after it mounts (separate effect so the ref is populated).
+   useEffect(() => {
+     if (!state.open || state.confirming !== null) return
+@@ -97,6 +108,11 @@
+     : state.options.length === 0 ? state.searchLabels.empty : state.searchLabels.noResults
+ 
+   const onKeyDown = (ev: React.KeyboardEvent<HTMLDivElement>): void => {
++    // Do not consume the browser/IME's candidate-confirmation, navigation or cancel.
++    // Safari can deliver the closing keydown just after compositionend; 229 covers
++    // engines that omit isComposing. None of these keys may select or dismiss.
++    if (ev.nativeEvent.isComposing || ev.nativeEvent.keyCode === 229
++      || composing.current || Date.now() < composingUntil.current) return
+     // ArrowLeft/ArrowRight fall through on purpose: the search input keeps
+     // its native caret movement.
+     switch (ev.key) {
+@@ -110,6 +126,8 @@
+         return
+       case 'Enter':
+         ev.preventDefault()
++        // Holding the Enter that opened this popup is not a second selection.
++        if (ev.repeat) return
+         void popup.select(state.active)
+         return
+       // Tab settles like Enter and Shift+Tab dismisses like Escape, so the
+@@ -158,7 +176,7 @@
+         <MenuSurface
+           ref={cardRef}
+           className={css.card}
+-          style={{ maxHeight }}
++          style={inline ? { position: 'relative', inset: 'auto', width: '100%', minWidth: 0, maxHeight: MAX_HEIGHT } : { maxHeight }}
+           aria-label={t('overlay.aria', { command: String(state.command) })}
+           onKeyDown={onKeyDown}
+         >
+@@ -170,6 +188,8 @@
+             aria-label={t('search.aria')}
+             value={state.search}
+             readOnly={state.submitting}
++            onCompositionStart={() => { composing.current = true }}
++            onCompositionEnd={() => { composing.current = false; composingUntil.current = Date.now() + 10 }}
+             onChange={(ev) => { popup.setSearch(ev.currentTarget.value) }}
+           />
+           {state.error !== null && (
+===================================================================
+--- "a/packages/client/ui-commands/src/client\\contract.ts"
++++ "b/packages/client/ui-commands/src/client\\contract.ts"
+@@ -5,7 +5,9 @@
+  */
+ import type { ComponentType } from 'react'
+ import type { Context as ClientContext } from '@deepseek-ai/cordis'
+-import type { ClientSessionContext } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
++import type { ClientSessionContext, InputSurfaceTarget, InputSurfaceToken } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
++import type { PopupSelectController } from './popup.ts'
++import type { PopupSelectView } from './PopupSelectView.tsx'
+ import type { IconProps } from '@deepseek-ai/dsh-client-ui-primitives'
+ 
+ /** Copy for an option that must be acknowledged before onSelect can run. */
+@@ -147,4 +149,10 @@
+   dismiss(name: string): void
+   /** Resolve the per-session popup controller for one session scope (wiring/overlay layer). */
+   popupFor(actx: ClientContext): unknown
++  /** Bind a detached input to the existing native command registry and popup implementation. */
++  attachSurface(actx: ClientContext, token: InputSurfaceToken, target: InputSurfaceTarget): {
++    readonly popup: PopupSelectController<ClientSessionContext>
++    readonly View: typeof PopupSelectView
++    dispose(): void
++  }
+ }

@@ -20,6 +20,10 @@ function fixture() {
     '../stores.ts': { FLAT_SESSION_ORDER_KEY: '__flat_session_order__' },
     '../activity-range.ts': { ACTIVITY_RANGE_ORDER: ['all', '1d', '3d', '7d', '14d'] },
     './Rows.tsx': {}, './AnimatedRows.tsx': {}, '../WorkspacePicker.tsx': {}, './WorkspaceBrowser.module.css': { default: {} },
+    // The 0.2.2 upstream added the dialogs module to this file's imports. The suite
+    // only executes prop construction, and child components stay elements, so an
+    // empty namespace is the honest double.
+    './WorkspaceDialogs.tsx': {},
   }
   const module = { exports: {} }
   new Function('module', 'exports', 'require', compiled)(module, module.exports, name => {
@@ -35,6 +39,11 @@ function fixture() {
     useSessions: select => select({ ids: [], byId: {}, phase: 'ready' }),
     useWorkspaces: select => select(workspaces), useDirectoryFlow: select => select(false),
     useStore: select => select(view), actions: new Proxy({}, { get: () => noop }), t: key => key,
+    // Standard root hooks the 0.2.2 upstream added to this surface. The suite asserts
+    // prop construction and membership, not the request dialog, so inert selectors are
+    // the honest double; leaving them undefined turns every branch into a TypeError.
+    useWorkspaceActionRequest: select => select({ request: null, settle: noop }),
+    useRemoteAccess: select => select(true),
   }
   return { props, workspaces, view, render: () => module.exports.WorkspaceBrowser(props) }
 }

@@ -1,0 +1,241 @@
+===================================================================
+--- "a/packages/client/ui-input-trigger/src/client\\MenuView.tsx"
++++ "b/packages/client/ui-input-trigger/src/client\\MenuView.tsx"
+@@ -13,7 +13,7 @@
+  * header pinned above the scrolling list.
+  */
+ import { MenuSurface } from '@deepseek-ai/dsh-client-ui-primitives'
+-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
++import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactElement } from 'react'
+ import clsx from 'clsx'
+ import { IconChevronRightOutlineRegular, ReferenceIconRegular, useAnchoredMaxHeight } from '@deepseek-ai/dsh-client-ui-primitives'
+ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+@@ -22,7 +22,7 @@
+ import type { MenuKey } from './locales.ts'
+ 
+ /** Full menu props: injected face + the locale seat. */
+-export type MenuViewProps = MenuViewInjected & PropsLocale<'slash.menu'>
++export type MenuViewProps = MenuViewInjected & PropsLocale<'slash.menu'> & { readonly idPrefix?: string; readonly inline?: boolean }
+ 
+ /** Height cap that fits the two headings and eight built-in command rows. */
+ const MAX_HEIGHT = 400
+@@ -35,8 +35,8 @@
+ const TOP_MARGIN = 84
+ 
+ /** DOM id of one option row (the aria-activedescendant target). */
+-function optionId(source: string, index: number): string {
+-  return `dsh-slash-option-${source}-${index}`
++function optionId(source: string, index: number, prefix = 'dsh-slash-option'): string {
++  return `${prefix}-${source}-${index}`
+ }
+ 
+ /**
+@@ -44,7 +44,7 @@
+  * @param props - injected face (the menu store and the pick route); `t` rides the standard locale seat.
+  * @returns the dropdown while open; null while closed.
+  */
+-export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t }: MenuViewProps) {
++export function MenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t, idPrefix, inline = false }: MenuViewProps): ReactElement | null {
+   const state = useSyncExternalStore(
+     fn => menu.subscribe(fn),
+     () => menu.getSnapshot(),
+@@ -73,9 +73,9 @@
+   // scrolls the active option into view on keyboard moves — do it here.
+   useEffect(() => {
+     if (highlight === null) return
+-    document.getElementById(optionId(highlight.source, highlight.index))
++    document.getElementById(optionId(highlight.source, highlight.index, idPrefix))
+       ?.scrollIntoView({ block: 'nearest' })
+-  }, [highlight])
++  }, [highlight, idPrefix])
+   // Dismiss on pointer outside the menu AND outside the composer card
+   // (clicking the textarea or bottom bar must not close the menu).
+   useEffect(() => {
+@@ -97,7 +97,7 @@
+     <MenuSurface
+       ref={listRef}
+       className={css.menu}
+-      style={{ maxHeight }}
++      style={inline ? { position: 'relative', inset: 'auto', width: '100%', minWidth: 0, maxHeight: MAX_HEIGHT } : { maxHeight }}
+       data-trigger-menu=""
+       data-overflow-below={hasOverflowBelow || undefined}
+     >
+@@ -130,8 +130,9 @@
+         ref={viewportRef}
+         className={css.viewport}
+         role="listbox"
++        id={idPrefix === undefined ? undefined : `${idPrefix}-listbox`}
+         aria-label={t('suggestions.aria')}
+-        aria-activedescendant={highlight !== null ? optionId(highlight.source, highlight.index) : undefined}
++        aria-activedescendant={highlight !== null ? optionId(highlight.source, highlight.index, idPrefix) : undefined}
+         onScroll={updateOverflowHint}
+       >
+         {state.groups.map(group => (group.status === 'ready' && group.items.length === 0)
+@@ -154,12 +155,12 @@
+                 : group.items.map((item, index) => {
+                   const active = highlight !== null && highlight.source === group.source && highlight.index === index
+                   return (
+-                    <Fragment key={optionId(group.source, index)}>
++                    <Fragment key={optionId(group.source, index, idPrefix)}>
+                       {item.section !== undefined && item.section !== group.items[index - 1]?.section
+                         ? <div className={css.sectionTitle} role="presentation">{item.section}</div>
+                         : null}
+                       <button
+-                        id={optionId(group.source, index)}
++                        id={optionId(group.source, index, idPrefix)}
+                         type="button"
+                         role="option"
+                         aria-selected={active}
+===================================================================
+--- "a/packages/client/ui-input-trigger/src/client\\contract.ts"
++++ "b/packages/client/ui-input-trigger/src/client\\contract.ts"
+@@ -5,7 +5,8 @@
+  * per-session controller through sessionOf.
+  */
+ import type { Context as ClientContext } from '@deepseek-ai/cordis'
+-import type { InputTriggerSource } from '../types.ts'
++import type { InputSurfaceTarget, InputSurfaceToken, InputTriggerSource } from '../types.ts'
++import type { MenuView } from './MenuView.tsx'
+ import type { InputTriggerController } from './controller.ts'
+ 
+ /** The `ctx.inputTriggers` service face. */
+@@ -22,4 +23,6 @@
+    * @returns controller that dies with that scope.
+    */
+   sessionOf(actx: ClientContext): InputTriggerController
++  /** Create an independent editor route over the existing native source roster. */
++  createSurface(actx: ClientContext, token: InputSurfaceToken, target: InputSurfaceTarget): InputTriggerController & { readonly View: typeof MenuView }
+ }
+===================================================================
+--- "a/packages/client/ui-input-trigger/src/client\\index.ts"
++++ "b/packages/client/ui-input-trigger/src/client\\index.ts"
+@@ -19,6 +19,7 @@
+ export { InputTriggerController } from './controller.ts'
+ export type { InputTriggerControllerDeps, SourceRoster } from './controller.ts'
+ export type { MenuViewInjected } from './slots.ts'
++export { MenuView } from './MenuView.tsx'
+ export type { MenuViewProps } from './MenuView.tsx'
+ export type { MenuKey } from './locales.ts'
+ export type {
+@@ -26,7 +27,7 @@
+   CommandClaim, ConsumeTokenRequest, HeaderRequest, InsertReferenceRequest, PickOutcome, PickVia,
+   ReferenceCodec, ReferenceInsert, InputTriggerCandidate, InputTriggerCrumb, InputTriggerPick,
+   InputTriggerSource, SubmitAttachment, SubmitEnvelope, SubmitOutcome, TokenSpan, TriggerChar,
+-  TriggerGuard, TriggerPosition,
++  TriggerGuard, TriggerPosition, InputSurfaceToken, InputSurfaceTarget,
+ } from '../types.ts'
+ export type { DetectTrigger, ExactMatch, MenuEvent, MenuReduce, MenuState, TriggerHit } from '../core/contract.ts'
+ export type { InputTriggerServiceContract } from './contract.ts'
+@@ -49,7 +50,7 @@
+ const MENU_NS = 'slash.menu'
+ 
+ /** Required services: controller resolution reads the session scope tree; the menu copy is localized. */
+-export const inject = ['sessions', 'locale']
++export const inject: string[] = ['sessions', 'locale']
+ 
+ /**
+  * Client plugin body: mount the service, then register MenuView into the
+===================================================================
+--- "a/packages/client/ui-input-trigger/src/core\\contract.ts"
++++ "b/packages/client/ui-input-trigger/src/core\\contract.ts"
+@@ -40,16 +40,22 @@
+     /** False when candidate section rows own all visible group labeling. */
+     readonly showGroupTitle?: boolean
+     readonly status: 'pending' | 'ready'
++    /** Explicit combined launchers retain failed groups for caller-owned error feedback. */
++    readonly failed?: boolean
+     readonly items: readonly InputTriggerCandidate[]
+   }[]
+   readonly highlight: { readonly source: string; readonly index: number } | null
+ }
+ 
+-/** Menu reduction events. Source failure = silent group removal (log only; no error UI tier). */
++/**
++ * Menu reduction events. Native source failure silently removes its group.
++ * keepOpen retains explicit launcher search and marks failed groups for local feedback;
++ * its absence retains native group-removal and empty-menu auto-close semantics.
++ */
+ export type MenuEvent =
+   | { readonly type: 'hit'; readonly hit: TriggerHit | null }
+-  | { readonly type: 'source-settled'; readonly generation: number; readonly source: string; readonly items?: readonly InputTriggerCandidate[] }
+-  | { readonly type: 'source-failed'; readonly generation: number; readonly source: string }
++  | { readonly type: 'source-settled'; readonly generation: number; readonly source: string; readonly items?: readonly InputTriggerCandidate[]; readonly keepOpen?: boolean }
++  | { readonly type: 'source-failed'; readonly generation: number; readonly source: string; readonly keepOpen?: boolean }
+   | { readonly type: 'move'; readonly dir: 1 | -1 }
+   | { readonly type: 'hover'; readonly source: string; readonly index: number }
+   | { readonly type: 'close' }
+===================================================================
+--- "a/packages/client/ui-input-trigger/src/core\\menu.ts"
++++ "b/packages/client/ui-input-trigger/src/core\\menu.ts"
+@@ -104,7 +104,7 @@
+         // parked where it was while the new fetch runs, and the settled
+         // generation replaces the items and revalidates the highlight
+         // wholesale. Pending status still fences picks off the stale rows.
+-        groups: state.groups.map(g => ({ ...g, status: 'pending' })),
++        groups: state.groups.map(g => ({ ...g, status: 'pending', ...(g.failed === undefined ? {} : { failed: false }) })),
+         highlight: state.highlight,
+       }
+     }
+@@ -114,16 +114,18 @@
+       if (idx < 0) return state
+       const items: readonly InputTriggerCandidate[] = ev.items ?? []
+       const groups = state.groups.map((g, i) =>
+-        i === idx ? { ...g, status: 'ready' as const, items } : g)
+-      if (allReadyEmpty(groups)) return closed(state)
++        i === idx ? { ...g, status: 'ready' as const, items, ...(ev.keepOpen === true ? { failed: false } : {}) } : g)
++      if (allReadyEmpty(groups) && ev.keepOpen !== true) return closed(state)
+       const highlight = validHighlight(state.highlight, groups) ?? firstHighlight(groups)
+       return { ...state, groups, highlight }
+     }
+     case 'source-failed': {
+       if (!state.open || ev.generation !== state.generation) return state
+       if (!state.groups.some(g => g.source === ev.source)) return state
+-      const groups = state.groups.filter(g => g.source !== ev.source)
+-      if (groups.length === 0 || allReadyEmpty(groups)) return closed(state)
++      const groups = ev.keepOpen === true
++        ? state.groups.map(g => g.source === ev.source ? { ...g, status: 'ready' as const, items: [], failed: true } : g)
++        : state.groups.filter(g => g.source !== ev.source)
++      if ((groups.length === 0 || allReadyEmpty(groups)) && ev.keepOpen !== true) return closed(state)
+       const highlight = validHighlight(state.highlight, groups) ?? firstHighlight(groups)
+       return { ...state, groups, highlight }
+     }
+===================================================================
+--- a/packages/client/ui-input-trigger/src/types.ts
++++ b/packages/client/ui-input-trigger/src/types.ts
+@@ -9,7 +9,7 @@
+  */
+ import type { ComponentType } from 'react'
+ import type {
+-  CommandClaim, PickOutcome, ReferenceInsert, TokenSpan,
++  CommandClaim, ConsumeTokenRequest, PickOutcome, ReferenceInsert, TokenSpan,
+ } from '@deepseek-ai/dsh-client-ui-conversation/client'
+ import type { IconProps } from '@deepseek-ai/dsh-client-ui-primitives'
+ import type { SessionId } from '@deepseek-ai/dsh-session/types'
+@@ -28,8 +28,27 @@
+  */
+ export interface ClientSessionContext {
+   readonly sessionId: SessionId
++  /** Opaque browser identity only; callbacks never cross the source projection. */
++  readonly surface?: InputSurfaceToken
+ }
+ 
++/** Identity is this object, never its display/debug id. Tokens cannot be reattached. */
++export interface InputSurfaceToken { readonly id: string }
++
++/** Caller-owned input and operation lifetime; no Session-wide event routing. */
++export interface InputSurfaceTarget {
++  readonly signal: AbortSignal
++  beginCommand(claim: CommandClaim, span: TokenSpan): boolean
++  /** fromLauncher asks the editor to preserve token separation at the captured selection. */
++  insertText(text: string, span: TokenSpan, continuation?: boolean, fromLauncher?: boolean): boolean
++  insertReference(reference: ReferenceInsert, span: TokenSpan): boolean
++  consumeToken(guard: ConsumeTokenRequest['guard']): boolean
++  focus(): void
++  notify(level: 'info' | 'error', text: string): void
++  isAvailable(): boolean
++  withOperation<T>(operation: () => T | Promise<T>): Promise<T>
++}
++
+ /** Trigger character a source binds to. */
+ export type TriggerChar = '/' | '@'
+ 

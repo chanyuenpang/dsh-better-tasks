@@ -27,6 +27,18 @@ const externals = {
   '@deepseek-ai/dsh-client-store': { createSnapshotStore: store },
   '@deepseek-ai/dsh-client-ui-primitives': new Proxy({ rankByName: (rows, q) => rows.filter(row => `${row.name} ${row.label ?? ''}`.toLowerCase().includes(q.toLowerCase())) }, { get: (obj, key) => obj[key] ?? (() => null) }),
   '@deepseek-ai/dsh-file-reference/grammar': { activeAtToken: () => undefined },
+  // The 0.2.2 line routes builtin-command facts through the dsh-commands package.
+  // The suite exercises the popup/dispatch machine, not the builtin catalog, so a
+  // minimal identity stub is enough: every consumer here only asks for the name of
+  // a descriptor it already holds.
+  // Mirrors the real module's shape: exact-name lookup first, then the builtin
+  // alias table. The suite supplies the descriptors, so the alias table can stay
+  // empty without changing what the routing machine is being asked to do.
+  '@deepseek-ai/dsh-commands/builtin': {
+    resolveCommand: (token, descriptors) => descriptors.find(descriptor => descriptor.name === token),
+    builtinCommandTokens: { en: {}, zh: {} },
+    builtinCommandName: () => undefined,
+  },
 }
 const loaded = new Map()
 function load(path) {

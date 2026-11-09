@@ -15,6 +15,9 @@ sandbox/.desktop-*/home/
 sandbox/.desktop-*/electron-*/
 releases/*/preinstall-backup/
 
+# Contract-drift scratch reports (regenerate with npm run check:contract).
+.contract-report-*.json
+
 # claw-kit transient state; keep project plans, Truth, and reports.
 .claw/runtime/
 .claw/logs/
@@ -51,3 +54,10 @@ releases/0.3.0/
 /payload/
 # Archived task state: workflow history, not source.
 /.claw/archive/
+
+# claw-kit
+.claw/*
+!.claw/project.json
+!.claw/truth/
+!.claw/truth/**
+.claw/project-override.json

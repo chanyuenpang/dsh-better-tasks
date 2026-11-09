@@ -1,6 +1,6 @@
 {
   "name": "@veewo/dsh-better-tasks",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "type": "module",
   "description": "DSH Desktop sidebar replacement with native pinned-task cards and independent task input surfaces.",
   "publishConfig": {
@@ -45,6 +45,7 @@
     "build:fork": "node scripts/build-forks-from-source.mjs --build",
     "test:prepare": "node scripts/build-forks-from-source.mjs --test-source",
     "check": "node --check src/index.js && node --check src/client.js && node --check lib/client.js",
+    "check:contract": "node scripts/check-upstream-contract.mjs",
     "test": "npm run build && node --test"
   },
   "keywords": [

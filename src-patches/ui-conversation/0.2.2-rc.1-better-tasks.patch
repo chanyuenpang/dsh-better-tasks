@@ -1,0 +1,72 @@
+===================================================================
+--- "a/packages/client/ui-conversation/src/client\\apply.ts"
++++ "b/packages/client/ui-conversation/src/client\\apply.ts"
+@@ -127,8 +127,8 @@
+     name: string
+     label(): string
+     icon: typeof IconPaperclipOutlineRegular
+-    available(session: { sessionId: SessionId }): boolean
+-    ui: { kind: 'action'; run(session: { sessionId: SessionId }): void }
++    available(session: { sessionId: SessionId; surface?: object }): boolean
++    ui: { kind: 'action'; run(session: { sessionId: SessionId; surface?: object }): void }
+   }): () => void
+ }
+ 
+@@ -308,8 +308,8 @@
+       name: 'file',
+       label: () => t('input.file'),
+       icon: IconPaperclipOutlineRegular,
+-      available: session => inputHub.canPickFiles(session.sessionId),
+-      ui: { kind: 'action', run: (session) => { inputHub.pickFiles(session.sessionId) } },
++      available: session => session.surface === undefined && inputHub.canPickFiles(session.sessionId),
++      ui: { kind: 'action', run: (session) => { if (session.surface === undefined) inputHub.pickFiles(session.sessionId) } },
+     }), 'ui-conversation: File action')
+   })
+ 
+===================================================================
+--- "a/packages/client/ui-conversation/src/client\\contract\\input.ts"
++++ "b/packages/client/ui-conversation/src/client\\contract\\input.ts"
+@@ -220,6 +220,8 @@
+ 
+ /** Session-addressed access to the per-session input facade. */
+ export interface SessionInputResolver {
++  /** Create a separately owned text/skill/command composer over a real Session. */
++  createSurface(options: import('./input-surface.ts').ComposerSurfaceOptions): Promise<import('./input-surface.ts').ComposerSurfaceHandle>
+   /** Resolve the facade for one session-scope ctx. */
+   for(actx: Context): SessionInput
+   /**
+===================================================================
+--- "a/packages/client/ui-conversation/src/client\\index.ts"
++++ "b/packages/client/ui-conversation/src/client\\index.ts"
+@@ -69,6 +69,8 @@
+ export { inspectRequestPrompt } from './contract/request-inspection.ts'
+ export type { SystemPromptState, SystemPromptInspector } from './contract/system-prompt.ts'
+ export type { ConversationStoreState, ConversationViewRequest, ViewTab } from './contract/views.ts'
++export { InputSurfaceView } from './input/InputSurfaceView.tsx'
++export type { ComposerSurfaceHandle, ComposerSurfaceOptions, ComposerSurfaceSinkArgs, ComposerSurfaceViewProps } from './contract/input-surface.ts'
+ 
+ export { ConversationNodeAssembler } from './conversation/assembler.ts'
+ export type {
+===================================================================
+--- "a/packages/client/ui-conversation/src/client\\input\\hub.ts"
++++ "b/packages/client/ui-conversation/src/client\\input\\hub.ts"
+@@ -27,6 +27,8 @@
+ import { SessionInputShell } from './facade.ts'
+ import { reportMessageSubmission } from './submission-analytics.ts'
+ import { readConversationDraft } from '../stores.ts'
++import { createInputSurface } from './surface.ts'
++import type { ComposerSurfaceHandle, ComposerSurfaceOptions } from '../contract/input-surface.ts'
+ 
+ /** Structural command face for per-session popup resolution. */
+ interface CommandFace {
+@@ -72,6 +74,10 @@
+    * @param actx - session-scope context.
+    * @returns the resident per-session facade.
+    */
++  createSurface(options: ComposerSurfaceOptions): Promise<ComposerSurfaceHandle> {
++    return createInputSurface(this.rootCtx, options)
++  }
++
+   for(actx: Context): SessionInput {
+     const sessions = this.sessions()
+     const session = sessions.sessionOf(actx)

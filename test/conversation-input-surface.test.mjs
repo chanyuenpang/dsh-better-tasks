@@ -18,13 +18,15 @@ const editors = []
 class DraftEditorRuntime {
   constructor(deps) {
     this.deps = deps; this.text = ''; this.occurrences = []; this.disposed = false; this.focusCount = 0
-    this.projected = { clipboardText: '', detectText: '', occurrences: [], caret: null }
+    // `quotes` joined the projection in the a layer (quote-aware prompt assembly),
+    // so the double has to carry it or the shell throws on its first read.
+    this.projected = { clipboardText: '', detectText: '', occurrences: [], quotes: [], caret: null }
     this.editor = { focus: () => this.focusCount++, getRootElement: () => null }
     editors.push(this)
   }
   get projection() { return this.projected }
   register() { return () => { this.disposed = true } }
-  refreshProjection() { const previous = this.projected; this.projected = { clipboardText: this.text, detectText: this.text, occurrences: this.occurrences, caret: this.text.length }; return previous }
+  refreshProjection() { const previous = this.projected; this.projected = { clipboardText: this.text, detectText: this.text, occurrences: this.occurrences, quotes: [], caret: this.text.length }; return previous }
   setDraft(text) { this.text = text; this.occurrences = []; this.deps.onUpdate() }
   replaceText(span, text) { this.setDraft(this.text.slice(0, span.start) + text + this.text.slice(span.end)); return true }
   insertReference(span, value) { this.text = this.text.slice(0, span.start) + value.clipboardText + this.text.slice(span.end); this.occurrences = [{ ...value, occurrenceId: 'one', offset: span.start, length: value.clipboardText.length }]; this.deps.onUpdate(); return true }
@@ -43,6 +45,13 @@ function load(path) {
   const externals = {
     react: { createElement: (type, props) => ({ type, props }) },
     '@deepseek-ai/dsh-client-store': { createSnapshotStore: store },
+    // Our own a layer (src-overlay) renders through the tooltip primitive, so the
+    // surface factory now reaches this package. The suite never mounts a view, so
+    // an inert component is the honest double.
+    '@deepseek-ai/dsh-client-ui-primitives': new Proxy({ Tooltip: () => null }, { get: (obj, key) => obj[key] ?? (() => null) }),
+    // Lexical ships as a real dependency of this repo, but the suite substitutes the
+    // editor runtime wholesale; only the type import survives type stripping.
+    lexical: {},
     zod,
   }
   let source = stripTypeScriptTypes(readFileSync(path, 'utf8'), { mode: 'transform', sourceUrl: path })
@@ -169,6 +178,9 @@ test('pending interaction appearing during adjudication prevents ordinary sink a
   surface.input.submit(); b.status.set(new Map([['s1', { running: false, pendingInteraction: { kind: 'question' } }]]))
   adjudication.resolve(undefined); await surface.whenSettled()
   assert.equal(b.prompts.length, 0); assert.equal(surface.state.getSnapshot().draft, '/something')
+  // The refusal notice is published by the failed-sink effect, one microtask after the
+  // operation's flight count drops to zero (0.2.2 upstream settlement order).
+  await flush()
   assert.match(surface.notices.getSnapshot().text, /awaiting an interaction/)
   surface.dispose(); await surface.closed
 })
@@ -221,7 +233,9 @@ test('prompt rejection after View closes restores final draft before closed reso
   const observed = []
   const unsubscribe = surface.state.subscribe(() => observed.push(surface.state.getSnapshot().draft))
   surface.input.submit(); await flush(); surface.dispose()
-  assert.equal(surface.state.getSnapshot().draft, '')
+  // 0.2.2 upstream clears the composer only once the sink settles OK, so a send that is
+  // still in flight keeps its text visible; a rejection therefore needs no "restore".
+  assert.equal(surface.state.getSnapshot().draft, 'save this on failure')
   flight.resolve({ ok: false, error: { message: 'admission denied' } })
   await surface.closed
   assert.equal(surface.state.getSnapshot().draft, 'save this on failure')

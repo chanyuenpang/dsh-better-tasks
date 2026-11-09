@@ -3,9 +3,12 @@
 // Assertion split — this is deliberate, and it is the lesson from the 0.1.5 scripts:
 //
 //   * SOURCE-form markers (constant declarations, type/export names) are asserted
-//     against `src-patches/<slug>/<version>-better-tasks.patch`. tsdown reflows
-//     whitespace, so `export const SIDEBAR_MAX = 840` IS in the patch and is NOT
-//     in the built artifact. Asserting it on the artifact produces a false failure.
+//     against the slug's SOURCE VIEW: its recorded patch plus every file under
+//     `src-overlay/<slug>/`. tsdown reflows whitespace, so `export const SIDEBAR_MAX = 840`
+//     is in that source and is NOT in the built artifact; asserting it on the artifact
+//     produces a false failure. The two-part view matters because the fork is split into
+//     a layer (src-overlay, our own files) and b layer (src-patches, upstream edits), so
+//     a marker may legitimately live in either half.
 //   * CROSS-PACKAGE contract strings (the `questionSurface` provider name, the
 //     `data-question-surface` router attribute, a consumer-visible member name)
 //     are asserted against the built artifact, because that is what a host resolves
@@ -23,7 +26,7 @@
 
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -57,11 +60,15 @@ const SLUGS = {
       'currentSidebarPreference',
       'sidebarMax',
     ],
+    // The sidebar-width contract lives in the a layer: region-boundary.tsx and the
+    // width helpers are ours, so the source view (patch + src-overlay) is where the
+    // declaration must appear, never the bundle.
     patch: [
       'export const SIDEBAR_MAX = 840',
       'export const SIDEBAR_MIN',
       'sidebarMax',
       'currentSidebarPreference',
+      'export function sidebarMax',
     ],
     children: ['"sidebar": {', '"main": {', '"rightbar": {', '"shell.overlay": {'],
   },
@@ -83,8 +90,11 @@ const SLUGS = {
       'style.remove();',
     ],
     patch: [
-      'createQuestionSurfaceDraftStore',
+      // Source-form markers of the a layer. The registry and its own persist-free
+      // draft store live in src-overlay/, which is why the assertion reads the whole
+      // a+b source view rather than the patch alone.
       'class QuestionSurfaceRegistry',
+      'createQuestionDraftStore',
       'beginSettlement',
       'gate.locked',
       'QuestionSurfaceGate',
@@ -103,13 +113,21 @@ const SLUGS = {
     // 0.2 package has no onSessionCreated, so a native ui-workspace under a
     // Better Tasks sidebar throws and the WHOLE sidebar fails to mount. These are
     // therefore hard acceptance items, not feature markers.
+    // Better Tasks' client half calls these on ctx.uiWorkspace WITHOUT optional
+    // chaining, and the native package has no onSessionCreated at all, so a native
+    // ui-workspace makes the WHOLE sidebar throw on mount.
+    //
+    // The 0.2.2 line drops the 0.2.0-era `betterTaskPins` provider and `TaskPinIcon`:
+    // official Workspace pins became the single membership truth (see
+    // src/native-pin-host.mjs), so the fork no longer registers a parallel pin face.
+    // Asserting those two names now would pin a design that was deliberately removed.
     artifact: [
       'onSessionCreated',
       'startSession',
       'openSession',
-      'betterTaskPins',
-      'TaskPinIcon',
+      'setActivityRange',
       'project-appearance',
+      'pinnedSessionIds',
     ],
     patch: ['onSessionCreated', 'notifySessionCreated', 'sessionCreatedListeners', 'setActivityRange'],
     children: [],
@@ -134,6 +152,31 @@ const recorded = existsSync(lockPath) ? JSON.parse(await readFile(lockPath, 'utf
 const nextLock = { version, sourceCommit: sourceLock.commit, artifacts: { ...recorded.artifacts } }
 const rows = []
 
+/**
+ * Read a slug's complete a-layer + b-layer source view.
+ *
+ * Our own files live in src-overlay/<slug>/ and no longer appear in the recorded
+ * patch, so a source-form marker may sit in either half. Concatenating both keeps
+ * every marker assertion meaningful without caring which layer owns it.
+ * @param slug - fork package name.
+ * @param patchPath - that slug's recorded patch.
+ * @returns the patch text plus every overlay file body.
+ */
+async function sourceView(slug, patchPath) {
+  const parts = [await readFile(patchPath, 'utf8')]
+  const overlayDir = join(root, 'src-overlay', slug)
+  if (!existsSync(overlayDir)) return parts.join('\n')
+  const walk = async (dir) => {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      const child = join(dir, entry.name)
+      if (entry.isDirectory()) await walk(child)
+      else if (entry.isFile()) parts.push(await readFile(child, 'utf8'))
+    }
+  }
+  await walk(overlayDir)
+  return parts.join('\n')
+}
+
 for (const [slug, spec] of Object.entries(SLUGS)) {
   const patchPath = join(root, 'src-patches', slug, `${version}-better-tasks.patch`)
   const artifactPath = join(root, `forks-${version}`, slug, 'lib', 'client.js')
@@ -148,12 +191,12 @@ for (const [slug, spec] of Object.entries(SLUGS)) {
   }
 
   const artifact = await readFile(artifactPath, 'utf8')
-  const patch = await readFile(patchPath, 'utf8')
+  const patch = await sourceView(slug, patchPath)
   const bytes = Buffer.byteLength(artifact, 'utf8')
   const digest = sha256(artifact)
 
   for (const needle of spec.artifact) requireContract(artifact, needle, 'built artifact', slug)
-  for (const needle of spec.patch) requireContract(patch, needle, 'src patch', slug)
+  for (const needle of spec.patch) requireContract(patch, needle, 'a+b layer source', slug)
   for (const child of spec.children) requireExact(artifact, child, 1, 'built artifact', slug)
 
   // Package identity, when the fork package has been materialized (release step).

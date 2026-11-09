@@ -1,0 +1,226 @@
+===================================================================
+--- "a/packages/client/ui-user-questions/src/client\\PlanReviewPanel.tsx"
++++ "b/packages/client/ui-user-questions/src/client\\PlanReviewPanel.tsx"
+@@ -1,13 +1,14 @@
+-import { useMemo, useState } from 'react'
++import { useEffect, useMemo, useState, type ReactNode } from 'react'
+ import {
+   Button, extractMarkdownPlainText, IconEditOutlineRegular, StateDot,
+ } from '@deepseek-ai/dsh-client-ui-primitives'
+ import type { PendingQuestion, PlanReview, QuestionComposerProps } from './contract/slots.ts'
++import type { QuestionSurfaceGate } from './question-surface.ts'
+ import css from './PlanReviewPanel.module.css'
+ 
+-/** The panel's own props: the question domain face, the narrowed review, and the locale seat. */
++/** The panel's own props: the question domain face, the narrowed review, the settlement gate, and the locale seat. */
+ export type PlanReviewPanelProps =
+-  { pending: PendingQuestion; review: PlanReview } & Pick<QuestionComposerProps, 't' | 'renderSlot'>
++  { pending: PendingQuestion; review: PlanReview; gate: QuestionSurfaceGate } & Pick<QuestionComposerProps, 't' | 'renderSlot'>
+ 
+ /**
+  * Optional-prop spread for a decision button's tooltip: `title` is optional on
+@@ -26,27 +27,34 @@
+  * @param props - the question domain face, the narrowed plan review, and `t`.
+  * @returns The plan-review takeover for this request.
+  */
+-export function PlanReviewPanel({ pending, review, t, renderSlot }: PlanReviewPanelProps) {
++export function PlanReviewPanel({ pending, review, t, renderSlot, gate }: PlanReviewPanelProps): ReactNode {
+   // Foreground decisions wait for the resolved frame; accepted Remote decisions
+   // hide the panel. A failed send re-enables the buttons and shows the error.
+   const [busy, setBusy] = useState(false)
+   const [error, setError] = useState<string | null>(null)
+-  const settle = (send: () => Promise<void>, remote = false): void => {
++  // Once ANY surface of this request begins settling, this panel stands down.
++  const locked = busy || gate.locked
++  const cardState = pending.snapshot().state
++  useEffect(() => {
++    if (cardState === 'continued' && !gate.locked) setBusy(false)
++  }, [cardState, gate.locked])
++  const settle = (send: () => Promise<void>, channel: 'none' | 'waterfall' | 'rpc' = 'none'): void => {
++    if (!gate.canInteract() || !gate.beginSettlement()) return
+     setBusy(true)
+     setError(null)
+-    void send()
++    void gate.settle(send, channel)
+       .then(() => {
+-        if (!remote) return
++        if (channel !== 'rpc') return
+         setBusy(false)
+         void pending.dismiss().catch(() => { setError(t('status.sent')) })
+       })
+-      .catch((cause: unknown) => {
++      .catch(() => {
+         setBusy(false)
+-        setError(cause instanceof Error ? cause.message : String(cause))
++        setError(null) // shared attempt gate owns the failure
+       })
+   }
+   const decide = (label: string): void => {
+-    settle(() => pending.answer({ answers: [{ id: review.id, selected: [label] }] }), pending.snapshot().channel === 'rpc')
++    settle(() => pending.answer({ answers: [{ id: review.id, selected: [label] }] }), pending.snapshot().channel)
+   }
+   const summary = useMemo(() => {
+     const title = extractMarkdownPlainText(review.plan, { mode: 'first-line' })
+@@ -69,17 +77,17 @@
+           {summary.description !== '' && <p className={css.description}>{summary.description}</p>}
+         </div>
+         <div className={css.footer}>
+-          <div className={css.feedback} role="status">{error}</div>
++          <div className={css.feedback} role="status">{error ?? gate.error}</div>
+           <div className={css.actions}>
+             <Button
+               variant="outline" className={css.discuss} icon={<IconEditOutlineRegular size={14} />}
+-              disabled={busy} onClick={() => { settle(() => pending.dismiss()) }}
++              disabled={locked} onClick={() => { settle(() => pending.dismiss()) }}
+             >
+               {t('plan.discuss')}
+             </Button>
+             <Button
+               variant="primary" {...tooltip(review.approve.description)}
+-              disabled={busy} onClick={() => { decide(review.approve.label) }}
++              disabled={locked} onClick={() => { decide(review.approve.label) }}
+             >
+               {t('plan.approve')}
+             </Button>
+===================================================================
+--- "a/packages/client/ui-user-questions/src/client\\contract\\slots.ts"
++++ "b/packages/client/ui-user-questions/src/client\\contract\\slots.ts"
+@@ -258,6 +258,8 @@
+   #deadline: number | undefined
+   #remainingMs: number | undefined
+   #focused = false
++  readonly #focusOwners = new Set<object>()
++  readonly #defaultFocusOwner = {}
+   #engaged = false
+   #held = false
+   #closed = false
+@@ -323,7 +325,7 @@
+   readonly snapshot = (): QuestionCardSnapshot => this.#snapshot
+ 
+   /** Observable snapshot read by the renderer's keyed Hook. */
+-  readonly getSnapshot = this.snapshot
++  readonly getSnapshot: () => QuestionCardSnapshot = this.snapshot
+ 
+   private createSnapshot(): QuestionCardSnapshot {
+     const channel = this.#waterfall !== undefined
+@@ -451,6 +453,7 @@
+   takeTime(): void {
+     if (this.#held) return
+     this.#held = true
++    this.#focusOwners.clear()
+     this.#focused = false
+     this.#remainingMs = undefined
+     this.#deadline = undefined
+@@ -461,8 +464,10 @@
+    * Record focus even before the request arrives, freezing a pristine countdown once attached.
+    * @param now - current Client epoch time.
+    */
+-  holdFocus(now = Date.now()): void {
+-    if (this.#held || this.#engaged || this.#focused) return
++  holdFocus(now: number = Date.now(), owner: object = this.#defaultFocusOwner): void {
++    if (this.#closed || this.#held || this.#engaged || this.#focusOwners.has(owner)) return
++    this.#focusOwners.add(owner)
++    if (this.#focused) return
+     this.#remainingMs = this.#deadline === undefined ? undefined : Math.max(0, this.#deadline - now)
+     this.#deadline = undefined
+     this.#focused = true
+@@ -473,8 +478,8 @@
+    * Resume a pristine countdown after the answer surface loses focus.
+    * @param now - current Client epoch time.
+    */
+-  releaseFocus(now = Date.now()): void {
+-    if (!this.#focused) return
++  releaseFocus(now: number = Date.now(), owner: object = this.#defaultFocusOwner): void {
++    if (!this.#focusOwners.delete(owner) || this.#focusOwners.size > 0 || !this.#focused) return
+     this.#focused = false
+     this.#deadline = this.#timedWait && this.#remainingMs !== undefined ? now + this.#remainingMs : undefined
+     this.#remainingMs = undefined
+@@ -485,12 +490,13 @@
+    * Keep the first edited draft answerable without a foreground deadline.
+    * @param now - current Client epoch time used to preserve the remaining duration.
+    */
+-  engage(now = Date.now()): void {
++  engage(now: number = Date.now()): void {
+     if (this.#held || this.#engaged) return
+     if (this.#remainingMs === undefined && this.#deadline !== undefined) {
+       this.#remainingMs = Math.max(0, this.#deadline - now)
+     }
+     this.#engaged = true
++    this.#focusOwners.clear()
+     this.#focused = false
+     this.#deadline = undefined
+     this.publish()
+@@ -517,6 +523,8 @@
+   close(): void {
+     if (this.#closed) return
+     this.#closed = true
++    this.#focusOwners.clear()
++    this.#focused = false
+     this.publish()
+   }
+ 
+===================================================================
+--- "a/packages/client/ui-user-questions/src/client\\draft-store.ts"
++++ "b/packages/client/ui-user-questions/src/client\\draft-store.ts"
+@@ -35,30 +35,44 @@
+   prune: (draft: QuestionDraftState, keep: readonly string[]) => void
+ }
+ 
++/** Fresh per-instance state; shared by both declarations below. */
++const draftInit = (): QuestionDraftState => ({ progressByRequest: {} })
++
+ /**
++ * The composer's draft write set. Declared once so the persisted seat store and
++ * the persist-free surface store below cannot drift apart.
++ */
++const draftActions: QuestionDraftActions = {
++  replace: (draft, requestKey, progress) => {
++    draft.progressByRequest[requestKey] = progress
++  },
++  clear: (draft, requestKey) => {
++    draft.progressByRequest = Object.fromEntries(
++      Object.entries(draft.progressByRequest).filter(([key]) => key !== requestKey),
++    )
++  },
++  prune: (draft, keep) => {
++    const live = new Set(keep)
++    draft.progressByRequest = Object.fromEntries(
++      Object.entries(draft.progressByRequest).filter(([key]) => live.has(key)),
++    )
++  },
++}
++
++/**
+  * Declare the question composer's Session store. Drafts persist per Session so
+  * leaving the Session or restarting the Client does not erase an unfinished answer.
+  * @returns a persisted store handle whose instance is owned by the Slot registry.
+  */
+ export function createQuestionDraftStore(): EngineStoreHandle<QuestionDraftState, QuestionDraftActions> {
+   return defineStore({
+-    init: (): QuestionDraftState => ({ progressByRequest: {} }),
++    init: draftInit,
+     persist: 'dsh.user-questions.drafts.v1',
+-    actions: {
+-      replace: (draft, requestKey, progress) => {
+-        draft.progressByRequest[requestKey] = progress
+-      },
+-      clear: (draft, requestKey) => {
+-        draft.progressByRequest = Object.fromEntries(
+-          Object.entries(draft.progressByRequest).filter(([key]) => key !== requestKey),
+-        )
+-      },
+-      prune: (draft, keep) => {
+-        const live = new Set(keep)
+-        draft.progressByRequest = Object.fromEntries(
+-          Object.entries(draft.progressByRequest).filter(([key]) => live.has(key)),
+-        )
+-      },
+-    },
++    actions: draftActions,
+   })
+ }
++
++// 0.2 resolves persistence as `${persist}.${scopeKey}`. The surface registry
++// caches exactly one createQuestionDraftStore().create(sessionId) instance and
++// supplies it to BOTH the native Slot handle and card views. A second transient
++// or persisted instance here would split drafts or cross-pollute one key.

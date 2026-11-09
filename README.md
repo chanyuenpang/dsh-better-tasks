@@ -2,7 +2,7 @@
 
 A compositional sidebar and pinned-task view for **DSH Desktop 0.2.x**. The 0.3 line uses the native Workspace Registry as the single Pin owner and ships a removable Cordis bundle with six exact, audited Client compatibility forks.
 
-> **Runtime baselines:** the six client UI forks are rebuilt from each dsh source tag. `forks-0.2.0-rc.2/` is the audited 0.2.0-rc.2 library; `forks-0.2.1-rc.2/` is the 0.2.1-rc.2 rebuild that the Desktop 0.2.1 runtime loads (see [forks-0.2.1-rc.2 assets](<releases/0.2.1-rc.2-forks/candidates.json>)). The step-by-step rebase procedure for the next dsh line is [upgrading-dsh-version](<docs/upgrading-dsh-version.md>).
+> **Runtime baselines:** the six client UI forks are rebuilt from each dsh source tag. `forks-0.2.0-rc.2/` is the audited 0.2.0-rc.2 library; `forks-0.2.1-rc.2/` is the 0.2.1-rc.2 rebuild that the Desktop 0.2.1 runtime loads (see [forks-0.2.1-rc.2 assets](<releases/0.2.1-rc.2-forks/candidates.json>)). The next dsh line is a **forward, not a rebase**: the forks are split into an `a layer` (our own files under `src-overlay/<slug>/`) and a pristine `b layer`, so the only merge surface left is a small, documented patch set. Run `npm run check:contract` to see whether the a layer still attaches; the procedure and the per-file exception list are in [upgrading-dsh-version](<docs/upgrading-dsh-version.md>) and [fork-layers](<docs/fork-layers.md>).
 
 > **Compatibility change:** 0.3.1 targets the Desktop 0.2 runtime, not the legacy 0.1.5 Web composition. Legacy users should keep their existing compatible release (npm 0.2.4); do not bypass DSH peer-version checks.
 

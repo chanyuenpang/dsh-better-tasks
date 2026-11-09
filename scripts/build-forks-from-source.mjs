@@ -123,6 +123,11 @@ async function stage() {
     await cp(join(sourceRoot, 'scripts', 'experimental-package-policy.ts'), join(buildRoot, 'scripts', 'experimental-package-policy.ts'))
   }
   await cp(join(sourceRoot, 'packages', 'client', 'modules', 'src', 'client'), join(buildRoot, 'packages', 'client', 'modules', 'src', 'client'), { recursive: true })
+  // 0.2.2-rc.1: the preset resolves package assets through modules/src/assets.ts, so the
+  // config file cannot even load without it next to the client manifest module.
+  if (existsSync(join(sourceRoot, 'packages', 'client', 'modules', 'src', 'assets.ts'))) {
+    await cp(join(sourceRoot, 'packages', 'client', 'modules', 'src', 'assets.ts'), join(buildRoot, 'packages', 'client', 'modules', 'src', 'assets.ts'))
+  }
   await cp(join(sourceRoot, 'packages', 'client', 'web', 'src', 'platform.ts'), join(buildRoot, 'packages', 'client', 'web', 'src', 'platform.ts'))
   for (const name of await readdir(sourceRoot)) {
     if (/^tsconfig.*\.json$/.test(name)) await cp(join(sourceRoot, name), join(buildRoot, name))
@@ -220,9 +225,67 @@ export default (inlineConfig) => base(inlineConfig).filter((config) => config.na
   }
 }
 
-// ---------------------------------------------------------------- patches
+// ---------------------------------------------------- a layer / b layer split
+//
+// The fork is deliberately two layers, and the split is what makes a dsh upgrade
+// mechanical:
+//
+//   b layer = the pristine upstream package, copied by stage() and never edited
+//   a layer = src-overlay/<slug>/**  our own files, copied on top verbatim
+//             src-patches/<slug>/*.patch  the few hunks that must live in a b-layer
+//                                          file, kept as small as possible
+//
+// Overlay files used to be encoded as "creation hunks" inside the recorded patch.
+// That made every upgrade look like a 48-file merge even though 16 of those files
+// are entirely ours and could never conflict. Keeping them as real files in a real
+// directory means an upgrade reads them, does not diff them, and the review surface
+// is only the patch.
+//
+// Build order is therefore: stage upstream -> overlay -> patches. Overlay first is
+// required: a recorded patch may edit a file that only exists in our layer.
 
+const overlayDirFor = (slug) => join(root, 'src-overlay', slug)
 const patchDirFor = (slug) => join(root, 'src-patches', slug)
+
+/**
+ * Whether a slug has any a-layer files.
+ * @param slug - fork package name.
+ * @returns true when src-overlay/<slug> exists.
+ */
+function hasOverlay(slug) {
+  return existsSync(overlayDirFor(slug))
+}
+
+/**
+ * Copy the a layer over the staged b layer.
+ *
+ * Files land at their final package-relative path, so an overlay file may sit
+ * anywhere under `src/`, including next to the upstream modules it wraps.
+ * @param slug - fork package name.
+ * @returns number of files copied.
+ */
+async function applyOverlay(slug) {
+  const dir = overlayDirFor(slug)
+  if (!existsSync(dir)) return 0
+  const packageRoot = join(buildRoot, 'packages', 'client', slug)
+  const files = await filesBelow(dir)
+  for (const file of files) {
+    const target = join(packageRoot, 'src', relative(dir, file))
+    await mkdir(dirname(target), { recursive: true })
+    await cp(file, target)
+  }
+  return files.length
+}
+
+/**
+ * Whether a slug has anything at all to build: our layer or an upstream edit.
+ * @param slug - fork package name.
+ * @returns true when the slug is part of the fork library.
+ */
+async function isForked(slug) {
+  return hasOverlay(slug) || (await recordedPatch(slug)) !== null
+}
+
 async function recordedPatch(slug) {
   const dir = patchDirFor(slug)
   if (!existsSync(dir)) return null
@@ -278,21 +341,9 @@ async function emitPatch(slug) {
       { context: 3 },
     ))
   }
-  // Files the fork ADDS have no pristine twin, so the loop above cannot see them;
-  // emit them as creation patches or the staged build loses them entirely.
-  for (const file of await filesBelow(join(forked, 'src'))) {
-    const rel = slash(relative(forked, file))
-    if (seen.has(rel)) continue
-    parts.push(createTwoFilesPatch(
-      `a/packages/client/${slug}/${rel}`,
-      `b/packages/client/${slug}/${rel}`,
-      '',
-      await readFile(file, 'utf8'),
-      '',
-      '',
-      { context: 3 },
-    ))
-  }
+  // Files the fork ADDS are the a layer and live in src-overlay/<slug>/, so they
+  // are no longer emit targets. The loop above already reports any difference
+  // between a pristine file and its staged copy, which is exactly the patch.
   if (parts.length === 0) throw new Error(`${slug}: .srcbuild source is identical to the tag; nothing to emit`)
   await mkdir(patchDirFor(slug), { recursive: true })
   const out = join(patchDirFor(slug), `${lock.version}-better-tasks.patch`)
@@ -317,11 +368,14 @@ async function build() {
   }
   const results = []
   for (const slug of slugs) {
-    if ((await recordedPatch(slug)) === null) {
-      results.push([slug, 'SKIP', 'no src-patches recorded; forks/ left untouched'])
+    if (!(await isForked(slug))) {
+      results.push([slug, 'SKIP', 'no a layer and no src-patches recorded; forks/ left untouched'])
       continue
     }
     await stage_package_check(slug)
+    // Order matters: our files land first so a recorded patch can edit a file
+    // that only exists in our layer.
+    const overlayFiles = await applyOverlay(slug)
     await applyRecordedPatches(slug)
     const tsdown = await run('npx', ['tsdown', '--config', 'tsdown.build.ts'], {
       cwd: join(buildRoot, 'packages', 'client', slug),
@@ -382,8 +436,11 @@ if (flag('test-source')) {
     throw new Error('Refusing to replace source outside the generated .srcbuild/scripts tree')
   }
   await stage()
-  for (const slug of slugs) await applyRecordedPatches(slug)
-  console.log('patched test source ready; accepted fork lib artifacts were not rebuilt')
+  for (const slug of slugs) {
+    await applyOverlay(slug)
+    await applyRecordedPatches(slug)
+  }
+  console.log('a layer staged over pristine sources; accepted fork lib artifacts were not rebuilt')
 }
 if (flag('stage')) await stage()
 if (flag('emit-patch')) await emitPatch(valueOf('emit-patch', 'ui-layout'))

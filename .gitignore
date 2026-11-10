@@ -62,16 +62,8 @@ releases/0.3.0/
 !.claw/truth/**
 .claw/project-override.json
 
-# Machine-local porting scratch used to move the forks between dsh lines. It hardcodes
-# absolute paths from the machine that ran the port, so it is not reusable source; the
-# supported route is scripts/check-upstream-contract.mjs plus the docs. The tracked
-# scripts/_asar-*.mjs helpers are portable and stay tracked.
-scripts/_apply-appearance.mjs
-scripts/_build-forks.mjs
-scripts/_emit-patches.mjs
-scripts/_port-check.mjs
-scripts/_port-hunks.mjs
-scripts/_port-patches.mjs
-scripts/_resolve-conflicts.mjs
-scripts/_threeway-port.mjs
-scripts/_typecheck-forks.mjs
+# Machine-local scratch: one-off porting and inspection tooling that hardcodes absolute
+# paths from the machine that ran it. Nothing here is reusable source or a supported
+# route; the supported route is scripts/check-upstream-contract.mjs plus docs/fork-layers.md.
+# Keep portable helpers under scripts/ instead of here so they stay reviewable.
+/.local/

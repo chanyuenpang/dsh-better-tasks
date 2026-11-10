@@ -20,7 +20,7 @@ window.__ModuleLoader__.load({
 		* while the real adaptation is written.
 		*/
 		/** Stamped at build time by scripts/build-forks-from-source.mjs. */
-		const BUILD_REVISION = "cf02e0a4d3c108e784131114aa27a62da3c4c07e0d0d29a051c09d6f2b520bd1";
+		const BUILD_REVISION = "99847e86c46153aae0480fb4179f7214c7c2c4e5028d23a748ba8d34baefd1e5";
 		function withRegionBoundary(region, Inner) {
 			return class RegionBoundary extends react.Component {
 				state = { failed: false };
@@ -811,8 +811,8 @@ window.__ModuleLoader__.load({
 		*/
 		function QuestionSurface({ pending, registry, variant, store, isAvailable, useStore: seatUseStore, actions: seatActions, ...kit }) {
 			const record = (0, react.useMemo)(() => registry.record(pending), [registry, pending]);
-			useSyncExternalStore((listener) => registry.subscribe(record, listener), () => record.version, () => record.version);
-			const hostSnapshot = useSyncExternalStore(store?.subscribe ?? NO_SUBSCRIPTION, store?.getSnapshot ?? NO_SNAPSHOT, store?.getSnapshot ?? NO_SNAPSHOT);
+			(0, react.useSyncExternalStore)((listener) => registry.subscribe(record, listener), () => record.version, () => record.version);
+			const hostSnapshot = (0, react.useSyncExternalStore)(store?.subscribe ?? NO_SUBSCRIPTION, store?.getSnapshot ?? NO_SNAPSHOT, store?.getSnapshot ?? NO_SNAPSHOT);
 			const storeUseStore = (0, react.useMemo)(() => (selector) => selector(hostSnapshot), [hostSnapshot]);
 			const useStore = store === void 0 ? seatUseStore : storeUseStore;
 			const actions = store === void 0 ? seatActions : store.actions;
@@ -868,7 +868,7 @@ window.__ModuleLoader__.load({
 		/** Stable no-op sources for a seat that binds the framework store instead. */
 		const NO_SUBSCRIPTION = () => () => {};
 		const NO_SNAPSHOT = () => void 0;
-		function QuestionFlow({ pending, t, useStore, useQuestionCard, actions }) {
+		function QuestionFlow({ pending, t, useStore, useQuestionCard, actions, gate, cardSurface = false }) {
 			const domId = (0, react.useId)();
 			const descriptionIdPrefix = (0, react.useId)();
 			const questions = pending.questions;
@@ -934,6 +934,7 @@ window.__ModuleLoader__.load({
 			const [minimized, setMinimized] = (0, react.useState)(false);
 			const focusedQuestions = (0, react.useRef)(/* @__PURE__ */ new Set());
 			const answerSurface = (0, react.useRef)(null);
+			const focusOwner = (0, react.useRef)({});
 			const question = questions[index];
 			const draft = drafts[index];
 			const hasOptions = (question.options?.length ?? 0) > 0;

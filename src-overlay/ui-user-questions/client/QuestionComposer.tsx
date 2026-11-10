@@ -1,6 +1,6 @@
 import {
-  useEffect, useId, useMemo, useRef, useState,
-  type ChangeEvent, type FocusEvent, type KeyboardEvent,
+  useEffect, useId, useMemo, useRef, useState, useSyncExternalStore,
+  type ChangeEvent, type FocusEvent, type KeyboardEvent, type ReactNode,
 } from 'react'
 import clsx from 'clsx'
 import {
@@ -273,7 +273,7 @@ type QuestionFlowProps =
   { pending: PendingQuestion; gate: QuestionSurfaceGate; cardSurface?: boolean }
   & Pick<QuestionComposerProps, 't' | 'useStore' | 'useQuestionCard' | 'actions'>
 
-function QuestionFlow({ pending, t, useStore, useQuestionCard, actions }: QuestionFlowProps) {
+function QuestionFlow({ pending, t, useStore, useQuestionCard, actions, gate, cardSurface = false }: QuestionFlowProps) {
   // Per-mount prefix for the card's own DOM ids: two cards for the same question
   // (composer seat and task-card seat) must not share an id, or the second one's
   // aria-labelledby resolves into the first card's heading.
@@ -357,6 +357,8 @@ function QuestionFlow({ pending, t, useStore, useQuestionCard, actions }: Questi
   // the input, so focus is granted once per question index.
   const focusedQuestions = useRef(new Set<number>())
   const answerSurface = useRef<HTMLDivElement>(null)
+  // Each mounted seat owns its focus independently, including effect cleanup.
+  const focusOwner = useRef<object>({})
   // Every navigation write stays in bounds and drafts mirrors questions 1:1.
   // oxlint-disable-next-line typescript/no-non-null-assertion
   const question = questions[index]!

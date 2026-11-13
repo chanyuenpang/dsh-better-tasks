@@ -32,22 +32,28 @@ import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { applyPatch, createTwoFilesPatch, parsePatch } from 'diff'
 import { assertForkExternals, assertResolvedBuildLog } from './verify-fork-externals.mjs'
+import { resolveLine, requestedVersion, slugs } from './fork-versions.mjs'
 
 const run = promisify(execFile)
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const buildRoot = join(root, '.srcbuild')
-const slugs = ['ui-layout', 'ui-workspace', 'ui-user-questions', 'ui-input-trigger', 'ui-commands', 'ui-conversation']
-
-const sourceLockPath = join(root, 'provenance', 'source.lock.json')
-const lock = JSON.parse(await readFile(sourceLockPath, 'utf8'))
-const tag = lock.tag
-const commit = lock.commit
 
 const flag = (name) => process.argv.includes(`--${name}`)
 const valueOf = (name, fallback) => {
   const at = process.argv.indexOf(`--${name}`)
   return at === -1 ? fallback : process.argv[at + 1]
 }
+
+// The target line. Without --version this is the active line from source.lock.json, so
+// the historical single-line workflow is unchanged; with --version it is any line
+// registered in provenance/versions.json.
+const line = resolveLine(requestedVersion())
+const lock = line
+const tag = lock.tag
+const commit = lock.commit
+// Overlay files that differ per line live in src-overlay/<slug>/<overlayVariant>/.
+// The default variant is the flat src-overlay/<slug>/ tree.
+const overlayVariant = valueOf('variant', line.overlayVariant ?? 'default')
 
 const sourceRoot = await resolveSourceRoot()
 if (sourceRoot === null) {
@@ -248,6 +254,22 @@ const overlayDirFor = (slug) => join(root, 'src-overlay', slug)
 const patchDirFor = (slug) => join(root, 'src-patches', slug)
 
 /**
+ * The overlay source for one slug.
+ *
+ * A takeover is a rewrite of an upstream module's algorithm, and upstream may reshape
+ * that module's API between lines. When our version has to diverge per line, it lives
+ * in src-overlay/<slug>/<variant>/; the flat src-overlay/<slug>/ tree remains the
+ * default and is used when no variant directory exists.
+ * @param slug - fork package name.
+ * @returns absolute directory holding this line's a-layer files.
+ */
+function overlaySourceFor(slug) {
+  const variantDir = join(overlayDirFor(slug), overlayVariant)
+  if (overlayVariant !== 'default' && existsSync(variantDir)) return variantDir
+  return overlayDirFor(slug)
+}
+
+/**
  * Whether a slug has any a-layer files.
  * @param slug - fork package name.
  * @returns true when src-overlay/<slug> exists.
@@ -265,8 +287,10 @@ function hasOverlay(slug) {
  * @returns number of files copied.
  */
 async function applyOverlay(slug) {
-  const dir = overlayDirFor(slug)
+  const dir = overlaySourceFor(slug)
   if (!existsSync(dir)) return 0
+  // A variant directory is scanned as its own root, so paths inside it are already
+  // package-relative. A flat default tree is scanned the same way.
   const packageRoot = join(buildRoot, 'packages', 'client', slug)
   const files = await filesBelow(dir)
   for (const file of files) {
@@ -283,25 +307,116 @@ async function applyOverlay(slug) {
  * @returns true when the slug is part of the fork library.
  */
 async function isForked(slug) {
-  return hasOverlay(slug) || (await recordedPatch(slug)) !== null
+  return hasOverlay(slug) || (await recordedPatches(slug)) !== null
 }
 
-async function recordedPatch(slug) {
+/**
+ * Normalize a patch path: forward slashes, and escaped-backslash segments from the
+ * recorded (Windows-generated) diffs turned into real separators. Without this the
+ * segment literal `client\\index.ts` is treated as a directory name.
+ * @param value - raw path from the patch header.
+ * @returns a clean package-relative-safe path.
+ */
+const patchPath = (value) => slash(value).replace(/\\+/g, '/').replaceAll('//', '/')
+
+/**
+ * Candidate patch files for one slug, in application order.
+ *
+ * A per-line patch is the normal case. When a line has no patch of its own, the patch
+ * recorded for the newest line STRICTLY OLDER than the target is the legitimate
+ * starting point: this fork's upstream edits are almost entirely additive, and any hunk
+ * upstream has since absorbed fails loudly in applyFilePatch rather than being silently
+ * reapplied. A patch recorded for a NEWER line is never used — it was written against
+ * source this build does not have.
+ * @param slug - fork package name.
+ * @returns absolute paths to try, or null when the slug records no patch at all.
+ */
+async function recordedPatches(slug) {
   const dir = patchDirFor(slug)
   if (!existsSync(dir)) return null
-  const names = (await readdir(dir)).filter((n) => n.endsWith('.patch')).sort()
-  return names.length === 0 ? null : names.map((n) => join(dir, n))
+  const own = join(dir, `${lock.version}-better-tasks.patch`)
+  if (existsSync(own)) return [own]
+  const older = (await readdir(dir))
+    .filter((name) => name.endsWith('-better-tasks.patch'))
+    .map((name) => ({ name, version: name.slice(0, -'-better-tasks.patch'.length) }))
+    .filter((entry) => compareVersions(entry.version, lock.version) < 0)
+    .sort((a, b) => compareVersions(b.version, a.version))
+  return older.length === 0 ? null : [join(dir, older[0].name)]
+}
+
+/**
+ * Compare two dsh version strings the way the semver prerelease ordering does.
+ *
+ * Good enough for the numeric-with-prerelease-tag shapes this repository records
+ * (`0.2.2-rc.1`, `0.2.2-alpha.3`); it only needs a total order, not full semver.
+ * @param left - version string.
+ * @param right - version string.
+ * @returns negative when left < right, positive when left > right, 0 when equal.
+ */
+function compareVersions(left, right) {
+  const split = (value) => value.split(/[.+-]/)
+  const a = split(left)
+  const b = split(right)
+  for (let at = 0; at < Math.max(a.length, b.length); at += 1) {
+    const x = a[at]
+    const y = b[at]
+    if (x === undefined) return -1
+    if (y === undefined) return 1
+    const nx = Number(x)
+    const ny = Number(y)
+    const bothNumeric = !Number.isNaN(nx) && !Number.isNaN(ny)
+    if (bothNumeric) {
+      if (nx !== ny) return nx < ny ? -1 : 1
+      continue
+    }
+    // A prerelease identifier sorts before a numeric one, per semver.
+    if (!Number.isNaN(nx)) return 1
+    if (!Number.isNaN(ny)) return -1
+    if (x !== y) return x < y ? -1 : 1
+  }
+  return 0
+}
+
+/**
+ * Apply one file patch, detecting stale application explicitly.
+ *
+ * A patch with no context lines that removes as many lines as the whole file (the
+ * signature of a generated type/dictionary replacement) can "apply" at a wrong offset,
+ * because the diff library only checks the removed lines against a guessed location.
+ * For those hunks the line count is pinned to the staged file so they cannot land at a
+ * stale position.
+ * @param before - current file contents.
+ * @param filePatch - one parsed file patch.
+ * @param rel - path, for error messages.
+ * @returns patched contents.
+ */
+function applyFilePatch(before, filePatch, rel) {
+  const removed = filePatch.hunks.reduce((total, hunk) => total + (hunk.oldLines ?? 0), 0)
+  const claimsWholeFile = filePatch.hunks.some((hunk) => (hunk.oldLines ?? 0) > 0
+    && hunk.lines.every((line) => line.startsWith('-') || line.startsWith('+')))
+  if (claimsWholeFile) {
+    const actual = before.split('\n').length - (before.endsWith('\n') ? 1 : 0)
+    if (removed !== actual) {
+      throw new Error(
+        `${rel}: patch replaces ${removed} lines but the staged upstream file has ${actual}; `
+        + 'this upstream file changed shape on this line — re-emit the patch for it',
+      )
+    }
+  }
+  const next = applyPatch(before, filePatch)
+  if (next === false) throw new Error(`patch no longer applies: ${rel}`)
+  return next
 }
 
 async function applyRecordedPatches(slug) {
-  const paths = await recordedPatch(slug)
+  const paths = await recordedPatches(slug)
   if (paths === null) return false
   const packageRoot = join(buildRoot, 'packages', 'client', slug)
-  for (const patchPath of paths) {
-    for (const filePatch of parsePatch(clean(await readFile(patchPath, 'utf8')))) {
-      const rel = slash(filePatch.newFileName ?? '').replace(/^[ab]\//, '')
+  for (const file of paths) {
+    for (const filePatch of parsePatch(clean(await readFile(file, 'utf8')))) {
+      const rel = patchPath(filePatch.newFileName ?? '').replace(/^[ab]\//, '')
       if (!rel.startsWith(`packages/client/${slug}/`)) {
-        throw new Error(`${slash(patchPath)} targets ${rel}, outside packages/client/${slug}/`)
+        throw new Error(`${slash(file)} targets ${rel}, outside packages/client/${slug}/`)
       }
       const target = join(packageRoot, rel.slice(`packages/client/${slug}/`.length))
       // A creation patch has no target on disk yet; treat a missing file as empty.
@@ -311,9 +426,7 @@ async function applyRecordedPatches(slug) {
       } catch (error) {
         if (error.code !== 'ENOENT') throw error
       }
-      const next = applyPatch(before, filePatch)
-      if (next === false) throw new Error(`${patchPath} no longer applies: ${rel}`)
-      await writeFile(target, next)
+      await writeFile(target, applyFilePatch(before, filePatch, rel))
     }
   }
   return true

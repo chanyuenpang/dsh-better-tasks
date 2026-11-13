@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "note": "Supported dsh lines. Each line needs its own fork artifacts: the six client-UI forks replace app-owned modules, so fork bytes are only valid against the exact upstream line they were built from. The first entry is the default line used when no --version is given (provenance/source.lock.json mirrors it).",
+  "default": "0.2.2-rc.1",
+  "versions": {
+    "0.2.2-rc.1": {
+      "tag": "dsh-v0.2.2-rc.1",
+      "commit": "c59d10aff167ad7eefead4b3a9082fb57c8fbfe8",
+      "tarball": "https://codeload.github.com/deepseek-ai/deepseek-harness/tar.gz/refs/tags/dsh-v0.2.2-rc.1",
+      "tarballSha256": "416750920b64272899259c26b2fa0a4341132c9c19b43337da502ab7ebd599f1",
+      "vendoredTarball": "third_party/source/dsh-v0.2.2-rc.1.tar.gz",
+      "title": "DeepSeek Harness",
+      "profile": "official",
+      "status": "shipped",
+      "forkLibrary": "better-tasks-forks-0.2.2-rc.1",
+      "overlayVariant": "default"
+    },
+    "0.2.2-rc.2": {
+      "tag": "dsh-v0.2.2-rc.2",
+      "commit": "ddac96760b6edf8fa0fe17cbdcf0b512f4c12b2c",
+      "tarball": "https://codeload.github.com/deepseek-ai/deepseek-harness/tar.gz/refs/tags/dsh-v0.2.2-rc.2",
+      "tarballSha256": "d376fe64ec4b7c9b5837fb1155ed3a48e7e0e5f5b0aae0b91d9fb836daa8c20e",
+      "vendoredTarball": "third_party/source/dsh-v0.2.2-rc.2.tar.gz",
+      "title": "DeepSeek Harness",
+      "profile": "official",
+      "status": "supported",
+      "forkLibrary": "better-tasks-forks-0.2.2-rc.2",
+      "overlayVariant": "0.2.2-rc.2",
+      "contract": {
+        "from": "0.2.2-rc.1",
+        "verdict": "attachable",
+        "review": [
+          "packages/client/ui-conversation/src/client/input/facade.ts",
+          "packages/client/ui-workspace/src/client/rows/Rows.tsx",
+          "packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx"
+        ],
+        "note": "Upstream replaced the row context-menu callbacks (openSessionMenu/openWorkspaceMenu/useRemoteAccess) with the shared renderFactorySlot('contextMenu.button') factory owned by ui-context-menu, and widened facade.insertQuote/submit. The three takeovers are re-applied against that shape."
+      }
+    },
+    "0.2.2-rc.3": {
+      "tag": "dsh-v0.2.2-rc.3",
+      "commit": "38a6a5c965aa99ab525161efb7cc5cf1fe62fced",
+      "tarball": "https://codeload.github.com/deepseek-ai/deepseek-harness/tar.gz/refs/tags/dsh-v0.2.2-rc.3",
+      "tarballSha256": "bf6d668e52a26edf98aa2ef7960e240c8d9afcefbad2b09887a2cb1e14001dd5",
+      "vendoredTarball": "third_party/source/dsh-v0.2.2-rc.3.tar.gz",
+      "title": "DeepSeek Harness",
+      "profile": "official",
+      "status": "supported",
+      "forkLibrary": "better-tasks-forks-0.2.2-rc.3",
+      "overlayVariant": "0.2.2-rc.2",
+      "contract": {
+        "from": "0.2.2-rc.2",
+        "note": "rc.3 keeps the renderFactorySlot('contextMenu.button') row shape introduced in rc.2, so the rc.2 overlay variant is reused unchanged. Verified by scripts/check-upstream-contract.mjs --from-tag 0.2.2-rc.2 --to-tag 0.2.2-rc.3 --version 0.2.2-rc.3."
+      }
+    }
+  }
+}

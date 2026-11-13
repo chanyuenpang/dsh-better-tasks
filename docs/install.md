@@ -8,8 +8,15 @@
 
 | dsh 运行时 | fork 库（release tag） | 插件版本 | 形态 |
 |---|---|---|---|
+| `0.2.2-rc.3` | `releases/0.2.2-rc.3-forks/` | `0.4.0` | 插件 + 六个 fork 载荷，两步 |
+| `0.2.2-rc.2` | `releases/0.2.2-rc.2-forks/` | `0.4.0` | 插件 + 六个 fork 载荷，两步 |
+| `0.2.2-rc.1` | `releases/0.2.2-rc.1-forks/` | `0.4.0` | 插件 + 六个 fork 载荷，两步 |
 | `0.2.1-rc.2` | `better-tasks-forks-0.2.1-rc.2-r1` | `0.3.2` | 插件 + 六个 fork 载荷，两步 |
 | `0.2.0-rc.2` | `better-tasks-forks-0.2.0-rc.2-r1` | `0.3.1` | 插件自带 fork 载荷，一步 |
+
+**插件本体跨线通用**（peer 区间 `>=0.2.0-rc.2 <0.3.0-0` 覆盖 rc.1/rc.2/rc.3），
+变的只有六个 fork 载荷——它们必须与运行时同线。多线并行支持的完整说明见
+[multi-version.md](<multi-version.md>)。
 
 **不要混线**：0.3.1 在 0.2.1 上会被 peer 门禁拒装；0.3.2 配 0.2.0 的 fork 会因客户端模块不兼容而
 让 `ui-skill` / `ui-reference` / `ui-secret-mask` / `ui-goal` 启动失败。

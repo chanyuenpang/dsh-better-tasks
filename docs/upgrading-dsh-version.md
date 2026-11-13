@@ -8,7 +8,9 @@
 
 适用对象：`@veewo/dsh-better-tasks` 的维护者。
 分层结构、例外清单和判定规则见 [fork-layers](<fork-layers.md>)。
-最近一次实战：`0.2.1-rc.2 → 0.2.2-rc.1`（分层改造与 0.2.2 forward 在同一轮完成）。
+**同时支持多条 dsh 线**（不同机器版本不同）的构建、门禁与安装见 [multi-version](<multi-version.md>)。
+最近一次实战：`0.2.2-rc.1 → 0.2.2-rc.2`（上游把行菜单回调换成 `contextMenu.button` 工厂 slot，
+三个接管模块重做；流程本身无冲突，详见 multi-version §1）。
 
 ---
 

@@ -1,4 +1,4 @@
-# Sandbox cold-start gate for the 0.2.2-rc.1 layer-split candidate.
+# Sandbox cold-start gate for a layer-split fork candidate (any dsh line).
 #
 # Boots the REAL desktop application against an isolated DSH_HOME and profile, then
 # judges only startup safety: the process stays alive, it owns a listening port, the
@@ -18,8 +18,9 @@ param(
 $ErrorActionPreference = 'Stop'
 $base = (Resolve-Path $Sandbox).Path
 $baseline = Get-Content (Join-Path $base 'baseline.json') -Raw | ConvertFrom-Json
+$gatePort = if ($baseline.port) { [int]$baseline.port } else { 39422 }
 
-if (Get-NetTCPConnection -State Listen -LocalPort 39422, 9228 -ErrorAction SilentlyContinue) {
+if (Get-NetTCPConnection -State Listen -LocalPort $gatePort, 9228 -ErrorAction SilentlyContinue) {
     throw 'Sandbox ports are occupied; a cold-start gate must start from nothing.'
 }
 
@@ -109,7 +110,7 @@ if (Test-Path $errFile) {
 # The app must never linger: this is a startup probe, not a session.
 if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
 Start-Sleep -Seconds 2
-$remaining = @(Get-NetTCPConnection -State Listen -LocalPort 39422, 9228 -ErrorAction SilentlyContinue |
+$remaining = @(Get-NetTCPConnection -State Listen -LocalPort $gatePort, 9228 -ErrorAction SilentlyContinue |
         Select-Object -ExpandProperty OwningProcess -Unique | Where-Object { $_ -ne 0 })
 $result.cleanupPidsRemaining = $remaining
 

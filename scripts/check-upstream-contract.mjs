@@ -36,7 +36,7 @@
 // BROKEN (ships a fork whose imports no longer resolve).
 
 import { createHash } from 'node:crypto'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -188,12 +188,47 @@ export function editedFilesOf(patchText) {
   return out
 }
 
-const lock = JSON.parse(await readFile(join(root, 'provenance', 'source.lock.json'), 'utf8'))
+const activeLock = JSON.parse(await readFile(join(root, 'provenance', 'source.lock.json'), 'utf8'))
+// --version selects which registered line's a layer is inspected. Without it the
+// check looks at the active (default) line, exactly as before.
+const lock = {
+  ...activeLock,
+  version: valueOf('version', activeLock.version) ?? activeLock.version,
+}
+
+/**
+ * Which overlay root this run should read for one slug.
+ *
+ * A slug may carry per-line overlays: the flat src-overlay/<slug>/ tree is the
+ * default, and src-overlay/<slug>/<variant>/ holds a line-specific rewrite of the
+ * same files. A variant directory is a sibling of `client/`, so it must be excluded
+ * when the flat tree is scanned — otherwise its files reappear as bogus
+ * `src/<variant>/...` sources.
+ * @param slug - fork package name.
+ * @returns the directory to scan plus the child directories to skip under it.
+ */
+function overlayRootFor(slug) {
+  const flat = join(root, 'src-overlay', slug)
+  let registry = null
+  try {
+    registry = JSON.parse(readFileSync(join(root, 'provenance', 'versions.json'), 'utf8'))
+  } catch {
+    registry = null
+  }
+  const variant = registry?.versions?.[lock.version]?.overlayVariant ?? 'default'
+  const variantDir = join(flat, variant)
+  if (variant !== 'default' && existsSync(variantDir)) return { dir: variantDir, exclude: [] }
+  // Flat scan: every registered variant directory is a sibling, never a source child.
+  const exclude = Object.values(registry?.versions ?? {})
+    .map((entry) => entry?.overlayVariant)
+    .filter((name) => typeof name === 'string' && name !== 'default')
+  return { dir: existsSync(flat) ? flat : null, exclude }
+}
 
 /**
  * Build the a-layer inventory from the fork library on disk.
  *
- * Overlay files are read from src-overlay/<slug>/** when that directory exists;
+ * Overlay files are read from the line's overlay root when that directory exists;
  * otherwise they fall back to the creation hunks of the recorded patch, so the
  * checker works both before and after overlay formalisation.
  * @returns one entry per a-layer file.
@@ -201,12 +236,15 @@ const lock = JSON.parse(await readFile(join(root, 'provenance', 'source.lock.jso
 async function aLayerInventory() {
   const inventory = []
   for (const slug of slugs) {
-    const overlayDir = join(root, 'src-overlay', slug)
+    const { dir: overlayDir, exclude } = overlayRootFor(slug)
     const patchPath = join(root, 'src-patches', slug, lock.version + '-better-tasks.patch')
     const files = new Map()
-    if (existsSync(overlayDir)) {
+    if (overlayDir !== null) {
       for (const file of await filesBelow(overlayDir)) {
-        files.set('packages/client/' + slug + '/src/' + slash(file.slice(overlayDir.length + 1)), await readFile(file, 'utf8'))
+        const inside = slash(file.slice(overlayDir.length + 1))
+        // A sibling variant directory is never part of the default overlay.
+        if (exclude.some((name) => inside === name || inside.startsWith(name + '/'))) continue
+        files.set('packages/client/' + slug + '/src/' + inside, await readFile(file, 'utf8'))
       }
     } else if (existsSync(patchPath)) {
       for (const [rel, body] of overlayFilesOf(await readFile(patchPath, 'utf8'))) files.set(rel, body)

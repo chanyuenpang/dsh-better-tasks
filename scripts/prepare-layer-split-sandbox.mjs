@@ -1,9 +1,12 @@
-// Prepare an isolated sandbox for the 0.2.2-rc.1 fork candidate.
+// Prepare an isolated sandbox for a fork candidate line.
 //
 // Mirrors the real desktop profile's shape (isolated linker, publicHoistPattern over
 // the six fork names) but owns its DSH_HOME, profile, sessions and storage. The
-// better-tasks plugin tarball is still the accepted 0.4.0 build; only the six fork
-// payloads change, so the gate proves the new artifact bytes boot.
+// better-tasks plugin tarball is shared across lines (the plugin is line-agnostic);
+// only the six fork payloads change, so the gate proves the new artifact bytes boot.
+//
+// usage:
+//   node scripts/prepare-layer-split-sandbox.mjs [sandboxDir] [releaseDir] [port] [sourceProfile]
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { resolve, join } from 'node:path'
@@ -11,7 +14,8 @@ import { resolve, join } from 'node:path'
 const root = resolve(import.meta.dirname, '..')
 const base = resolve(root, process.argv[2] ?? 'sandbox/.desktop-layer-split')
 const release = resolve(root, process.argv[3] ?? 'releases/0.2.2-rc.1-forks')
-const source = 'C:/Users/chany/.dsh/profiles/desktop'
+const port = Number(process.argv[4] ?? 39422)
+const source = (process.argv[5] ?? 'C:/Users/chany/.dsh/profiles/desktop').replaceAll('\\', '/')
 const pluginTarball = resolve(root, 'releases/veewo-dsh-better-tasks-0.4.0.tgz')
 
 const candidates = JSON.parse(await readFile(join(release, 'candidates.json'), 'utf8'))
@@ -51,7 +55,8 @@ const workspace = [
   'autoInstallPeers: false',
   '',
   'publicHoistPattern:',
-  ...FORKS.map((slug) => "  - '@deepseek-ai/dsh-client-ui-" + slug + "'"),
+  // FORKS entries are already fully qualified (`ui-layout`, not `layout`).
+  ...FORKS.map((slug) => `  - '@deepseek-ai/dsh-client-${slug}'`),
   '',
 ].join('\n')
 await writeFile(join(profile, 'pnpm-workspace.yaml'), workspace)
@@ -59,7 +64,7 @@ await writeFile(join(profile, 'pnpm-workspace.yaml'), workspace)
 await copyFile(join(source, 'cordis.yml'), join(profile, 'cordis.yml'))
 const patch = await readFile(join(source, 'cordis.patch.yml'), 'utf8')
 // Sandbox-owned safety: no mobile/P2P effects, loopback-only listener.
-const safety = '\n# Sandbox-owned: no mobile/P2P side effects.\n- id: dsh-cindy-host\n  disabled: true\n- id: webserver\n  config:\n    host: 127.0.0.1\n    port: 39422\n'
+const safety = `\n# Sandbox-owned: no mobile/P2P side effects.\n- id: dsh-cindy-host\n  disabled: true\n- id: webserver\n  config:\n    host: 127.0.0.1\n    port: ${port}\n`
 await writeFile(join(profile, 'cordis.patch.yml'), patch + safety)
 
 const baseline = {
@@ -71,7 +76,7 @@ const baseline = {
   candidates,
   forks: FORKS,
   nodeLinker: 'isolated with publicHoistPattern over the six fork names',
-  port: 39422,
+  port,
 }
 await writeFile(join(base, 'baseline.json'), JSON.stringify(baseline, null, 2) + '\n')
 console.log(JSON.stringify(baseline, null, 2))

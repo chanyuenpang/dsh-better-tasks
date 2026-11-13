@@ -14,13 +14,15 @@
 
 | dsh 运行时 | fork 库 | 构建基线与来源 | 状态 |
 |---|---|---|---|
-| `0.2.2-rc.3` | `releases/0.2.2-rc.3-forks/` | `third_party/source/dsh-v0.2.2-rc.3.tar.gz` | 沙盒门禁通过 |
+| `0.2.2-rc.3` | `releases/0.2.2-rc.3-forks/` | `third_party/source/dsh-v0.2.2-rc.3.tar.gz` | 历史候选；最新源码需适配、重建及精确 rc.3 门禁，未发布当前组合 |
 | `0.2.2-rc.2` | `releases/0.2.2-rc.2-forks/` | `third_party/source/dsh-v0.2.2-rc.2.tar.gz` | 沙盒门禁通过 |
 | `0.2.2-rc.1` | `releases/0.2.2-rc.1-forks/` | `third_party/source/dsh-v0.2.2-rc.1.tar.gz` | 已发布 |
 
-插件本体：`releases/veewo-dsh-better-tasks-0.4.0.tgz`，**三条线共用**。
-它的 `peerDependencies` 是区间 `>=0.2.0-rc.2 <0.3.0-0`，rc.1/rc.2/rc.3 都在区间内，
-所以升级 dsh 线**不需要重打插件包**（只有跨到 0.3.x 才需要再放宽区间）。
+插件本体可以跨线复用，但**必须先确认主包的原生接点兼容**，不能由 peer 区间直接推出支持。
+当前公开主包是 Tasks `0.4.1` / DSH rc.2；rc.3 新增了主包尚未声明/渲染的 `sidebar.session.action` HOC，
+所以本次换线需要主包适配、新 Tasks 版本和完整七包，而不是只取旧 rc.3 fork。
+`peerDependencies` 仍为 `>=0.2.0-rc.2 <0.3.0-0`；安装器接受范围不是运行时与新扩展接点的证明。
+详见 [rc.3 支持评估](<dsh-0.2.2-rc.3-support.md>)。历史沙盒结果不能代替最新代码在目标运行时上的精确组合门禁。
 
 ## 1. 换线时到底变了什么
 
@@ -172,7 +174,7 @@ node scripts/prepare-layer-split-sandbox.mjs `
 
 ## 6. 按 DSH 版本安装（对外入口）
 
-当前公开完整组合是 **DSH 0.2.2-rc.2 + Tasks 0.4.0**，tag 为 [dsh-v0.2.2-rc.2-tasks-v0.4.0](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.0>)。七包、哈希清单、安装与回滚说明在同一 Release。用户无需 clone 或构建，照[安装说明](<install.md>)操作。
+当前公开完整组合是 **DSH 0.2.2-rc.2 + Tasks 0.4.1**，tag 为 [dsh-v0.2.2-rc.2-tasks-v0.4.1](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.1>)。七包、哈希清单、安装与回滚说明在同一 Release。用户无需 clone 或构建，照[安装说明](<install.md>)操作。
 
 今后以 `dsh-v<DSH版本>-tasks-v<Tasks版本>` 标记每个验证过的组合。先匹配 DSH 完整版本，再选择 Tasks 版本。rc.1/rc.3 的本地构建或测试状态不代表本次 Release 支持它们；必须另行发布精确同线七包。早期 `better-tasks-forks-0.2.2-rc.2` fork 库为历史资产，其中 questions 字节早于本次输入框回退修复，不再作为当前安装入口。
 

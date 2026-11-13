@@ -9,6 +9,14 @@
 
 今后统一使用 `dsh-v<DSH版本>-tasks-v<Tasks版本>`。DSH 版本写完整，保留 rc 后缀；Tasks 版本仍由插件自己的 manifest 管理。同一 Tasks 源码可适配多条 DSH 线，但每条线都要有独立验证的组合 Release。已发布的 tag 与资产 URL 不移动、不覆盖；内容变化应升 Tasks 版本并创建新组合 tag。面向 RC 运行时的本次组合标记为 GitHub Pre-release，不依赖全局 Latest 作为安装入口。
 
+## 唯一开发分支
+
+- `main` 是唯一日常开发、修复和适配入口；不新建或继续维护 feature/release/按 DSH 版本划分的长期分支。旧分支只作历史引用，不再接收开发提交。
+- 2026-11-14 将 `release/0.3.0` 的最新已提交代码 `5c34bef`（Tasks 0.4.1）快进合入 `main`，保留全部 19 个提交的历史；GitHub 默认分支仍为 `main`。
+- 支持标记只用 `main` 上的 annotated 组合 tag；源码可以包含尚未发布的新线适配。某条线只有在目标运行时精确组合门禁和完整七包 Release 就绪后，才能宣称支持。
+- 从历史 tag 排查问题用 detached checkout 或只读对比；修复最终仍提交到 `main`，不维护旧版本开发分支，不移动历史 tag。
+- [rc.3 评估](<dsh-0.2.2-rc.3-support.md>)是下一条线的待办与风险，不是 rc.3 发布公告。当前公共安装入口仍为上面的 rc.2 / Tasks 0.4.1。
+
 ## 本次内容
 
 0.4.1：原生新会话、紧凑导航/More/入口固定；默认强调任务名；按首次实际工作时间补正新任务顺序，保留较晚手动拖拽；rc.2 conversation 返回真实仲裁 Promise，修复斜杠提交 reading catch。主包与 conversation 改变，其他五包沿用已验证字节；不能只按 fork 的上游版本号判断字节一致。
@@ -34,12 +42,18 @@
 
 ## 提交、tag 与发布
 
-审查最终 diff，通过后提交准确源码；仅推送需要的分支与新 annotated tag，不用 `--tags` 批量推送历史标签，不 force push。
+审查最终 diff，通过后在 `main` 提交准确源码；只推送 `main` 与本次新 annotated tag，不用 `--tags` 批量推送历史标签，不 force push。普通源码/文档提交不创建支持 tag；未完成门禁的新线不得提前打 tag。
 
 ```powershell
-$tag = 'dsh-v0.2.2-rc.2-tasks-v0.4.1'
-git tag -a $tag -m 'Better Tasks 0.4.1 for DSH 0.2.2-rc.2'
-git push origin HEAD
+# 仅在全部发布门禁通过后执行；版本必须替换为本轮已验证的新组合。
+$dshVersion = '<已验证的DSH完整版本>'
+$tasksVersion = '<新的Tasks版本>'
+$tag = "dsh-v$dshVersion-tasks-v$tasksVersion"
+if ((git branch --show-current) -ne 'main') { throw 'Release must originate from main' }
+git show-ref --verify --quiet "refs/tags/$tag"
+if ($LASTEXITCODE -eq 0) { throw 'Tag already exists; do not move it' }
+git tag -a $tag -m "Better Tasks $tasksVersion for DSH $dshVersion"
+git push origin main
 git push origin "refs/tags/$tag"
 # gh release create 用 --verify-tag，显式上传审计后的资产；先 draft，上传完成再公开。
 ```

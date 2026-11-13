@@ -1,5 +1,13 @@
 # AGENTS.md
 
+## Main-only development and immutable compatibility tags
+
+- Develop and commit on `main`. Do not create or continue long-lived feature, release, or DSH-version branches; existing branches are historical references only.
+- Identify supported release compositions with annotated `dsh-v<DSH-version>-tasks-v<Tasks-version>` tags on `main`, not with branch names. A tag freezes one exact runtime plus seven-package composition.
+- Never move an existing tag or overwrite its release assets. A changed composition needs a new Tasks version/tag and its own required validation.
+- Registration in provenance, old fork artifacts, or a green source-contract check alone is not a support claim. The exact target-runtime startup gate and complete release evidence are required.
+- Follow [release policy](<docs/release.md>) and the [rc.3 assessment](<docs/dsh-0.2.2-rc.3-support.md>) before declaring new runtime support.
+
 ## Single-agent execution
 
 - The main agent must personally advance this project's tasks. Do not independently delegate implementation, research, review or validation to subagents or teammates.

@@ -45,12 +45,12 @@
       "vendoredTarball": "third_party/source/dsh-v0.2.2-rc.3.tar.gz",
       "title": "DeepSeek Harness",
       "profile": "official",
-      "status": "supported",
+      "status": "port-required",
       "forkLibrary": "better-tasks-forks-0.2.2-rc.3",
       "overlayVariant": "0.2.2-rc.2",
       "contract": {
         "from": "0.2.2-rc.2",
-        "note": "rc.3 keeps the renderFactorySlot('contextMenu.button') row shape introduced in rc.2, so the rc.2 overlay variant is reused unchanged. Verified by scripts/check-upstream-contract.mjs --from-tag 0.2.2-rc.2 --to-tag 0.2.2-rc.3 --version 0.2.2-rc.3."
+        "note": "rc.3 keeps the rc.2 row/contextMenu shape, so the rc.2 overlay variant remains the source port base. This does not certify the old rc.3 artifacts: latest questions/navigation/arbitration fixes require rebuilding, and the replacement sidebar must declare and render the new sidebar.session.action HOC while preserving children. See docs/dsh-0.2.2-rc.3-support.md; exact rc.3 runtime startup and a complete combined release are still required."
       }
     }
   }

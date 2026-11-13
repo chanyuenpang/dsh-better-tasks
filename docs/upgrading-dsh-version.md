@@ -8,6 +8,8 @@
 
 适用对象：`@veewo/dsh-better-tasks` 的维护者。
 
+所有升级和修复都在 `main` 开发，不再为 DSH 版本或 Release 创建长期分支；只用不可变组合 tag 标记完成验证的支持版本，见[发布规范](<release.md>)。当前 `0.2.2-rc.2 → rc.3` 的实际影响与待办见 [rc.3 支持评估](<dsh-0.2.2-rc.3-support.md>)；已有旧 rc.3 fork 不等于当前代码已支持。
+
 侧栏导航的数字、原生样式、factory/菜单/权限接点与按钮增长规则，统一按[侧栏排版与适配规范](<sidebar-layout.md>)复核。`check:contract` 的 attachable 不代表 named factory、菜单 props 或语义 token 已覆盖；每条新线必须另核原生合同与离线 fixture。
 分层结构、例外清单和判定规则见 [fork-layers](<fork-layers.md>)。
 **同时支持多条 dsh 线**（不同机器版本不同）的构建、门禁与安装见 [multi-version](<multi-version.md>)。

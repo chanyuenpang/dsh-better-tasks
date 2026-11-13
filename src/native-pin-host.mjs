@@ -20,7 +20,7 @@ export class NativePinError extends Error {
 }
 
 /** open* returns {table,close}; subscribe returns an event unsubscriber. */
-export function createNativePinHost({ registry, openOrder, openLegacy, subscribe, now = () => new Date().toISOString() }) {
+export function createNativePinHost({ registry, openOrder, openLegacy, subscribe, listSessions, now = () => new Date().toISOString(), taskCreationNow = Date.now }) {
   let pins = [], archived = [], rank = [], revision = 0, updatedAt = now(), epoch = 0
   let phase = 'initializing', record, table, disposed = false, started = false, nativeValid = true
   let tail = Promise.resolve(), initialization, migration, reconcileQueued = false
@@ -31,8 +31,36 @@ export function createNativePinHost({ registry, openOrder, openLegacy, subscribe
     tail = next.catch(() => {})
     return next
   }
+  const createdAt = new Map(), admittedHere = new Set(), lifetime = new AbortController()
+  const newestFirst = (ids) => [...ids].sort((a, b) => {
+    const left = createdAt.get(a), right = createdAt.get(b)
+    if (left === undefined || right === undefined) return left === right ? 0 : left === undefined ? 1 : -1
+    return right - left || (a < b ? -1 : a > b ? 1 : 0)
+  })
+  const orderedIds = () => {
+    const ids = projectIds(rank, pins)
+    if (record?.manualSessionIds === undefined) return newestFirst(ids)
+    const members = new Set(ids), manual = new Set(record.manualSessionIds)
+    // New tasks lead; an existing manual sequence never follows message activity.
+    return [...newestFirst(ids.filter(id => !manual.has(id))), ...record.manualSessionIds.filter(id => members.has(id))]
+  }
+  async function refreshCreatedAt() {
+    if (typeof listSessions !== 'function' || pins.every(id => createdAt.has(id))) return
+    const before = orderedIds()
+    try {
+      // Header-only query: no Session retain, transcript replay or activity sort.
+      const rows = await listSessions(lifetime.signal)
+      if (disposed) return
+      const members = new Set(pins)
+      for (const { header } of rows) {
+        if (members.has(header.id) && !createdAt.has(header.id) && Number.isSafeInteger(header.createdAt) && header.createdAt >= 0) createdAt.set(header.id, header.createdAt)
+      }
+      for (const id of createdAt.keys()) if (!members.has(id)) createdAt.delete(id)
+      if (!sameIds(before, orderedIds())) { revision++; updatedAt = now() }
+    } catch (error) { if (!disposed) warn(error) }
+  }
   const response = () => ({
-    queue: { schemaVersion: 1, revision, sessionIds: projectIds(rank, pins), updatedAt },
+    queue: { schemaVersion: 1, revision, sessionIds: orderedIds(), updatedAt },
     ...(warnings.length === 0 ? {} : { warnings: [...warnings] }),
     migration: { status: phase }, writable: !disposed && nativeValid && table !== undefined && (phase === 'done' || phase === 'partial'),
   })
@@ -42,6 +70,19 @@ export function createNativePinHost({ registry, openOrder, openLegacy, subscribe
     if (sameIds(p, pins) && sameIds(a, archived)) return
     if (observe) for (const id of [...changedIds(pins, p), ...changedIds(archived, a)]) touched.add(id)
     const previous = projectIds(rank, pins)
+    // A newly admitted task goes first even if the native action reuses an old
+    // blank Session or its header is not in the metadata catalog yet. Only new
+    // membership counts; message/status updates and native pin-array order do not.
+    if (observe && phase !== 'running') {
+      const previousMembers = new Set(pins)
+      let admittedAt = taskCreationNow()
+      if (Number.isSafeInteger(admittedAt) && admittedAt >= 0) {
+        // A same-millisecond click must still precede the prior admission. This
+        // logical ordering key is never shown as a replacement Session date.
+        for (const timestamp of createdAt.values()) if (timestamp >= admittedAt && timestamp < Number.MAX_SAFE_INTEGER) admittedAt = timestamp + 1
+        for (const id of p) if (!previousMembers.has(id)) { createdAt.set(id, admittedAt); admittedHere.add(id) }
+      }
+    }
     pins = p; archived = a; epoch++
     if (!sameIds(previous, projectIds(rank, pins))) { revision++; updatedAt = now() }
     scheduleReconcile()
@@ -49,7 +90,7 @@ export function createNativePinHost({ registry, openOrder, openLegacy, subscribe
   function scheduleReconcile() {
     if (!disposed && nativeValid && started && table !== undefined && (phase === 'done' || phase === 'partial') && !reconcileQueued) {
       reconcileQueued = true
-      void enqueue(async () => { reconcileQueued = false; await reconcile() }).catch(error => { reconcileQueued = false; warn(error) })
+      void enqueue(async () => { reconcileQueued = false; await refreshCreatedAt(); await reconcile() }).catch(error => { reconcileQueued = false; warn(error) })
     }
   }
   // Storage emits before WorkspaceRegistry's private cache is assigned. Payload
@@ -66,7 +107,9 @@ export function createNativePinHost({ registry, openOrder, openLegacy, subscribe
   async function save(next) {
     const nextRank = ownedIds(next.sessionIds)
     const nextRevision = Math.max(revision, record?.revision ?? 0) + (sameIds(rank, nextRank) ? 0 : 1)
-    const value = { ...next, schemaVersion: 1, revision: nextRevision, sessionIds: nextRank, updatedAt: now() }
+    const value = { ...next, schemaVersion: 1, revision: nextRevision, sessionIds: nextRank, updatedAt: now(),
+      taskCreatedAtBySession: Object.fromEntries([...createdAt].filter(([id]) => pins.includes(id))),
+      ...(next.manualSessionIds === undefined ? {} : { manualSessionIds: next.manualSessionIds.filter(id => pins.includes(id)) }) }
     // A singleton owner plus this controller's tail owns all writes to this domain.
     if (record === undefined) await table.put(NATIVE_ORDER_KEY, value)
     else await table.update(NATIVE_ORDER_KEY, () => value)
@@ -75,7 +118,7 @@ export function createNativePinHost({ registry, openOrder, openLegacy, subscribe
   }
   async function reconcile() {
     if (record === undefined || phase === 'initializing' || phase === 'running') return
-    const ids = projectIds(rank, pins)
+    const ids = orderedIds()
     if (sameIds(ids, rank) && record.revision === revision) return
     await save({ ...record, sessionIds: ids })
   }
@@ -124,16 +167,21 @@ export function createNativePinHost({ registry, openOrder, openLegacy, subscribe
       const partial = record.migration.entries.some(entry => entry.status === 'failed' || entry.status === 'attempted')
       const status = partial ? 'partial' : 'done'
       // Until now legacy seed rank was retained even for not-yet-imported ids.
-      await save({ ...record, sessionIds: projectIds(rank, pins), migration: { ...record.migration, status } })
+      await refreshCreatedAt()
+      await save({ ...record, sessionIds: orderedIds(), migration: { ...record.migration, status } })
       phase = status
     })
   }
   async function initialize() {
     if (!nativeValid) throw new Error('Native pin state is unavailable')
+    await refreshCreatedAt()
     const order = await open(openOrder); table = order.table
     const stored = table.get(NATIVE_ORDER_KEY)
     if (stored !== undefined) {
       rank = ownedIds(stored.sessionIds); record = stored; revision = Math.max(revision, stored.revision); updatedAt = stored.updatedAt
+      for (const [id, timestamp] of Object.entries(stored.taskCreatedAtBySession ?? {})) {
+        if (pins.includes(id) && !admittedHere.has(id) && Number.isSafeInteger(timestamp) && timestamp >= 0) createdAt.set(id, timestamp)
+      }
       for (const entry of stored.migration.entries) if (entry.detail && (entry.status === 'failed' || entry.status === 'uncertain')) warn(`Legacy task ${entry.sessionId}: ${entry.detail}`)
       if (stored.migration.status === 'running') {
         warn('Legacy pin migration was interrupted; unconfirmed entries will not be retried automatically. The original queue is preserved.')
@@ -197,7 +245,7 @@ export function createNativePinHost({ registry, openOrder, openLegacy, subscribe
         if (!response().writable) throw new NativePinError('better-tasks/order-unavailable', 'Task ordering is initializing, migrating or unavailable; official Pin remains usable', 503)
         await reconcile()
         if (command.expectedRevision !== revision) throw new NativePinError('better-tasks/revision-conflict', 'Task order changed', 409)
-        const ids = projectIds(rank, pins), before = command.beforeSessionId ?? null
+        const ids = orderedIds(), before = command.beforeSessionId ?? null
         if (!ids.includes(command.sessionId)) throw new NativePinError('better-tasks/not-pinned', 'Session is no longer officially pinned', 409)
         if (before !== null && (typeof before !== 'string' || !ids.includes(before))) throw new NativePinError('better-tasks/anchor-not-pinned', 'Move anchor is no longer officially pinned', 409)
         if (before === command.sessionId) return response()
@@ -205,7 +253,7 @@ export function createNativePinHost({ registry, openOrder, openLegacy, subscribe
         next.splice(before === null ? next.length : next.indexOf(before), 0, command.sessionId)
         if (sameIds(next, ids)) return response()
         const observedEpoch = epoch
-        await save({ ...record, sessionIds: next })
+        await save({ ...record, sessionIds: next, manualSessionIds: next })
         if (observedEpoch !== epoch) {
           await reconcile()
           throw new NativePinError('better-tasks/revision-conflict', 'Official membership changed while saving task order', 409)
@@ -216,7 +264,7 @@ export function createNativePinHost({ registry, openOrder, openLegacy, subscribe
     async settled() { await initialization; await migration; await tail },
     async dispose() {
       if (disposed) return
-      disposed = true; off?.()
+      disposed = true; lifetime.abort(); off?.()
       await initialization; await migration; await tail
       await Promise.all([...handles].map(close))
     },

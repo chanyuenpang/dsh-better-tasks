@@ -4,7 +4,9 @@ DSH 侧栏任务泳道：共享原生 Pin、独立任务输入、Final 预览与
 
 ## 按 DSH 版本安装
 
-**当前分发组合：DSH Desktop `0.2.2-rc.2` + Better Tasks `0.4.0`。**
+**当前公开分发组合：DSH Desktop `0.2.2-rc.2` + Better Tasks `0.4.0`。**
+
+当前分支可能含尚未发布的改进；代码推送不等于 Release 更新。本地候选使用独立版本与 SHA-256，不覆盖下面的公开组合。已有完整安装如何只升级候选主包，见[安装说明](<docs/install.md>)。
 
 | DSH Desktop 运行时 | Better Tasks | 完整安装入口 |
 |---|---|---|
@@ -39,6 +41,8 @@ Each combined release freezes one plugin version and six forks built for the exa
 Source patches live under [src-patches](<src-patches/>), project-owned modules under [src-overlay](<src-overlay/>), and per-line upstream source facts in [versions](<provenance/versions.json>). For the forward-port procedure see [upgrading DSH](<docs/upgrading-dsh-version.md>) and [fork layers](<docs/fork-layers.md>). Release assets contain no real Profile backups, Session stores, credentials, runtime logs or workflow state.
 
 ## Development
+
+侧栏新增按钮、调整排版或适配新 DSH 前，先遵循[侧栏排版与适配规范](<docs/sidebar-layout.md>)；数字、原生语义样式与版本合同分层维护。
 
 Use Node **24+** for the source-contract tests (`stripTypeScriptTypes`) and install developer dependencies:
 

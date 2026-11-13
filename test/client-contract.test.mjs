@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { apply, BetterSidebarRoot, SidebarRootGuard, SidebarReopenControls } from '../src/client.js'
+import { apply, BetterSidebarRoot, SidebarRootGuard, SidebarReopenControls, SidebarPanelIcon } from '../src/client.js'
 import { DEFAULT_TASK_PREFERENCES } from '../src/task-preferences.mjs'
 
 function createContext(panelEntries = []) {
@@ -92,6 +92,7 @@ test('registers one root replacement and declares all compatibility seats', () =
     'sidebar.brand.mark': { kind: 'single', scope: 'root' },
     'sidebar.brand.name': { kind: 'single', scope: 'root' },
     'sidebar.panellist': { kind: 'list', scope: 'root' },
+    'sidebar.panellist.actions': { kind: 'list', scope: 'root' },
     'sidebar.workspaces': { kind: 'single', scope: 'root' },
     'sidebar.settings': { kind: 'single', scope: 'root' },
     'sidebar.footer.action': { kind: 'list', scope: 'root' },
@@ -120,6 +121,47 @@ test('registers one root replacement and declares all compatibility seats', () =
     ['layout.selectPanel', 'alpha'],
     ['uiWorkspace.openSession', 'session-1'],
   ])
+})
+
+
+
+test('rc.2 gives panel icon factory sole ownership and restores the official More action seat', () => {
+  const entries = [{options:{id:'plugins'}}, {options:{id:'automation'}}, {options:{id:'third-party',label:'Third party'}}]
+  const f = createContext(entries), factories = []
+  const baseEntries = f.ctx.slots.entriesOfSlot
+  let hasActions = true
+  f.ctx.slots.entriesOfSlot = name => name === 'sidebar.panellist.actions' ? hasActions ? [{}] : [] : baseEntries(name)
+  f.ctx.slots.registerFactory = (options, component) => { factories.push({options,component}); return () => {} }
+  apply(f.ctx)
+  assert.equal(factories.length, 1)
+  assert.equal(factories[0].options.name, 'sidebar.panel.icon')
+  assert.equal(factories[0].component, SidebarPanelIcon)
+  assert.deepEqual(factories[0].options.children, {'sidebar.panellist':{kind:'list',scope:'root'}})
+  const root = f.registrations.find(row=>row.options.name==='sidebar')
+  assert.equal(root.options.children['sidebar.panellist'], undefined)
+  assert.deepEqual(root.options.children['sidebar.panellist.actions'], {kind:'list',scope:'root'})
+  const p = root.options.inject()
+  assert.equal(p.nativePanelIcons, true)
+  assert.equal(p.hooks.entryActions.getSnapshot(), true)
+  p.setPanelPinned('third-party',false)
+  assert.deepEqual(p.hooks.entryPins.getSnapshot(),['third-party'])
+  p.setPanelPinned('plugins',false)
+  p.setPanelPinned('unknown',false)
+  assert.deepEqual(p.hooks.entryPins.getSnapshot(),['third-party'])
+  p.selectPanel('unknown')
+  assert.equal(f.calls.some(row=>row[0]==='layout.selectPanel'),false)
+  p.selectPanel('automation')
+  assert.deepEqual(f.calls.at(-1),['layout.selectPanel','automation'])
+  entries.pop()
+  f.subscriptions.find(([name])=>name==='sidebar.panellist')[1]()
+  p.selectPanel('third-party')
+  assert.deepEqual(f.calls.at(-1),['layout.selectPanel','automation'])
+  entries.push({options:{id:'third-party',label:'Renamed'}})
+  f.subscriptions.find(([name])=>name==='sidebar.panellist')[1]()
+  assert.equal(p.hooks.panels.getSnapshot().at(-1).label,'Renamed')
+  assert.deepEqual(p.hooks.entryPins.getSnapshot(),['third-party'])
+  hasActions = false
+  assert.equal(p.hooks.entryActions.getSnapshot(),false)
 })
 
 test('restores the legal outside-column shell seat using native actions and no new root declaration', () => {

@@ -2,14 +2,15 @@ export const SIDEBAR_CHILD_SLOTS = Object.freeze([
   'sidebar.brand.mark',
   'sidebar.brand.name',
   'sidebar.panellist',
+  'sidebar.panellist.actions',
   'sidebar.workspaces',
   'sidebar.settings',
   'sidebar.footer.action',
 ])
 
-export function createSidebarChildDeclarations() {
-  return Object.fromEntries(SIDEBAR_CHILD_SLOTS.map((name) => [name, {
-    kind: name === 'sidebar.panellist' || name === 'sidebar.footer.action' ? 'list' : 'single',
+export function createSidebarChildDeclarations({ iconsInFactory = false } = {}) {
+  return Object.fromEntries(SIDEBAR_CHILD_SLOTS.filter(name => !iconsInFactory || name !== 'sidebar.panellist').map((name) => [name, {
+    kind: name === 'sidebar.panellist' || name === 'sidebar.panellist.actions' || name === 'sidebar.footer.action' ? 'list' : 'single',
     scope: 'root',
   }]))
 }

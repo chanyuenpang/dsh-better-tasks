@@ -3,6 +3,7 @@ import test from 'node:test'
 import vm from 'node:vm'
 import { readFileSync } from 'node:fs'
 import { DEFAULT_TASK_PREFERENCES } from '../src/task-preferences.mjs'
+import { SIDEBAR_LAYOUT } from '../src/client.js'
 
 const source = readFileSync(new URL('../src/client.js', import.meta.url), 'utf8')
 const rootSource = source.slice(source.indexOf('export function BetterSidebarRoot('), source.indexOf('function TaskSettingsSection(')).replace(/^export /gm, '')
@@ -13,7 +14,7 @@ const nodes = node => node && typeof node === 'object' ? [node, ...node.children
 function fixture({ windows = false, collapsed = true, settled = collapsed, noDocument = false } = {}) {
   const calls = [], effects = [], slots = []
   const context = {
-    element,
+    element, SIDEBAR_LAYOUT,
     requireModule: name => name === 'react' ? {
       createElement: element,
       useState: () => [settled, () => {}],

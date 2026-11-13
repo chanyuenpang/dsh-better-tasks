@@ -42,7 +42,9 @@ function fakeScope(initial) {
 test('decodes only complete bounded Better Tasks preferences', () => {
   assert.deepEqual(decodeTaskPreferences(configured), configured)
   const { titleEmphasis, ...legacy } = configured
-  assert.deepEqual(decodeTaskPreferences(legacy), { ...legacy, titleEmphasis: 'project' })
+  assert.deepEqual(decodeTaskPreferences(legacy), { ...legacy, titleEmphasis: 'task' })
+  assert.equal(DEFAULT_TASK_PREFERENCES.titleEmphasis, 'task')
+  assert.equal(decodeTaskPreferences({ ...legacy, titleEmphasis: 'project' }).titleEmphasis, 'project', 'explicit saved choice wins over the new default')
   assert.equal(decodeTaskPreferences({ ...configured, titleEmphasis: 'session' }), undefined)
   assert.equal(decodeTaskPreferences({ ...configured, titleEmphasis: null }), undefined)
   assert.equal(decodeTaskPreferences({ ...configured, detailFontSize: 17 }), undefined)

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import { compare, editedFilesOf, exportedNames, overlayFilesOf } from '../scripts/check-upstream-contract.mjs'
+import { compare, declaredSlots, editedFilesOf, exportedNames, overlayFilesOf } from '../scripts/check-upstream-contract.mjs'
 
 // The checker answers one question — "does the a layer still attach to the next
 // upstream tag?" — before anything is built. Its failure modes are about
@@ -31,6 +31,18 @@ test('exportedNames reads every declaration form the client packages use', () =>
   // them as exports would fabricate drift on every tag.
   assert.ok(!names.includes('internal'))
   assert.ok(!names.includes('default'))
+})
+
+test('quoted native child keys are checked, not mistaken for absent extension seats', () => {
+  const text = `const unrelated = { 'not.a.slot': { kind: 'single' } };
+ctx.slots.register({ name: 'sidebar', children: {
+  'sidebar.panellist.actions': { kind: 'list', scope: 'root' },
+  "sidebar.workspaces": { kind: "single", scope: 'root' },
+  bare: { kind: 'keyed' },
+} }, Component)`
+  assert.deepEqual([...declaredSlots(text)], [
+    ['sidebar.panellist.actions','list'],['sidebar.workspaces','single'],['bare','keyed'],
+  ])
 })
 
 test('a star re-export never fabricates removals', () => {

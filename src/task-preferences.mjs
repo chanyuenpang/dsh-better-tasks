@@ -16,7 +16,7 @@ export const DEFAULT_TASK_PREFERENCES = Object.freeze({
   defaultFinalExpanded: true,
   defaultInputExpanded: false,
   columnLayout: 'auto',
-  titleEmphasis: 'project',
+  titleEmphasis: 'task',
   sidebarView: 'native',
 })
 

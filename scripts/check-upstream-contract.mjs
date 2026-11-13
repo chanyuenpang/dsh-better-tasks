@@ -344,6 +344,19 @@ function childrenBlocks(text) {
  * @param tree - upstream repository root.
  * @returns map of probe name to a comparable value.
  */
+// Collect the actual children declarations; quoted native keys count too.
+export function declaredSlots(text) {
+  const slots = new Map()
+  for (const block of childrenBlocks(text)) {
+    // Dotted native keys are normally quoted. Require matching quotes instead
+    // of silently dropping the sidebar/factory seats from the drift report.
+    for (const match of block.matchAll(/(['"]?)([A-Za-z][\w.]*)\1\s*:\s*\{\s*kind:\s*(['"])(single|keyed|list|chain)\3/g)) {
+      slots.set(match[2], match[4])
+    }
+  }
+  return slots
+}
+
 async function publicSurface(tree) {
   const clientDir = join(tree, 'packages', 'client')
   const read = async (rel) => {
@@ -363,11 +376,7 @@ async function publicSurface(tree) {
     for (const file of await filesBelow(join(clientDir, entry.name, 'src'))) {
       if (!/\.tsx?$/.test(file)) continue
       const text = await readFile(file, 'utf8')
-      for (const block of childrenBlocks(text)) {
-        for (const match of block.matchAll(/([A-Za-z][\w.]*)\s*:\s*\{\s*kind:\s*'(single|keyed|list|chain)'/g)) {
-          slots.set(match[1], match[2])
-        }
-      }
+      for (const [name, kind] of declaredSlots(text)) slots.set(name, kind)
     }
   }
 

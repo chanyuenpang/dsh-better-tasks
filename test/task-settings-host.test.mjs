@@ -11,6 +11,9 @@ const resolveSettings = input => Object.fromEntries(Object.entries(TaskSettingsS
 test('Better Tasks settings schema resolves the intended durable defaults', () => {
   assert.equal(TASK_SETTINGS_NAMESPACE, 'better-tasks-ui')
   assert.deepEqual(resolveSettings({}), TASK_SETTINGS_DEFAULTS)
+  assert.equal(TASK_SETTINGS_DEFAULTS.titleEmphasis, 'task')
+  assert.equal(resolveSettings({}).titleEmphasis, 'task')
+  assert.equal(resolveSettings({ titleEmphasis: 'project' }).titleEmphasis, 'project')
   assert.deepEqual(resolveSettings({ detailFontSize: 16, columnLayout: 'double' }), {
     ...TASK_SETTINGS_DEFAULTS,
     detailFontSize: 16,

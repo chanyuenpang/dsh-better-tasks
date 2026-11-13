@@ -23,7 +23,7 @@ export function projectNativeTaskQueue(rank, native) {
   const pins = [...new Set(native?.pinnedSessionIds ?? [])].filter(id => !archived.has(id))
   const members = new Set(pins), ranked = new Set(rank.sessionIds)
   return Object.freeze({ ...rank, sessionIds: Object.freeze([
-    ...rank.sessionIds.filter(id => members.has(id)), ...pins.filter(id => !ranked.has(id)),
+    ...pins.filter(id => !ranked.has(id)), ...rank.sessionIds.filter(id => members.has(id)),
   ]) })
 }
 async function pinRequest(method, body, signal) {

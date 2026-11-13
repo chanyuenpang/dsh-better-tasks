@@ -38,5 +38,5 @@ test('generated browser bundle registers and materializes without executing UI g
   assert.equal(plugin.name, 'dsh-better-tasks')
   assert.equal(typeof plugin.apply, 'function')
   assert.deepEqual(Array.from(plugin.inject), ['slots', 'layout', 'locale'])
-  assert.equal(plugin.contract.childSlots.length, 6)
+  assert.equal(plugin.contract.childSlots.length, 7)
 })

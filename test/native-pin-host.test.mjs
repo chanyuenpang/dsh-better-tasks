@@ -9,7 +9,7 @@ const clone = value => value === undefined ? undefined : structuredClone(value)
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b }); return { promise, resolve, reject } }
 const legacyQueue = ids => ({ schemaVersion: 1, revision: 7, sessionIds: ids, updatedAt: 'legacy' })
 const savedOrder = (ids, status = 'done', entries = []) => ({ ...legacyQueue(ids), migration: { status, sourceRevision: 7, entries } })
-function bench({ pins = [], archived = [], legacy = legacyQueue([]), existing, beforeWrite, openFailure, pinFailure } = {}) {
+function bench({ pins = [], archived = [], legacy = legacyQueue([]), existing, beforeWrite, openFailure, pinFailure, listSessions, taskCreationNow } = {}) {
   const listeners = new Set(), calls = [], writes = [], closes = [], records = new Map()
   if (existing) records.set('global', clone(existing))
   let cachedPins = [...pins], cachedArchived = [...archived], opens = 0, legacyOpens = 0, tick = 0
@@ -36,7 +36,7 @@ function bench({ pins = [], archived = [], legacy = legacyQueue([]), existing, b
     async put(id, value) { await beforeWrite?.(clone(value), writes.length); records.set(id, clone(value)); writes.push(clone(value)) },
     async update(id, fn) { return this.put(id, fn(records.get(id))).then(() => records.get(id)) },
   }
-  const host = createNativePinHost({ registry, now: () => `t${++tick}`,
+  const host = createNativePinHost({ registry, listSessions, taskCreationNow, now: () => `t${++tick}`,
     subscribe: fn => { listeners.add(fn); return () => listeners.delete(fn) },
     openOrder: async () => { opens++; if (openFailure) throw openFailure; return { table, close: async () => { closes.push('order') } } },
     openLegacy: async () => { legacyOpens++; return { table: { get: () => legacy, put() { throw Error('legacy writes forbidden') }, update() { throw Error('legacy writes forbidden') } }, close: async () => { closes.push('legacy') } } },
@@ -44,6 +44,90 @@ function bench({ pins = [], archived = [], legacy = legacyQueue([]), existing, b
   return { host, registry, native, calls, writes, closes, records, listeners, get opens() { return opens }, get legacyOpens() { return legacyOpens } }
 }
 async function ready(b) { b.host.read(); await b.host.settled(); return b.host.current() }
+
+const headers = times => Object.entries(times).map(([id, createdAt]) => ({ header: { id, createdAt } }))
+test('unmarked default rank is creation-newest-first, never activity or native pin order', async () => {
+  let reads = 0
+  const b = bench({ pins: ['old', 'new', 'middle'], existing: savedOrder(['old', 'middle', 'new']),
+    listSessions: async () => { reads++; return headers({old:1, new:30, middle:20}) } })
+  assert.deepEqual((await ready(b)).queue.sessionIds, ['new', 'middle', 'old'])
+  b.native(['middle', 'old', 'new']); await b.host.settled()
+  assert.deepEqual(b.host.current().queue.sessionIds, ['new', 'middle', 'old'])
+  assert.equal(reads, 1, 'creation metadata is cached rather than reading on every update')
+  await b.host.dispose()
+})
+test('first drag preserves displayed creation order and persists it through refresh and restart', async () => {
+  const listSessions = async () => headers({old:1, middle:20, new:30})
+  const b = bench({ pins: ['old', 'middle', 'new'], listSessions }); await ready(b)
+  const moved = await b.host.mutate({action:'move', sessionId:'old', beforeSessionId:'middle', expectedRevision:b.host.current().queue.revision})
+  assert.deepEqual(moved.queue.sessionIds, ['new', 'old', 'middle'])
+  b.host.read(); await b.host.settled()
+  assert.deepEqual(b.host.current().queue.sessionIds, ['new', 'old', 'middle'])
+  const persisted = clone(b.records.get('global'))
+  assert.deepEqual(nativePinOrderDomain.tables.state.valueSchema.parse(persisted).manualSessionIds, ['new', 'old', 'middle'])
+  await b.host.dispose()
+  const restarted = bench({ pins:['middle', 'old', 'new'], existing:persisted, listSessions })
+  assert.deepEqual((await ready(restarted)).queue.sessionIds, ['new', 'old', 'middle'])
+  await restarted.host.dispose()
+})
+test('new tasks lead an existing manual sequence without reordering its members', async () => {
+  const listSessions = async () => headers({old:1, new:20, fresh:30})
+  const b = bench({pins:['old', 'new'], listSessions}); await ready(b)
+  await b.host.mutate({action:'move', sessionId:'old', beforeSessionId:'new', expectedRevision:b.host.current().queue.revision})
+  b.native(['new', 'fresh', 'old']); await b.host.settled()
+  assert.deepEqual(b.host.current().queue.sessionIds, ['fresh', 'old', 'new'])
+  b.native(['fresh', 'new']); await b.host.settled()
+  assert.deepEqual(b.host.current().queue.sessionIds, ['fresh', 'new'])
+  assert.deepEqual(b.records.get('global').manualSessionIds, ['new'])
+  await b.host.dispose()
+})
+test('direct New Session admission stays first before metadata, after refresh and after restart', async () => {
+  let exposeOldHeader=false
+  const listSessions=async()=>headers(exposeOldHeader ? {existing:100,reused:1} : {existing:100})
+  const b=bench({pins:['existing'],listSessions,taskCreationNow:()=>200});await ready(b)
+  b.native(['existing','reused'],[],()=>{
+    assert.deepEqual(b.host.current().queue.sessionIds,['reused','existing'])
+  })
+  await b.host.settled();exposeOldHeader=true;b.host.read();await b.host.settled()
+  assert.deepEqual(b.host.current().queue.sessionIds,['reused','existing'])
+  const saved=clone(b.records.get('global'))
+  assert.equal(nativePinOrderDomain.tables.state.valueSchema.parse(saved).taskCreatedAtBySession.reused,200)
+  await b.host.dispose()
+  const restarted=bench({pins:['existing','reused'],existing:saved,listSessions})
+  assert.deepEqual((await ready(restarted)).queue.sessionIds,['reused','existing'])
+  restarted.native(['reused','existing']);await restarted.host.settled()
+  assert.deepEqual(restarted.host.current().queue.sessionIds,['reused','existing'])
+  await restarted.host.dispose()
+})
+test('same-millisecond direct creations remain newest-first instead of id order',async()=>{
+  const b=bench({pins:['existing'],listSessions:async()=>headers({existing:100,z:1,a:1}),taskCreationNow:()=>200});await ready(b)
+  b.native(['existing','a']);await b.host.settled()
+  b.native(['existing','a','z']);await b.host.settled()
+  assert.deepEqual(b.host.current().queue.sessionIds,['z','a','existing'])
+  await b.host.dispose()
+})
+
+test('metadata refresh for another task cannot overwrite a reused Session admission timestamp', async()=>{
+  let rows={existing:100}
+  let reads=0
+  const b=bench({pins:['existing','uncatalogued'],listSessions:async()=>{reads++;return headers(rows)},taskCreationNow:()=>200});await ready(b)
+  // A pre-existing, still-missing catalog row forces a second metadata read.
+  rows={existing:100,reused:1};b.native(['existing','uncatalogued','reused']);await b.host.settled()
+  assert.ok(reads>=2)
+  assert.equal(b.records.get('global').taskCreatedAtBySession.reused,200)
+  assert.deepEqual(b.host.current().queue.sessionIds,['reused','existing','uncatalogued'])
+  await b.host.dispose()
+})
+
+test('creation ties are deterministic, missing metadata stays safe, and failed lookup does not erase pins', async () => {
+  const b = bench({pins:['missing', 'b', 'a'], listSessions:async()=>headers({a:0,b:0})})
+  assert.deepEqual((await ready(b)).queue.sessionIds, ['a', 'b', 'missing'])
+  await b.host.dispose()
+  const failed = bench({pins:['b', 'a'], listSessions:async()=>{throw Error('metadata unavailable')}})
+  assert.deepEqual((await ready(failed)).queue.sessionIds, ['b', 'a'])
+  assert.ok(failed.host.current().warnings.includes('metadata unavailable'))
+  await failed.host.dispose()
+})
 
  test('feature initialization is lazy and GET immediately exposes only official membership', async () => {
   const wait = deferred(), b = bench({ pins: ['native'], legacy: legacyQueue(['legacy']), beforeWrite: async (_, count) => { if (count === 0) await wait.promise } })

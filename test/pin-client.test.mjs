@@ -27,7 +27,7 @@ function fixture(pins = ['a'], order = pins) {
 
 test('rank projection intersects official pins, excludes archives, and never resurrects legacy membership', () => {
   const rank = queue(4, ['gone', 'b', 'a'])
-  assert.deepEqual(projectNativeTaskQueue(rank, { pinnedSessionIds: ['c', 'a', 'b'], archivedSessionIds: ['a'] }).sessionIds, ['b', 'c'])
+  assert.deepEqual(projectNativeTaskQueue(rank, { pinnedSessionIds: ['c', 'a', 'b'], archivedSessionIds: ['a'] }).sessionIds, ['c', 'b'])
   assert.deepEqual(rank.sessionIds, ['gone', 'b', 'a'])
 })
 test('native pin ack changes task membership, not an optimistic second collection or HTTP pin request', async () => {
@@ -37,13 +37,13 @@ test('native pin ack changes task membership, not an optimistic second collectio
   assert.deepEqual(f.ids(), ['a']); assert.deepEqual(f.client.source.getSnapshot().pendingSessionIds, ['b'])
   await flush(); assert.deepEqual(f.calls, [['pin', 'b']])
   f.set({ pinnedSessionIds: ['b', 'a'] }); gate.resolve(); await work
-  assert.deepEqual(f.ids(), ['a', 'b']); assert.deepEqual(f.client.source.getSnapshot().pendingSessionIds, [])
+  assert.deepEqual(f.ids(), ['b', 'a']); assert.deepEqual(f.client.source.getSnapshot().pendingSessionIds, [])
   assert.ok(f.requests.every(([method]) => method === 'GET'))
 })
 test('native follow updates across windows immediately and stale order cannot re-pin', async () => {
   const f = fixture(['b', 'a'], ['a', 'b']); await f.client.refresh()
-  f.set({ pinnedSessionIds: ['c', 'b'] }); assert.deepEqual(f.ids(), ['b', 'c'])
-  await f.client.refresh(); assert.deepEqual(f.ids(), ['b', 'c'])
+  f.set({ pinnedSessionIds: ['c', 'b'] }); assert.deepEqual(f.ids(), ['c', 'b'])
+  await f.client.refresh(); assert.deepEqual(f.ids(), ['c', 'b'])
   f.set({ archivedSessionIds: ['b'] }); assert.deepEqual(f.ids(), ['c'])
 })
 test('failed unpin clears only pending and retains latest native state without inverse mutation', async () => {

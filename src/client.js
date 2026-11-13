@@ -129,6 +129,8 @@ const dictionaries = {
     'toggle.open': '打开侧边栏',
     'toggle.collapse': '收起侧边栏',
     'panels.label': '全局面板',
+    'panels.more': '更多',
+    'panels.unpin': '取消固定 {name}',
     'view.native': '会话',
     'view.tasks': '任务',
     'tasks.goal': 'Goal',
@@ -231,6 +233,8 @@ const dictionaries = {
     'toggle.open': 'Open sidebar',
     'toggle.collapse': 'Collapse sidebar',
     'panels.label': 'Global panels',
+    'panels.more': 'More',
+    'panels.unpin': 'Unpin {name}',
     'view.native': 'Sessions',
     'view.tasks': 'Tasks',
     'tasks.goal': 'Goal',
@@ -328,8 +332,15 @@ const dictionaries = {
   },
 }
 
+// Single numeric source for sidebar presentation; upstream semantic tokens stay native.
+export const SIDEBAR_LAYOUT = Object.freeze({
+  newSessionHeight: 38, newSessionFontSize: 14, newSessionLineHeight: 22,
+  iconTarget: 34, railTarget: 36, iconSize: 18, unpinTarget: 18,
+  navigationGap: 4, maxNavigationRows: 2, tooltipDelayMs: 500,
+})
+
 const css = `
-.dbt-sidebar{--dbt-pad:12px;box-sizing:border-box;width:100%;height:100%;min-height:0;display:flex;flex-direction:column;gap:8px;padding:10px var(--dbt-pad);color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-1);overflow:hidden}
+.dbt-sidebar{--dbt-pad:12px;--dbt-nav-target:${SIDEBAR_LAYOUT.iconTarget}px;--dbt-rail-target:${SIDEBAR_LAYOUT.railTarget}px;--dbt-nav-gap:${SIDEBAR_LAYOUT.navigationGap}px;--dbt-nav-rows:${SIDEBAR_LAYOUT.maxNavigationRows};--dbt-new-height:${SIDEBAR_LAYOUT.newSessionHeight}px;--dbt-new-font:${SIDEBAR_LAYOUT.newSessionFontSize}px;--dbt-new-line-height:${SIDEBAR_LAYOUT.newSessionLineHeight}px;--dbt-unpin-target:${SIDEBAR_LAYOUT.unpinTarget}px;box-sizing:border-box;width:100%;height:100%;min-height:0;display:flex;flex-direction:column;gap:8px;padding:10px var(--dbt-pad);color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-1);overflow:hidden}
 .dbt-sidebar[data-wide="false"]{--dbt-pad:8px;align-items:center;padding-inline:8px}
 .dbt-brand-row{width:100%;height:32px;display:flex;align-items:center;gap:6px;flex:none}
 .dbt-brand,.dbt-icon-button,.dbt-new-session,.dbt-panel-row{border:0;font:inherit;color:inherit;cursor:pointer}
@@ -357,12 +368,34 @@ html[data-windows-titlebar] .dbt-sidebar[data-wide="false"] .dbt-new-session:hov
 html[data-windows-titlebar] .dbt-sidebar[data-wide="false"] .dbt-panel-list,html[data-windows-titlebar] .dbt-sidebar[data-wide="false"] .dbt-workspaces,html[data-windows-titlebar] .dbt-sidebar[data-wide="false"] .dbt-foot{display:none}
 html[data-windows-titlebar]:has(.dbt-sidebar[data-wide="false"]){--dsh-windows-menu-start:84px}
 .dbt-shell-leading{display:flex;align-items:center;gap:8px;-webkit-app-region:no-drag}
-.dbt-new-session{width:100%;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:flex-start;gap:8px;padding:0 10px;background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-static-white,#fff);font-weight:600;flex:none}
-.dbt-sidebar[data-wide="false"] .dbt-new-session{width:36px;height:36px;justify-content:center;padding:0;border-radius:10px}
-.dbt-panel-list{width:100%;display:flex;flex-direction:column;gap:2px;flex:none}
-.dbt-panel-row{width:100%;height:34px;border-radius:9px;display:flex;align-items:center;gap:8px;padding:0 10px;background:transparent;text-align:left}
+/* Native rc.2 New Session structure/tokens; only the surrounding task shell is ours. */
+.dbt-new-session{container-type:inline-size;position:relative;flex:none;display:flex;align-items:center;justify-content:center;gap:0;width:calc(100% - 8px);height:var(--dbt-new-height);padding:8px 12px;margin:0 4px;box-sizing:border-box;border:.5px solid var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-md);background:var(--dsw-alias-button-elevated-fill);color:var(--dsw-alias-label-primary);font-size:var(--dbt-new-font);font-weight:500;line-height:var(--dbt-new-line-height);cursor:pointer;overflow:hidden}
+.dbt-new-session:hover{background:var(--dsw-alias-button-floating-hover)}
+.dbt-new-label-mask{flex:1;min-width:0}
+.dbt-new-content{display:flex;width:100cqw;align-items:center;justify-content:center;gap:6px}
+.dbt-new-content>svg{flex:none}
+.dbt-new-label{max-width:200px;overflow:hidden;white-space:nowrap}
+.dbt-new-shortcut{opacity:0;display:inline-flex;flex:none;pointer-events:none;font-weight:400}
+.dbt-new-session:is(:hover,:focus-visible) .dbt-new-shortcut{opacity:1}
+.dbt-new-session:is(:hover,:focus-visible) .dbt-new-label-mask:has(+.dbt-new-shortcut){overflow:hidden;mask-image:linear-gradient(to right,black calc(100% - 16px),transparent)}
+html[data-platform="darwin"] .dbt-new-session{background:var(--dsw-specific-sidebar-glass-fill)}
+html[data-platform="darwin"] .dbt-new-session:hover{background:var(--dsw-specific-sidebar-glass-hover)}
+.dbt-sidebar[data-wide="false"] .dbt-new-session{width:36px;height:36px;justify-content:center;padding:0;margin:0;border-color:transparent;border-radius:var(--dsw-radius-md);background:transparent}
+.dbt-sidebar[data-wide="false"] .dbt-new-session:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.dbt-panel-list{width:100%;display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;gap:var(--dbt-nav-gap);flex:none;max-height:calc(var(--dbt-nav-target)*var(--dbt-nav-rows) + var(--dbt-nav-gap)*(var(--dbt-nav-rows) - 1));overflow-y:auto;overflow-x:hidden;padding-block:3px;scrollbar-width:thin}
+.dbt-panel-row{width:var(--dbt-nav-target);height:var(--dbt-nav-target);flex:none;border:0;border-radius:var(--dsw-radius-md);display:inline-flex;align-items:center;justify-content:center;padding:0;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer}
+.dbt-panel-row:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
 .dbt-panel-row[aria-current="page"]{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-brand-primary)}
-.dbt-sidebar[data-wide="false"] .dbt-panel-row{width:36px;height:36px;justify-content:center;padding:0}
+.dbt-panel-glyph{display:inline-flex;align-items:center;justify-content:center}
+.dbt-panel-entry{position:relative;display:inline-flex;flex:none}
+.dbt-panel-unpin{position:absolute;top:-3px;right:-3px;z-index:1;width:var(--dbt-unpin-target);height:var(--dbt-unpin-target);border:0;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;padding:0;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);cursor:pointer;opacity:0;pointer-events:none}
+.dbt-panel-entry:is(:hover,:focus-within) .dbt-panel-unpin{opacity:1;pointer-events:auto}
+.dbt-panel-unpin:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-interactive-bg-hover)}
+.dbt-panel-more-anchor{display:inline-flex;flex:none}
+.dbt-panel-more-menu{min-width:220px}
+.dbt-sidebar[data-wide="false"] .dbt-panel-list{flex-direction:column;flex-wrap:nowrap;max-height:30%}
+.dbt-sidebar[data-wide="false"] .dbt-panel-row{width:var(--dbt-rail-target);height:var(--dbt-rail-target)}
+.dbt-panel-row:focus-visible,.dbt-panel-unpin:focus-visible,.dbt-new-session:focus-visible{outline:var(--dsw-focus-ring-width,2px) solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:-2px}
 .dbt-workspaces{width:100%;min-height:0;display:flex;flex:1;overflow:hidden}
 .dbt-foot{width:100%;display:flex;flex-direction:column;gap:4px;flex:none}
 .dbt-footer-actions,.dbt-settings{width:100%}
@@ -373,7 +406,7 @@ html[data-windows-titlebar]:has(.dbt-sidebar[data-wide="false"]){--dsh-windows-m
 .dbt-view-tab{height:30px;margin:0 0 -1px;border:1px solid transparent;border-radius:8px 8px 0 0;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;font:inherit;font-size:12px}
 .dbt-view-tab:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-interactive-bg-hover)}
 .dbt-view-tab[aria-selected="true"]{border-color:var(--dsw-alias-border-l1);border-bottom-color:var(--dsw-alias-bg-layer-2);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font-weight:600;box-shadow:none}
-.dbt-region-panel{min-height:0;display:flex;flex:1;overflow:hidden;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-top:0;border-radius:0 0 10px 10px;padding:6px}
+.dbt-region-panel{min-width:0;min-height:0;display:flex;flex-direction:column;flex:1;overflow:hidden;background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);border-top:0;border-radius:0 0 10px 10px;padding:6px}
 .dbt-task-view{min-height:0;display:flex;flex:1;flex-direction:column;gap:7px;overflow:hidden}
 .dbt-task-list{min-height:0;flex:1;overflow-y:auto;overflow-x:hidden;display:grid;grid-template-columns:minmax(0,1fr);grid-auto-rows:max-content;align-content:start;align-items:start;gap:7px;padding:2px}
 .dbt-task-list[data-columns="2"]{display:flex;align-items:flex-start}
@@ -505,6 +538,24 @@ function createSnapshotStore(initial) {
       for (const listener of listeners) listener()
     },
   }
+}
+
+// Same transient owner/lifetime as native ui-sidebar: panel launchers are not Session Pins.
+export function createPanelLauncherPins() {
+  const source = createSnapshotStore(Object.freeze([]))
+  return {
+    source,
+    setPinned(id, pinned) {
+      if (typeof id !== 'string' || id === '' || typeof pinned !== 'boolean' || id === 'plugins') return
+      const unpinned = source.getSnapshot()
+      if (pinned !== unpinned.includes(id)) return
+      source.set(Object.freeze(pinned ? unpinned.filter(value => value !== id) : [...unpinned, id]))
+    },
+  }
+}
+
+export function SidebarPanelIcon({ id, size, active, renderSlot }) {
+  return renderSlot('sidebar.panellist', { size, active }, { only: id })
 }
 
 function resolveLabel(label, fallback) {
@@ -1687,19 +1738,45 @@ function SidebarRegion({ wide, collapsed, view, setView, twoColumns, preferences
       })))
 }
 
-function PanelRow({ panel, wide, usePanelInfo, selectPanel, renderSlot }) {
+export function PanelRow({ panel, usePanelInfo, selectPanel, renderSlot, renderFactorySlot, canUnpin, unpinLabel, setPanelPinned }) {
+  const { Tooltip, IconPinFillRegular, focusWithoutRing } = requireModule('@deepseek-ai/dsh-client-ui-primitives')
   const active = usePanelInfo((info) => info.activePanelId === panel.id)
-  return element('button', {
-    type: 'button',
-    className: 'dbt-panel-row',
-    title: wide ? undefined : panel.label,
-    'aria-label': panel.label,
-    'aria-current': active ? 'page' : undefined,
-    onClick: () => selectPanel(panel.id),
-  },
-  element('span', { className: 'dbt-panel-glyph', 'aria-hidden': 'true' },
-    renderSlot('sidebar.panellist', { size: wide ? 16 : 18, active }, { only: panel.id })),
-  wide ? element('span', { className: 'dbt-panel-label' }, panel.label) : null)
+  return element('div', { className: 'dbt-panel-entry' },
+    element(Tooltip, { label: panel.label, delayMs: SIDEBAR_LAYOUT.tooltipDelayMs, side: 'bottom', portal: true,
+      children: element('button', {
+        type: 'button', className: 'dbt-panel-row',
+        'aria-label': panel.label, 'aria-current': active ? 'page' : undefined,
+        onClick: () => selectPanel(panel.id),
+      }, element('span', { className: 'dbt-panel-glyph', 'aria-hidden': 'true' },
+        typeof renderFactorySlot === 'function'
+          ? renderFactorySlot('sidebar.panel.icon', { id: panel.id, size: SIDEBAR_LAYOUT.iconSize, active })
+          : renderSlot('sidebar.panellist', { size: SIDEBAR_LAYOUT.iconSize, active }, { only: panel.id }))) }),
+    // Native More lists only UNPINNED entries. Keep a separate unpin affordance,
+    // or the menu would have no way to acquire its first hidden launcher.
+    canUnpin ? element(Tooltip, { label: unpinLabel, delayMs: SIDEBAR_LAYOUT.tooltipDelayMs, side: 'bottom', portal: true,
+      children: element('button', { type: 'button', className: 'dbt-panel-unpin', 'aria-label': unpinLabel,
+        onClick: (event) => {
+          const more = event.currentTarget.closest('nav')?.querySelector('button[aria-haspopup="menu"]')
+          if (more) { if (typeof focusWithoutRing === 'function') focusWithoutRing(more); else more.focus() }
+          setPanelPinned(panel.id, false)
+        },
+      }, element(IconPinFillRegular, { size: 12, 'aria-hidden': true })) }) : null)
+}
+
+export function PanelMoreMenu({ entries, label, onOpen, onPinnedChange, renderSlot }) {
+  const React = requireModule('react')
+  const { Menu, Tooltip, IconAppsAddOutlineRegular } = requireModule('@deepseek-ai/dsh-client-ui-primitives')
+  const [open, setOpen] = React.useState(false)
+  const onDismiss = () => setOpen(false)
+  return element(Menu, {
+    open, onClose: onDismiss, portal: true, autoFocus: true,
+    className: 'dbt-panel-more-anchor', listClassName: 'dbt-panel-more-menu',
+    anchor: element(Tooltip, { label, delayMs: SIDEBAR_LAYOUT.tooltipDelayMs, side: 'bottom', portal: true,
+      children: element('button', { type: 'button', className: 'dbt-panel-row',
+        'aria-label': label, 'aria-haspopup': 'menu', 'aria-expanded': open,
+        onClick: () => setOpen(value => !value),
+      }, element(IconAppsAddOutlineRegular, { size: SIDEBAR_LAYOUT.iconSize, 'aria-hidden': true })) }),
+  }, renderSlot('sidebar.panellist.actions', { entries, onOpen, onPinnedChange, onDismiss }))
 }
 
 /**
@@ -1762,25 +1839,25 @@ export function SidebarRootGuard(props) {
 }
 
 /** AppFrame mounts this root-scoped chrome seat only while the macOS rail is hidden. */
-export function SidebarReopenControls({ toggleSidebar, startSession, t }) {
+export function SidebarReopenControls({ toggleSidebar, startSession, useRemoteAccess, t }) {
   const { Tooltip, IconPanelLeftOutlineRegular: PanelIcon, IconNewChatOutlineRegular: NewIcon } = requireModule('@deepseek-ai/dsh-client-ui-primitives')
   return element('div', { className: 'dbt-shell-leading' },
     element(Tooltip, {
-      label: t('toggle.open'), delayMs: 500, portal: true,
+      label: t('toggle.open'), delayMs: SIDEBAR_LAYOUT.tooltipDelayMs, portal: true,
       children: element('button', {
         type: 'button', className: 'dbt-icon-button',
         'aria-label': t('toggle.open'), 'aria-expanded': false,
         onClick: toggleSidebar,
       }, element(PanelIcon, { size: 16 })),
     }),
-    element(Tooltip, {
-      label: t('session.new.label'), delayMs: 500, portal: true,
+    (typeof useRemoteAccess !== 'function' || useRemoteAccess('session/create')) ? element(Tooltip, {
+      label: t('session.new.label'), delayMs: SIDEBAR_LAYOUT.tooltipDelayMs, portal: true,
       children: element('button', {
         type: 'button', className: 'dbt-icon-button',
         'aria-label': t('session.new.label'),
         onClick: () => startSession(),
       }, element(NewIcon, { size: 16 })),
-    }))
+    }) : null)
 }
 
 export function BetterSidebarRoot({
@@ -1791,6 +1868,12 @@ export function BetterSidebarRoot({
   selectPanel,
   usePanels,
   usePanelInfo,
+  useEntryPins,
+  useEntryActions,
+  useShortcuts,
+  useRemoteAccess,
+  setPanelPinned,
+  nativePanelIcons = false,
   useSessions,
   useWorkspaces,
   useSessionStatus, useTaskConnection,
@@ -1808,10 +1891,16 @@ export function BetterSidebarRoot({
   createTaskInput,
   t,
   renderSlot,
+  renderFactorySlot,
 }) {
   const React = requireModule('react')
-  const { Tooltip } = requireModule('@deepseek-ai/dsh-client-ui-primitives')
+  const { Tooltip, IconNewChatOutlineMedium, IconNewChatOutlineRegular, ShortcutKeys } = requireModule('@deepseek-ai/dsh-client-ui-primitives')
   const panels = usePanels((value) => value)
+  const unpinned = useEntryPins?.((value) => value) ?? []
+  const hasEntryActions = useEntryActions?.((value) => value) ?? false
+  const activePanelId = usePanelInfo?.((info) => info.activePanelId)
+  const newShortcut = useShortcuts?.((rows) => rows.find(row => row.id === 'session.new'))
+  const canStartSession = typeof useRemoteAccess !== 'function' || useRemoteAccess('session/create')
   const preferences = useTaskPreferences((snapshot) => snapshot.value)
   // D1: the view is a Config preference rather than plugin-local localStorage, so
   // the Host persists it and 0.2 and 0.1.5 reach it through the same path. The old
@@ -1846,11 +1935,12 @@ export function BetterSidebarRoot({
     'aria-label': 'DSH sidebar',
   },
   element('div', { className: 'dbt-brand-row' },
-    wide ? element('button', {
-      type: 'button',
+    wide ? element(canStartSession ? 'button' : 'span', {
+      type: canStartSession ? 'button' : undefined,
       className: 'dbt-brand',
-      'aria-label': newLabel,
-      onClick: startNewSession,
+      'aria-label': canStartSession ? newLabel : undefined,
+      'aria-keyshortcuts': canStartSession ? newShortcut?.aria : undefined,
+      onClick: canStartSession ? startNewSession : undefined,
     },
     element('span', { className: 'dbt-brand-mark', 'aria-hidden': 'true' },
       renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: element('span', null, '◆') })),
@@ -1858,7 +1948,7 @@ export function BetterSidebarRoot({
       renderSlot('sidebar.brand.name', {}, { fallback: element('span', null, t('brand.fallback')) }))) : null,
     element(Tooltip, {
       label: toggleLabel,
-      delayMs: 500,
+      delayMs: SIDEBAR_LAYOUT.tooltipDelayMs,
       side: windowsTitlebar ? 'bottom' : 'right',
       portal: windowsTitlebar,
       children: element('button', {
@@ -1872,24 +1962,33 @@ export function BetterSidebarRoot({
         renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: element('span', null, '◆') })) : null,
       element(IconPanelLeftOutlineRegular, { className: 'dbt-panel-icon', size: wide || windowsTitlebar ? 16 : 18 }))
     })), 
-  element('button', {
-    type: 'button',
-    className: 'dbt-new-session',
-    title: wide ? undefined : newLabel,
-    'aria-label': newLabel,
-    onClick: startNewSession,
-  },
-  element('span', { 'aria-hidden': 'true' }, '＋'),
-  wide ? element('span', { className: 'dbt-new-label' }, t('session.new')) : null),
+  canStartSession ? element(Tooltip, {
+    label: newLabel, shortcutKeys: newShortcut?.keys, delayMs: SIDEBAR_LAYOUT.tooltipDelayMs,
+    side: windowsTitlebar ? 'bottom' : 'right', disabled: wide,
+    children: element('button', {
+      type: 'button', className: 'dbt-new-session',
+      'aria-label': newLabel, 'aria-keyshortcuts': newShortcut?.aria, onClick: startNewSession,
+    }, element('span', { className: 'dbt-new-label-mask' },
+      element('span', { className: 'dbt-new-content' },
+        element(wide ? IconNewChatOutlineMedium ?? IconNewChatOutlineRegular : IconNewChatOutlineRegular,
+          { size: wide ? 14 : windowsTitlebar ? 16 : 18, 'aria-hidden': true }),
+        wide ? element('span', { className: 'dbt-new-label' }, t('session.new')) : null)),
+      wide && newShortcut?.keys?.length > 0 ? element('span', { className: 'dbt-new-shortcut', 'aria-hidden': true },
+        element(ShortcutKeys, { keys: newShortcut.keys })) : null),
+  }) : null,
   panels.length > 0 ? element('nav', { className: 'dbt-panel-list', 'aria-label': t('panels.label') },
-    ...panels.map((panel) => element(PanelRow, {
-      key: panel.id,
-      panel,
-      wide,
-      usePanelInfo,
-      selectPanel,
-      renderSlot,
-    }))) : null,
+    ...panels.filter(panel => panel.id === 'plugins' || !hasEntryActions || !unpinned.includes(panel.id)).map((panel) => element(PanelRow, {
+      key: panel.id, panel, usePanelInfo, selectPanel, renderSlot, setPanelPinned,
+      canUnpin: hasEntryActions && panel.id !== 'plugins', unpinLabel: t('panels.unpin', { name: panel.label }),
+      renderFactorySlot: nativePanelIcons ? renderFactorySlot : undefined,
+    })),
+    hasEntryActions ? element(PanelMoreMenu, {
+      label: t('panels.more'),
+      entries: panels.filter(panel => panel.id !== 'plugins').map(panel => ({
+        id: panel.id, label: panel.label, pinned: !unpinned.includes(panel.id), active: panel.id === activePanelId,
+      })),
+      onOpen: selectPanel, onPinnedChange: setPanelPinned, renderSlot,
+    }) : null) : null,
   element('div', { className: 'dbt-workspaces' },
     element(SidebarRegion, {
       wide,
@@ -2057,6 +2156,13 @@ function mountSidebar(ctx, taskPins, taskPreferences) {
   }, 'dsh-better-tasks: pinned session projections')
 
   const panels = createSnapshotStore([])
+  const panelPins = createPanelLauncherPins()
+  const nativePanelIcons = typeof ctx.slots.registerFactory === 'function'
+  const entryActions = {
+    getSnapshot: () => nativePanelIcons && ctx.slots.entriesOfSlot('sidebar.panellist.actions').length > 0,
+    subscribe: (listener) => ctx.slots.subscribe('sidebar.panellist.actions', listener),
+  }
+  const emptyShortcuts = createSnapshotStore([])
   const syncPanels = () => {
     const next = ctx.slots.entriesOfSlot('sidebar.panellist').map(({ options }, index) => ({
       id: options.id,
@@ -2097,7 +2203,13 @@ function mountSidebar(ctx, taskPins, taskPreferences) {
     setTaskPreference: (field, value) => taskPreferences.set(field, value),
     startSession: (workspaceId, beforeOpen) => ctx.uiWorkspace.startSession(workspaceId, beforeOpen),
     toggleSidebar: () => ctx.layout.toggleSidebar(),
-    selectPanel: (panelId) => ctx.layout.selectPanel(panelId),
+    selectPanel: (panelId) => {
+      if (panels.getSnapshot().some(panel => panel.id === panelId)) ctx.layout.selectPanel(panelId)
+    },
+    setPanelPinned: (panelId, pinned) => {
+      if (panels.getSnapshot().some(panel => panel.id === panelId)) panelPins.setPinned(panelId, pinned)
+    },
+    nativePanelIcons,
     openSession: (sessionId) => ctx.uiWorkspace.openSession(sessionId),
     moveTaskBefore: (sessionId, beforeSessionId) => taskPins.moveBefore(sessionId, beforeSessionId),
     unpinTask: (sessionId) => taskPins.setPinned(sessionId, false),
@@ -2113,15 +2225,25 @@ function mountSidebar(ctx, taskPins, taskPreferences) {
     // button. Probed per render, not memoized: the service may load later.
     canRevealQuestion: () => ctx.get('userQuestionPanels') !== undefined,
     revealQuestion: (sessionId, callId) => ctx.get('userQuestionPanels')?.reveal(sessionId, callId) ?? null,
-    hooks: { panels, taskPins: taskPins.source, taskPreferences: taskPreferences.source, taskConnection },
+    hooks: { panels, entryPins: panelPins.source, entryActions,
+      shortcuts: ctx.get?.('shortcuts')?.catalog ?? ctx.shortcuts?.catalog ?? emptyShortcuts,
+      taskPins: taskPins.source, taskPreferences: taskPreferences.source, taskConnection },
   })
 
-  ctx.slots.inject('sidebar', () => ctx.slots.register({
-    name: 'sidebar',
-    locale: NS,
-    children: createSidebarChildDeclarations(),
-    inject: injectProps,
-  }, SidebarRootGuard))
+  ctx.slots.inject('sidebar', () => {
+    // The factory is the sole owner of panellist on rc.2; keep the direct legacy
+    // declaration only on renderers without factories. No duplicate slot owners.
+    const stopIcon = nativePanelIcons ? ctx.slots.registerFactory({
+      name: 'sidebar.panel.icon', scope: 'root',
+      children: { 'sidebar.panellist': { kind: 'list', scope: 'root' } },
+    }, SidebarPanelIcon) : undefined
+    const stopSidebar = ctx.slots.register({
+      name: 'sidebar', locale: NS,
+      children: createSidebarChildDeclarations({ iconsInFactory: nativePanelIcons }),
+      inject: injectProps,
+    }, SidebarRootGuard)
+    return () => { stopSidebar(); stopIcon?.() }
+  })
   // Disabling native ui-sidebar removes more than its column root. Restore its
   // outside-the-column reopen seat without taking over the native frame.
   ctx.slots.inject('shell.leading', () => ctx.slots.register({

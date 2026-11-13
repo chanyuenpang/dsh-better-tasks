@@ -34,11 +34,12 @@ function list(rows, current) {
   }
 }
 
-test('declares the six compatibility child seats in native order', () => {
+test('declares compatibility seats including native panel actions in order', () => {
   assert.deepEqual([...SIDEBAR_CHILD_SLOTS], [
     'sidebar.brand.mark',
     'sidebar.brand.name',
     'sidebar.panellist',
+    'sidebar.panellist.actions',
     'sidebar.workspaces',
     'sidebar.settings',
     'sidebar.footer.action',

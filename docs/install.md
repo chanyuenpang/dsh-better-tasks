@@ -1,6 +1,8 @@
 # 安装 Better Tasks：DSH 0.2.2-rc.2 / Tasks 0.4.0
 
-**本次唯一完整安装入口：** [dsh-v0.2.2-rc.2-tasks-v0.4.0](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.0>)。无需 clone 仓库或编译。
+> 本页默认安装的是**已公开发布的 0.4.0 组合**，不等于当前分支的最新开发代码。本轮导航、排序和默认任务名强调更新先以独立 `local` 候选安装；源码推送不会自动替换 GitHub Release，已有 tag/资产保持不变。
+
+**当前公开完整安装入口：** [dsh-v0.2.2-rc.2-tasks-v0.4.0](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.0>)。无需 clone 仓库或编译。
 
 ## 1. 先选版本
 
@@ -114,11 +116,28 @@ if ($LASTEXITCODE -ne 0) { throw '安装失败；不要启动 Desktop，先按�
 
 也可以在插件管理器支持本地 tarball 的环境中选择这七包，但仍须满足前面的 Profile 配置和完整退出条件。不要只安装插件本体：插件的 patch 会接管侧栏，缺 fork 会造成半安装。不要手工把禁用行粘到用户 patch 中；由插件 bundle 管理可移除的 patch 层。
 
+### 已完整安装时，仅升级维护者提供的本地候选
+
+仅限 DSH 完整运行时版本不变、六个 fork 与候选清单哈希全部一致，且现有七包组合已安装完成的情况。维护者必须同时提供候选的 Tasks 版本、适配 DSH 版本与 SHA-256；不要用开发分支源码 ZIP 代替 tarball，也不要从 npm latest 补齐缺失 fork。
+
+完成前面的退出与备份后，将候选 tarball 路径交给同一 CLI：
+
+```powershell
+# 把下面路径替换为实际收到并核验的候选文件；这是占位示例，不是下载地址。
+$mainPackage = (Resolve-Path './veewo-dsh-better-tasks-<候选版本>.tgz').Path
+dsh plugin --profile desktop add $mainPackage
+if ($LASTEXITCODE -ne 0) { throw '升级失败，先恢复备份' }
+```
+
+主包单独升级不适用于全新安装或跨 DSH 版本升级。六个 fork 任一不匹配，就回到完整组合安装。不要手工替换运行中的虚拟存储文件或加载可变源码目录。
+
 ## 6. 启动与验收
 
 手动启动同一套 Desktop，检查侧栏、Session、Workspace 和会话界面能正常打开，主输入框存在；再由使用者验收任务卡片、Pin、输入、问答等功能。若设置提示 restart required，应完全退出再打开，而不是只刷新页面。
 
-有源码检出时，可选运行 `./scripts/desktop-probe.ps1 -SourceProfile desktop`，期望 `desktop probe: PASS`，安装的客户端插件均出现在 boot manifest。纯 CLI Host 可启动、或仅 manifest 存在，不等于实际 Desktop UI 验收通过。当前发布验证范围见同一 Release 的 `validation.json`。
+有源码检出时，可选运行 `./scripts/desktop-probe.ps1 -SourceProfile desktop`，期望 `desktop probe: PASS`，安装的客户端插件均出现在 boot manifest。纯 CLI Host 可启动、或仅 manifest 存在，不等于实际 Desktop UI 验收通过。当前公开发行版的验证范围见同一 Release 的 `validation.json`；本地候选的检查记录应与该候选一起提供，不能拿旧 Release 的结果替代。
+
+开发版默认强调任务名、项目名为次要信息；已保存的“强调项目名”设置不会被覆盖。若升级后仍显示旧强调方式，在 Tasks 设置中手动选择“强调任务名”。
 
 ## 7. 升级、卸载与故障
 

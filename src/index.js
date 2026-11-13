@@ -22,7 +22,7 @@ export const TASK_SETTINGS_DEFAULTS = Object.freeze({
   defaultFinalExpanded: true,
   defaultInputExpanded: false,
   columnLayout: 'auto',
-  titleEmphasis: 'project',
+  titleEmphasis: 'task',
   sidebarView: 'native',
 })
 export const TaskSettingsSchema = Schema.object({
@@ -35,7 +35,7 @@ export const TaskSettingsSchema = Schema.object({
   defaultFinalExpanded: Schema.boolean().default(true).extra('volatile', true),
   defaultInputExpanded: Schema.boolean().default(false).extra('volatile', true),
   columnLayout: Schema.union(['auto', 'single', 'double']).default('auto').extra('volatile', true),
-  titleEmphasis: Schema.union(['project', 'task']).default('project').extra('volatile', true),
+  titleEmphasis: Schema.union(['project', 'task']).default('task').extra('volatile', true),
   // D1: the sidebar body the browser shows. Host-persisted, so both generations
   // read and write it through the same Config path.
   sidebarView: Schema.union(['native', 'tasks']).default('native').extra('volatile', true),
@@ -75,6 +75,10 @@ export const pinQueueDomain = defineDomain({
 export const nativePinOrderDomain = defineDomain({
   name: 'better_tasks_native_order', version: 1,
   tables: { state: domainTable(pinQueueRecord.extend({
+    // Absent on older auto-seeded records; only an explicit drag writes this.
+    manualSessionIds: z.array(z.string().min(1)).refine((ids) => new Set(ids).size === ids.length).optional(),
+    // Task admission time may differ from an older/reused Session header.
+    taskCreatedAtBySession: z.record(z.string().min(1), z.number().int().nonnegative()).optional(),
     migration: z.object({
       status: z.enum(['running', 'done', 'partial']),
       sourceRevision: z.number().int().nonnegative().nullable(),
@@ -188,6 +192,7 @@ export async function apply(ctx) {
   }
   const controller = createNativePinHost({
     registry: ctx.workspaceRegistry,
+    listSessions: (signal) => ctx.sessionQuery.listSessions(signal),
     openOrder: () => open(nativePinOrderDomain, 'state'),
     openLegacy: () => open(pinQueueDomain, 'queues'),
     subscribe: listener => ctx.on('domain/changed', listener),

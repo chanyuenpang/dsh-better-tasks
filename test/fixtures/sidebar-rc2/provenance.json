@@ -1,0 +1,19 @@
+{
+  "upstreamTag": "dsh-v0.2.2-rc.2",
+  "repository": "https://github.com/deepseek-ai/deepseek-harness",
+  "purpose": "Offline native menu and child-authorization contracts; not a full browser or visual test",
+  "files": [
+    {
+      "snapshot": "EntryMenuContent.tsx",
+      "source": "packages/client/ui-entry-customization/src/client/EntryMenuContent.tsx",
+      "snapshotSha256": "4155a0e2b3138ece792bddf15ebfb830620c2a66b40cd87f1d5c9aa73d5ed0ab",
+      "selection": "complete file"
+    },
+    {
+      "snapshot": "scoped-slot-bindings.tsx",
+      "source": "packages/client/ui-renderer/src/client/scoped-slots.tsx",
+      "snapshotSha256": "375f0d19884fbd65ab0aaf2567791eeb01864e1d13eb31a8e61f4d59edfe02ec",
+      "selection": "unmodified boundRenderSlot/cache and boundFactoryRenderSlot/cache excerpts, plus export line"
+    }
+  ]
+}

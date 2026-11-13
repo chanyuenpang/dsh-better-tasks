@@ -12,7 +12,6 @@
  */
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import { createElement, type ReactNode } from 'react'
-import { withRegionBoundary } from './region-boundary.tsx'
 import type { InboxWireState } from '@deepseek-ai/dsh-agent/types'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -470,17 +469,32 @@ export function apply(ctx: ClientContext): void {
   } satisfies UserQuestionPanels)
   ctx.effect(() => disposePanels, 'ui-user-questions: answer panels')
   const registeredComposer = (props: QuestionComposerProps): ReactNode => createElement(QuestionComposer, { ...props, registry })
+  // No render boundary wraps this entry, and that is deliberate.
+  //
+  // `conversation.composer` is an overlay chain whose owner renders the native input
+  // bar as its fallback. A boundary here would catch a crash inside our entry and
+  // render its own crash face in the elected slot, so the fallback the chain exists
+  // to provide would never appear — a mis-bind replaced the whole input bar with a
+  // silent placeholder. The chain's own contract already covers failure: decline the
+  // election and the owner's native composer renders unchallenged. So the selector
+  // declines on throw, and this package contributes a question composer only when it
+  // can actually render one.
   ctx.slots.inject('conversation.composer', () => ctx.slots.register(
     {
       name: 'conversation.composer',
-      select: ({ pendingInteraction }: ComposerChainProps): PendingQuestion | null =>
-        pendingInteraction instanceof PendingQuestion ? pendingInteraction : null,
+      select: ({ pendingInteraction }: ComposerChainProps): PendingQuestion | null => {
+        try {
+          return pendingInteraction instanceof PendingQuestion ? pendingInteraction : null
+        } catch {
+          return null
+        }
+      },
       locale: NS,
       store: registry.draftStore,
       inject: () => ({ keyedHooks: { questionCard: (key: string) => cards.source(key) } }),
       children: { 'conversation.plan-review.actions': { kind: 'list', scope: 'session' } },
     },
-    withRegionBoundary('conversation.composer', registeredComposer),
+    registeredComposer,
   ))
   ctx.uiConversation.events.register(questionReplyDefinition)
   ctx.uiConversation.events.register(answeredQuestionDefinition)

@@ -2,14 +2,14 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { Readable } from 'node:stream'
 import { readFileSync } from 'node:fs'
-import { createNativePinHost } from '../src/native-pin-host.mjs'
+import { createNativePinHost, taskFirstWorkAt } from '../src/native-pin-host.mjs'
 import { createNativePinHttpHandler, nativePinOrderDomain, pinQueueDomain } from '../src/index.js'
 
 const clone = value => value === undefined ? undefined : structuredClone(value)
 const deferred = () => { let resolve, reject; const promise = new Promise((a, b) => { resolve = a; reject = b }); return { promise, resolve, reject } }
 const legacyQueue = ids => ({ schemaVersion: 1, revision: 7, sessionIds: ids, updatedAt: 'legacy' })
 const savedOrder = (ids, status = 'done', entries = []) => ({ ...legacyQueue(ids), migration: { status, sourceRevision: 7, entries } })
-function bench({ pins = [], archived = [], legacy = legacyQueue([]), existing, beforeWrite, openFailure, pinFailure, listSessions, taskCreationNow } = {}) {
+function bench({ pins = [], archived = [], legacy = legacyQueue([]), existing, beforeWrite, openFailure, pinFailure, listSessions, taskCreationNow, readTaskStartedAt } = {}) {
   const listeners = new Set(), calls = [], writes = [], closes = [], records = new Map()
   if (existing) records.set('global', clone(existing))
   let cachedPins = [...pins], cachedArchived = [...archived], opens = 0, legacyOpens = 0, tick = 0
@@ -36,7 +36,7 @@ function bench({ pins = [], archived = [], legacy = legacyQueue([]), existing, b
     async put(id, value) { await beforeWrite?.(clone(value), writes.length); records.set(id, clone(value)); writes.push(clone(value)) },
     async update(id, fn) { return this.put(id, fn(records.get(id))).then(() => records.get(id)) },
   }
-  const host = createNativePinHost({ registry, listSessions, taskCreationNow, now: () => `t${++tick}`,
+  const host = createNativePinHost({ registry, listSessions, taskCreationNow, readTaskStartedAt, now: () => `t${++tick}`,
     subscribe: fn => { listeners.add(fn); return () => listeners.delete(fn) },
     openOrder: async () => { opens++; if (openFailure) throw openFailure; return { table, close: async () => { closes.push('order') } } },
     openLegacy: async () => { legacyOpens++; return { table: { get: () => legacy, put() { throw Error('legacy writes forbidden') }, update() { throw Error('legacy writes forbidden') } }, close: async () => { closes.push('legacy') } } },
@@ -46,6 +46,52 @@ function bench({ pins = [], archived = [], legacy = legacyQueue([]), existing, b
 async function ready(b) { b.host.read(); await b.host.settled(); return b.host.current() }
 
 const headers = times => Object.entries(times).map(([id, createdAt]) => ({ header: { id, createdAt } }))
+const orderRecord = ids => ({schemaVersion:1,revision:1,sessionIds:ids,updatedAt:'2026-11-13T00:00:00Z',migration:{status:'done',sourceRevision:null,entries:[]}})
+test('first task work ignores placeholder setup and later activity',()=>{
+  assert.equal(taskFirstWorkAt([{type:'permission/preset',time:1},{type:'session/end-seed',time:2},
+    {type:'agent/inbox/spliced',time:100},{type:'turn/start',time:101},{type:'agent/inbox/spliced',time:900}]),100)
+  assert.equal(taskFirstWorkAt([{type:'user/message',time:50}]),50)
+  assert.equal(taskFirstWorkAt([{type:'turn/start',time:NaN}]),undefined)
+})
+test('backfill fixes already-pinned blank identities and persists first work across restart',async()=>{
+  const old=orderRecord(['active','mode','cindy']);old.taskCreatedAtBySession={active:100,mode:10,cindy:1}
+  let lookups=0
+  const b=bench({pins:['active','mode','cindy'],existing:old,listSessions:async()=>headers({active:100,mode:10,cindy:1}),
+    readTaskStartedAt:async header=>{lookups++;return {active:100,mode:200,cindy:300}[header.id]}})
+  assert.deepEqual((await ready(b)).queue.sessionIds,['cindy','mode','active'])
+  assert.deepEqual(b.calls,[],'no duplicate native Pin write')
+  const persisted=clone(b.records.get('global'));await b.host.dispose()
+  const r=bench({pins:['active','mode','cindy'],existing:persisted,listSessions:async()=>headers({active:100,mode:10,cindy:1}),
+    readTaskStartedAt:async()=>{throw Error('positive first-work cache must survive restart')}})
+  assert.deepEqual((await ready(r)).queue.sessionIds,['cindy','mode','active']);await r.host.dispose()
+  assert.equal(lookups,3)
+})
+test('an already-pinned hidden blank starts ahead of an older manual sequence',async()=>{
+  let began=false
+  const old=orderRecord(['active','blank']);old.manualSessionIds=['active','blank'];old.manualOrderAt=10
+  const b=bench({pins:['active','blank'],existing:old,listSessions:async()=>headers({active:1,blank:2}),
+    readTaskStartedAt:async header=>header.id==='active'?1:began?100:undefined})
+  await ready(b);began=true;b.host.read();await b.host.settled()
+  assert.deepEqual(b.host.current().queue.sessionIds,['blank','active'])
+  assert.deepEqual(b.records.get('global').manualSessionIds,['active'])
+  assert.deepEqual(b.calls,[]);await b.host.dispose()
+})
+test('manual drag after first work wins even if its metadata arrives later',async()=>{
+  let reveal=false
+  const b=bench({pins:['blank','active'],listSessions:async()=>headers({blank:2,active:1}),taskCreationNow:()=>200,
+    readTaskStartedAt:async header=>header.id==='active'?1:reveal?100:undefined})
+  await ready(b)
+  await b.host.mutate({action:'move',sessionId:'blank',beforeSessionId:null,expectedRevision:b.host.current().queue.revision})
+  reveal=true;b.host.read();await b.host.settled()
+  assert.deepEqual(b.host.current().queue.sessionIds,['active','blank']);await b.host.dispose()
+})
+test('fork-inherited work does not date a new fork as its old parent',async()=>{
+  let calls=0
+  const b=bench({pins:['active','fork'],listSessions:async()=>[
+    {header:{id:'active',createdAt:10}},{header:{id:'fork',createdAt:20,isSeeded:true}}],
+    readTaskStartedAt:async header=>{calls++;assert.equal(header.id,'active');return 10}})
+  assert.deepEqual((await ready(b)).queue.sessionIds,['fork','active']);assert.equal(calls,1);await b.host.dispose()
+})
 test('unmarked default rank is creation-newest-first, never activity or native pin order', async () => {
   let reads = 0
   const b = bench({ pins: ['old', 'new', 'middle'], existing: savedOrder(['old', 'middle', 'new']),

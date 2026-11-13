@@ -1,6 +1,6 @@
 # 卸载 / 回滚 Better Tasks
 
-## 当前组合：DSH 0.2.2-rc.2 / Tasks 0.4.0
+## 当前组合：DSH 0.2.2-rc.2 / Tasks 0.4.1
 
 所有操作先完成正在运行的任务，**手动完全退出 Desktop（含托盘）**，确认旧进程退出，再修改 Profile。不要热替换正在运行的客户端模块。这里不要求删除会话或用户数据。
 
@@ -22,11 +22,13 @@ foreach ($name in $names) {
 
 若以前手工复制过禁用行，只移除属于 Better Tasks 的那部分，保留其他插件配置。核对 Profile 里无残留 Better Tasks bundle/替换行后，再手动启动并验收官方侧栏和主输入框。需要时恢复安装前的 linker 配置；不要为了回滚而覆盖后来无关的插件改动。
 
+本次 conversation 字节与旧版不同；回退需恢复主包及旧 conversation。旧 [0.4.0 七包](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.0>)保持不变。
+
 ### 安装失败或切回上一版 Tasks
 
 使用安装前保存在自己机器的配置备份：`package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`、`cordis.yml`、`cordis.patch.yml`，连同当时完整七包恢复原组合。不要保留“新版 manifest + 旧 lock + 混线 fork”的组合；手动核对实际绝对 Profile 路径后，仅清理其中可重建的 `node_modules`，再运行 `dsh plugin --profile desktop install`。若缺旧包或恢复失败，保持 Desktop 停止并报告错误，不用 `--force` 绕过检查。
 
-旧版组合 tag 不移动，便于按原 DSH 版本重新下载安装。回退 Tasks 不等于回退 DSH：旧包仍须与当前 DSH 完整运行时版本匹配。升级/回退步骤见[固定版本安装说明](<https://github.com/chanyuenpang/dsh-better-tasks/blob/dsh-v0.2.2-rc.2-tasks-v0.4.0/docs/install.md>)。
+旧版组合 tag 不移动，便于按原 DSH 版本重新下载安装。回退 Tasks 不等于回退 DSH：旧包仍须与当前 DSH 完整运行时版本匹配。升级/回退步骤见[固定版本安装说明](<https://github.com/chanyuenpang/dsh-better-tasks/blob/dsh-v0.2.2-rc.2-tasks-v0.4.1/docs/install.md>)。
 
 **不要删除** Session、Workspace、原生 Pin、Goal/Todo、ledger、Tasks 排序、`better-tasks-ui` 设置或浏览器展开状态键。Profile 配置备份也可能含敏感信息，只留本机，勿附到 GitHub issue。
 

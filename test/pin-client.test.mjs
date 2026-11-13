@@ -25,6 +25,25 @@ function fixture(pins = ['a'], order = pins) {
   return f
 }
 
+test('first nonblank catalog transition refreshes rank without any Pin membership change',async()=>{
+  const f=fixture(['active','blank'],['active','blank'])
+  let snapshot={phase:'ready',byId:{active:{blank:false},blank:{blank:true}}}
+  const listeners=new Set()
+  const sessions={getSnapshot:()=>snapshot,subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn)}}
+  f.off=f.client.connectNative({source:f.native,sessions,pinSession:f.pin,unpinSession:f.unpin})
+  const stop=f.client.start();await f.client.refresh();const before=f.requests.length
+  f.request=async()=>reply(200,{queue:queue(3,['blank','active'])})
+  snapshot={phase:'ready',byId:{active:{blank:false},blank:{blank:false}}}
+  for(const fn of [...listeners])fn();await flush()
+  assert.deepEqual(f.ids(),['blank','active']);assert.ok(f.requests.length>before)
+  assert.ok(f.requests.every(([method])=>method==='GET'))
+  const settled=f.requests.length
+  snapshot={...snapshot,byId:{...snapshot.byId,blank:{blank:false,updatedAt:999999}}}
+  for(const fn of [...listeners])fn();await flush()
+  assert.equal(f.requests.length,settled,'ordinary activity must not refetch or reorder')
+  f.off();assert.equal(listeners.size,0);stop()
+})
+
 test('rank projection intersects official pins, excludes archives, and never resurrects legacy membership', () => {
   const rank = queue(4, ['gone', 'b', 'a'])
   assert.deepEqual(projectNativeTaskQueue(rank, { pinnedSessionIds: ['c', 'a', 'b'], archivedSessionIds: ['a'] }).sessionIds, ['c', 'b'])

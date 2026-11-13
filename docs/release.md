@@ -3,13 +3,15 @@
 ## 当前组合与 tag 规则
 
 - DSH Desktop 运行时：**0.2.2-rc.2**。
-- Better Tasks npm/package 版本：**0.4.0**。
-- Git tag / GitHub Release：**`dsh-v0.2.2-rc.2-tasks-v0.4.0`**。
+- Better Tasks npm/package 版本：**0.4.1**。
+- Git tag / GitHub Release：**`dsh-v0.2.2-rc.2-tasks-v0.4.1`**。
 - 安装入口：[安装说明](<install.md>)；旧版兼容表见 [README](<../README.md>)。
 
 今后统一使用 `dsh-v<DSH版本>-tasks-v<Tasks版本>`。DSH 版本写完整，保留 rc 后缀；Tasks 版本仍由插件自己的 manifest 管理。同一 Tasks 源码可适配多条 DSH 线，但每条线都要有独立验证的组合 Release。已发布的 tag 与资产 URL 不移动、不覆盖；内容变化应升 Tasks 版本并创建新组合 tag。面向 RC 运行时的本次组合标记为 GitHub Pre-release，不依赖全局 Latest 作为安装入口。
 
 ## 本次内容
+
+0.4.1：原生新会话、紧凑导航/More/入口固定；默认强调任务名；按首次实际工作时间补正新任务顺序，保留较晚手动拖拽；rc.2 conversation 返回真实仲裁 Promise，修复斜杠提交 reading catch。主包与 conversation 改变，其他五包沿用已验证字节；不能只按 fork 的上游版本号判断字节一致。
 
 侧栏任务泳道、原生 Pin、Final 预览、独立输入与问答卡片；rc.2 行菜单适配新的 context-menu factory slot，并透传 Workspace/quote/empty-submit 参数。包含最新 questions 修复：问答 composer 选择器失败时退出竞选，让原生输入框回退，不再用区域错误边界吞掉整个输入区。
 
@@ -35,8 +37,8 @@
 审查最终 diff，通过后提交准确源码；仅推送需要的分支与新 annotated tag，不用 `--tags` 批量推送历史标签，不 force push。
 
 ```powershell
-$tag = 'dsh-v0.2.2-rc.2-tasks-v0.4.0'
-git tag -a $tag -m 'Better Tasks 0.4.0 for DSH 0.2.2-rc.2'
+$tag = 'dsh-v0.2.2-rc.2-tasks-v0.4.1'
+git tag -a $tag -m 'Better Tasks 0.4.1 for DSH 0.2.2-rc.2'
 git push origin HEAD
 git push origin "refs/tags/$tag"
 # gh release create 用 --verify-tag，显式上传审计后的资产；先 draft，上传完成再公开。

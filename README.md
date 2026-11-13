@@ -4,13 +4,13 @@ DSH 侧栏任务泳道：共享原生 Pin、独立任务输入、Final 预览与
 
 ## 按 DSH 版本安装
 
-**当前公开分发组合：DSH Desktop `0.2.2-rc.2` + Better Tasks `0.4.0`。**
+**当前公开分发组合：DSH Desktop `0.2.2-rc.2` + Better Tasks `0.4.1`。**
 
-当前分支可能含尚未发布的改进；代码推送不等于 Release 更新。本地候选使用独立版本与 SHA-256，不覆盖下面的公开组合。已有完整安装如何只升级候选主包，见[安装说明](<docs/install.md>)。
+0.4.1 包含新任务排序与斜杠提交修复，必须同步更新主包和本 Release 的 conversation fork，见[安装说明](<docs/install.md>)。旧 [0.4.0 组合](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.0>)保留供回滚。
 
 | DSH Desktop 运行时 | Better Tasks | 完整安装入口 |
 |---|---|---|
-| `0.2.2-rc.2` | `0.4.0` | [dsh-v0.2.2-rc.2-tasks-v0.4.0](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.0>)（含输入框回退修复） |
+| `0.2.2-rc.2` | `0.4.1` | [dsh-v0.2.2-rc.2-tasks-v0.4.1](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.1>)（含输入框回退修复） |
 | `0.2.1-rc.2` | `0.3.2` | [历史插件](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/v0.3.2>) + [对应 fork 库](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/better-tasks-forks-0.2.1-rc.2-r1>) |
 | `0.2.0-rc.2` | `0.3.1` | [历史发行版](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/v0.3.1>) |
 
@@ -18,7 +18,7 @@ DSH 侧栏任务泳道：共享原生 Pin、独立任务输入、Final 预览与
 
 **完整安装 = 插件本体 + 同一 Release 的六个 UI fork，共 7 个 `.tgz`。** 源码 ZIP 和单独 npm 包都不是完整安装包。六个 fork 保留原生包名，属于本项目兼容性修改，并非 DeepSeek 官方发行包。
 
-1. 从[当前 Release](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.0>)取齐七包、`release-manifest.json`、`SHA256SUMS.txt` 和 `INSTALL.md`。
+1. 从[当前 Release](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.1>)取齐七包、`release-manifest.json`、`SHA256SUMS.txt` 和 `INSTALL.md`。
 2. 按[安装说明](<docs/install.md>)校验并备份自己的 Profile，配置 `nodeLinker: isolated` 与六个精确的 `publicHoistPattern`。
 3. 完全退出 Desktop（含托盘），安装七包，再手动启动验收。升级与卸载见[回滚说明](<docs/rollback.md>)。
 

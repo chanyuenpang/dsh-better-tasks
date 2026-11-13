@@ -1,14 +1,14 @@
-# 安装 Better Tasks：DSH 0.2.2-rc.2 / Tasks 0.4.0
+# 安装 Better Tasks：DSH 0.2.2-rc.2 / Tasks 0.4.1
 
-> 本页默认安装的是**已公开发布的 0.4.0 组合**，不等于当前分支的最新开发代码。本轮导航、排序和默认任务名强调更新先以独立 `local` 候选安装；源码推送不会自动替换 GitHub Release，已有 tag/资产保持不变。
+> 本页对应完整 0.4.1 组合。升级必须同步更新主包和本 Release 的 conversation fork；仅重启或仅升级主包不能修复斜杠提交异常。完整命令统一安装本 Release 七包。
 
-**当前公开完整安装入口：** [dsh-v0.2.2-rc.2-tasks-v0.4.0](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.0>)。无需 clone 仓库或编译。
+**当前公开完整安装入口：** [dsh-v0.2.2-rc.2-tasks-v0.4.1](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.1>)。无需 clone 仓库或编译。
 
 ## 1. 先选版本
 
 | Desktop 的 DSH 运行时 | Tasks | 安装来源 |
 |---|---|---|
-| `0.2.2-rc.2` | `0.4.0` | 本文对应组合 Release，七包全部从这里取 |
+| `0.2.2-rc.2` | `0.4.1` | 本文对应组合 Release，七包全部从这里取 |
 | `0.2.1-rc.2` | `0.3.2` | [历史插件及其说明](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/v0.3.2>)，配对应旧 fork 库 |
 | `0.2.0-rc.2` | `0.3.1` | [历史发行版](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/v0.3.1>) |
 | `0.2.2-rc.1` / `0.2.2-rc.3` / 其他 | — | **不要安装本文七包**；需要该运行时单独验证的发行版 |
@@ -21,7 +21,7 @@
 
 Release Assets 中应有七个 `.tgz`、`release-manifest.json`、`SHA256SUMS.txt`、`INSTALL.md` 和 `ROLLBACK.md`。GitHub 自动生成的 Source code ZIP/TAR 不是安装包。七包为：
 
-- `veewo-dsh-better-tasks-0.4.0.tgz`
+- `veewo-dsh-better-tasks-0.4.1.tgz`
 - `deepseek-ai-dsh-client-ui-layout-0.2.2-rc.2.tgz`
 - `deepseek-ai-dsh-client-ui-workspace-0.2.2-rc.2.tgz`
 - `deepseek-ai-dsh-client-ui-user-questions-0.2.2-rc.2.tgz`
@@ -33,12 +33,12 @@ Release Assets 中应有七个 `.tgz`、`release-manifest.json`、`SHA256SUMS.tx
 
 ```powershell
 $ErrorActionPreference = 'Stop'
-$tag = 'dsh-v0.2.2-rc.2-tasks-v0.4.0'
+$tag = 'dsh-v0.2.2-rc.2-tasks-v0.4.1'
 $base = "https://github.com/chanyuenpang/dsh-better-tasks/releases/download/$tag"
 $downloadDir = Join-Path (Get-Location) $tag
 New-Item -ItemType Directory -Path $downloadDir -Force | Out-Null
 $files = @('release-manifest.json', 'SHA256SUMS.txt', 'INSTALL.md', 'ROLLBACK.md',
-           'veewo-dsh-better-tasks-0.4.0.tgz')
+           'veewo-dsh-better-tasks-0.4.1.tgz')
 $slugs = 'layout','workspace','user-questions','input-trigger','commands','conversation'
 $files += $slugs | ForEach-Object { "deepseek-ai-dsh-client-ui-$_-0.2.2-rc.2.tgz" }
 foreach ($file in $files) {
@@ -47,7 +47,7 @@ foreach ($file in $files) {
 # 校验七包，版本组合、文件名和数量不符时停止。
 $manifest = Get-Content (Join-Path $downloadDir 'release-manifest.json') -Raw | ConvertFrom-Json
 if ($manifest.tag -ne $tag -or $manifest.dshVersion -ne '0.2.2-rc.2' -or
-    $manifest.tasksVersion -ne '0.4.0' -or @($manifest.assets).Count -ne 7) {
+    $manifest.tasksVersion -ne '0.4.1' -or @($manifest.assets).Count -ne 7) {
     throw '发行版本或安装包数量不匹配'
 }
 $expectedArchives = @($files | Where-Object { $_ -like '*.tgz' } | Sort-Object)
@@ -143,7 +143,7 @@ if ($LASTEXITCODE -ne 0) { throw '升级失败，先恢复备份' }
 
 升级 DSH 前，先找到与新 DSH 完整版本对应的组合 tag；没有对应发布就先不要带旧 fork 升级。更新同一 DSH 下的 Tasks，也应重新取齐新 Release 七包和校验清单。
 
-卸载与恢复步骤见同一 Release 的 `ROLLBACK.md` 或[固定版本回滚说明](<https://github.com/chanyuenpang/dsh-better-tasks/blob/dsh-v0.2.2-rc.2-tasks-v0.4.0/docs/rollback.md>)。卸载时须连同六个 fork 依赖一起移除，否则它们还会遮蔽官方模块。
+卸载与恢复步骤见同一 Release 的 `ROLLBACK.md` 或[固定版本回滚说明](<https://github.com/chanyuenpang/dsh-better-tasks/blob/dsh-v0.2.2-rc.2-tasks-v0.4.1/docs/rollback.md>)。卸载时须连同六个 fork 依赖一起移除，否则它们还会遮蔽官方模块。
 
 | 症状 | 优先检查 |
 |---|---|

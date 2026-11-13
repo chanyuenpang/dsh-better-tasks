@@ -791,14 +791,15 @@ export class SessionInputShell implements SessionInput {
   }
 
   /** Enter adjudication: poll the session controller; failure = notice + draft retained (never a silent downgrade). */
-  private adjudicate(attempt: SubmitAttempt, draft: string): void {
+  private adjudicate(attempt: SubmitAttempt, draft: string): Promise<void> {
     const inputTriggers = this.deps.inputTriggers?.()
     if (inputTriggers === undefined) {
       // No pipeline mounted: the '/' line is an ordinary message.
       this.dispatchRun(({ type: 'adjudicated', attempt, outcome: undefined }))
-      return
+      return Promise.resolve()
     }
-    inputTriggers.adjudicate(draft.trim(), attempt.signal, { attachments: this.attachmentIds.length }).then(
+    // Keep the real arbitration in trackOperation, including detached-surface lifetime.
+    return inputTriggers.adjudicate(draft.trim(), attempt.signal, { attachments: this.attachmentIds.length }).then(
       (outcome: PickOutcome) => {
         if (this.dead(attempt)) return
         this.dispatchRun(({ type: 'adjudicated', attempt, outcome }))

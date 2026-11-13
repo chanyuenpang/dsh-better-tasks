@@ -115,6 +115,17 @@ export function createTaskPinsClient({ request = pinRequest, schedule = setTimeo
     }
     binding = next; generation++
     let signature, closed = false
+    let visible = new Set()
+    const observeStartedTasks = () => {
+      if (closed || disposed || !nativeReady()) return
+      const sessions = next.sessions?.getSnapshot?.()
+      if (sessions?.phase !== 'ready') return
+      const nextVisible = new Set(native.pinnedSessionIds.filter(id => sessions.byId?.[id]?.blank === false))
+      const appeared = [...nextVisible].some(id => !visible.has(id))
+      visible = nextVisible
+      // A pre-existing Pin can become a new task without a workspace change.
+      if (appeared && started) void refresh().catch(() => {})
+    }
     const observe = () => {
       if (closed || disposed) return
       const snapshot = next.source.getSnapshot()
@@ -122,12 +133,14 @@ export function createTaskPinsClient({ request = pinRequest, schedule = setTimeo
       const value = JSON.stringify([native.pinnedSessionIds, native.archivedSessionIds, native.phase, native.state])
       const changed = signature !== value
       signature = value; publish()
+      observeStartedTasks()
       if (changed && nativeReady() && started) void refresh().catch(() => {})
     }
     const off = next.source.subscribe(observe)
+    const offSessions = typeof next.sessions?.subscribe === 'function' ? next.sessions.subscribe(observeStartedTasks) : () => {}
     disconnect = () => {
       if (closed) return
-      closed = true; off(); stopTimer(); generation++
+      closed = true; off(); offSessions(); stopTimer(); generation++
       if (binding === next) { binding = undefined; native = undefined; loaded = false; writable = false; publish() }
     }
     observe()

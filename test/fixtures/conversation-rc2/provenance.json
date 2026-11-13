@@ -1,0 +1,5 @@
+{
+  "upstreamTag": "dsh-v0.2.2-rc.2",
+  "source": "packages/client/ui-conversation/src/client/input/machine.ts",
+  "sha256": "3ffcbbd565a2e9dee058c7f7689eb99aa032a95c0be7593b1d411afdc841f472"
+}

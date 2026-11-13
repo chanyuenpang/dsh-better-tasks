@@ -2134,6 +2134,7 @@ function mountSidebar(ctx, taskPins, taskPreferences) {
   // uiWorkspace adds the official sidebar pin-fronting policy without navigation.
   ctx.effect(() => taskPins.connectNative({
     source: ctx.get?.('workspaces')?.list,
+    sessions: ctx.get?.('sessions')?.list,
     pinSession: (id) => ctx.uiWorkspace.pinSession(id),
     unpinSession: (id) => ctx.uiWorkspace.unpinSession(id),
   }), 'dsh-better-tasks: native Pin projection')

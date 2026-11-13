@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "result": "PASS",
+  "dshVersion": "0.2.2-rc.3",
+  "tasksVersion": "0.4.2",
+  "tag": "dsh-v0.2.2-rc.3-tasks-v0.4.2",
+  "sourceCommit": "026deb70b46df5be983ba11219ad24878fad9409",
+  "checkedAt": "2026-11-13T19:41:30.158Z",
+  "startupOnly": true,
+  "command": "node .local/rc3-042-20261114/run-startup-gate.mjs",
+  "sandboxProfile": "sandbox/.desktop-rc3-042-20261114-r2/home/profiles/desktop",
+  "listeningUrl": "http://127.0.0.1:39473/",
+  "rendererUrl": "dsh-app://app/",
+  "runtime": {
+    "officialInstallerUrl": "https://download.deepseek.com/dsh-desk/bin/win-x64/deepseek-harness-0.2.2-rc.3-win-x64.exe",
+    "size": 299595752,
+    "sha512": "GiJf8kx+C7eoiZ0xQSYBcTyh5xmXQl+vh63U6uSm963McK1AkMgB8PydzuekWdUY7hyURvhVMHANM4pn+tCKzQ==",
+    "signature": "Valid; Hangzhou DeepSeek Artificial Intelligence Co., Ltd.",
+    "applicationVersion": "0.2.2-rc.3",
+    "bundledDshVersion": "0.2.2-rc.3",
+    "installerExecuted": false
+  },
+  "isolation": {
+    "separateHome": true,
+    "separateProfile": true,
+    "separateSessionsAndLedger": true,
+    "separateElectronUserData": true,
+    "cindyDisabled": true,
+    "composition": "official base/web bundles plus the exact seven candidate packages; no unrelated user plugins"
+  },
+  "checks": {
+    "unitTests": {
+      "passed": 502,
+      "failed": 0,
+      "targetSourceLine": "0.2.2-rc.3"
+    },
+    "syntax": "PASS",
+    "upstreamDrift": {
+      "result": "attachable",
+      "unchanged": 37,
+      "changed": 2,
+      "missing": 0
+    },
+    "targetSelfContract": {
+      "result": "attachable",
+      "unchanged": 39,
+      "missing": 0
+    },
+    "forkExternals": {
+      "result": "PASS",
+      "checked": 6
+    },
+    "packageAudit": {
+      "result": "PASS",
+      "checked": 7
+    },
+    "browserCoreActivated": true,
+    "activeClientEntries": 77,
+    "servedClientHashes": [
+      {
+        "name": "@deepseek-ai/dsh-client-ui-layout",
+        "clientSha256": "ab86bbb60ce48f6ae548963982e7ba444211bb7c9b9bbe1567bb2ae7648acc0b",
+        "servedExecutableSha256": "62d11f97d4ab601847a35ae48503fcef7246603ec03ba2fadac09904549bc1df"
+      },
+      {
+        "name": "@deepseek-ai/dsh-client-ui-workspace",
+        "clientSha256": "1861ca2db05446a0dbd80132eb5c42221387786009772753a5c7411ea2f3340e",
+        "servedExecutableSha256": "bcad3e52fd0f1a6c1ac99b181f0172cd564ba1396deaf28ea93bc6a2b2586b1c"
+      },
+      {
+        "name": "@deepseek-ai/dsh-client-ui-user-questions",
+        "clientSha256": "2e05948e47322d30ce1a1b3968ed8b3c1ef794d8b663baea70bece617a60f21b",
+        "servedExecutableSha256": "582ca5847238d5aafe14078155c933670121ccc4d3228c225ca020910eaf97e2"
+      },
+      {
+        "name": "@deepseek-ai/dsh-client-ui-input-trigger",
+        "clientSha256": "866a261d0f30497a432fd3428c4b7a6d806dbfd125201f46afd9b2cd4f85935b",
+        "servedExecutableSha256": "d49c0b5852dabf2dc45bba12a5c21f7a08a10866e5cde1b9241320b42fbcb048"
+      },
+      {
+        "name": "@deepseek-ai/dsh-client-ui-commands",
+        "clientSha256": "9790f953aed730bd78c499b0816f18039fd5457c259df09cd4f909910ecf50a4",
+        "servedExecutableSha256": "8a5df87c2298d5652594182eebd808fe8750d563166ba819622f16c9224c3806"
+      },
+      {
+        "name": "@deepseek-ai/dsh-client-ui-conversation",
+        "clientSha256": "765aecf768699cd30db462c6559332ddf18d4644e5d37a7966b56fff88910eed",
+        "servedExecutableSha256": "02b1756e192e27ca5047f7319e4d879328ca7ca8d6445355d55d3db909bbeed7"
+      },
+      {
+        "name": "@veewo/dsh-better-tasks",
+        "clientSha256": "65a80c6da166007df13b1ff0f47212eacacb939d313656754fea042d8ec9d80d",
+        "servedExecutableSha256": "9c8c8751485d6b17b9a7de50b134c939b9558eaac45ef2db0539149b6a46292d"
+      }
+    ],
+    "browserErrors": [],
+    "cleanup": {
+      "ports": [
+        39473,
+        9231
+      ],
+      "ownedListenersRemaining": 0,
+      "ownedProcessesRemaining": 0
+    }
+  },
+  "cleanupComplete": true,
+  "cleanupVerifiedAt": "2026-11-13T19:40:41.7812605Z",
+  "probeNotes": [
+    "Initial Node HTTP probe omitted the official 303 token-to-cookie exchange; corrected without changing candidate bytes, then used a fresh isolated profile.",
+    "taskkill reported unsupported-child diagnostics; a separate successful process/listener audit confirmed zero owned resources remaining."
+  ],
+  "uiReview": {
+    "mode": "read-only source review",
+    "substantiveFindings": 0,
+    "visualVerification": false
+  },
+  "realProfileChanged": false,
+  "realDesktopRestarted": false,
+  "publication": "local-candidate; no npm or GitHub Release upload",
+  "functionalAcceptance": "User-owned; not performed by this startup gate"
+}

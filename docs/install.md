@@ -8,9 +8,9 @@
 
 | dsh 运行时 | fork 库（release tag） | 插件版本 | 形态 |
 |---|---|---|---|
-| `0.2.2-rc.3` | `releases/0.2.2-rc.3-forks/` | `0.4.0` | 插件 + 六个 fork 载荷，两步 |
-| `0.2.2-rc.2` | `releases/0.2.2-rc.2-forks/` | `0.4.0` | 插件 + 六个 fork 载荷，两步 |
-| `0.2.2-rc.1` | `releases/0.2.2-rc.1-forks/` | `0.4.0` | 插件 + 六个 fork 载荷，两步 |
+| `0.2.2-rc.3` | `better-tasks-forks-0.2.2-rc.3`（本地 `releases/0.2.2-rc.3-forks/`） | `0.4.0` | 插件 + 六个 fork 载荷，两步 |
+| `0.2.2-rc.2` | `better-tasks-forks-0.2.2-rc.2` | `0.4.0` | 插件 + 六个 fork 载荷，两步 |
+| `0.2.2-rc.1` | 本地 `releases/0.2.2-rc.1-forks/` | `0.4.0` | 插件 + 六个 fork 载荷，两步 |
 | `0.2.1-rc.2` | `better-tasks-forks-0.2.1-rc.2-r1` | `0.3.2` | 插件 + 六个 fork 载荷，两步 |
 | `0.2.0-rc.2` | `better-tasks-forks-0.2.0-rc.2-r1` | `0.3.1` | 插件自带 fork 载荷，一步 |
 

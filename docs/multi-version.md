@@ -175,9 +175,19 @@ node scripts/prepare-layer-split-sandbox.mjs `
 **前置**：那台机器的 `dsh` 必须是 `0.2.2-rc.2`。用错线的 fork 会启动失败或界面错位。
 
 ```powershell
-# 1) 取安装物（两个压缩包 + 六个 fork tarball 一起拷过去）
-#    releases/veewo-dsh-better-tasks-0.4.0.tgz
-#    releases/0.2.2-rc.2-forks/*.tgz
+# 1) 取安装物：直接从 GitHub release 下载六个 fork（匿名可下）
+$base = 'https://github.com/chanyuenpang/dsh-better-tasks/releases/download/better-tasks-forks-0.2.2-rc.2'
+$dir = "$env:TEMP\better-tasks-rc2"
+New-Item -ItemType Directory $dir -Force | Out-Null
+foreach ($s in 'layout','workspace','user-questions','input-trigger','commands','conversation') {
+  curl.exe -sS -L -o "$dir\deepseek-ai-dsh-client-ui-$s-0.2.2-rc.2.tgz" `
+    "$base/deepseek-ai-dsh-client-ui-$s-0.2.2-rc.2.tgz"
+}
+curl.exe -sS -L -o "$dir\candidates.json" "$base/candidates.json"
+# 校验：candidates.json 里的 archiveSha256 必须逐个对上
+
+# 插件本体（跨线通用，任一来源均可）
+#   本地：releases/veewo-dsh-better-tasks-0.4.0.tgz
 
 # 2) 完全退出 Desktop（含托盘）
 

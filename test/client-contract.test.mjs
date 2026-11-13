@@ -96,6 +96,7 @@ test('registers one root replacement and declares all compatibility seats', () =
     'sidebar.workspaces': { kind: 'single', scope: 'root' },
     'sidebar.settings': { kind: 'single', scope: 'root' },
     'sidebar.footer.action': { kind: 'list', scope: 'root' },
+    'sidebar.session.action': { kind: 'hoc', scope: 'root' },
   })
 
   const injected = options.inject()

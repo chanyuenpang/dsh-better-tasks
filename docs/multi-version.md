@@ -14,13 +14,13 @@
 
 | dsh 运行时 | fork 库 | 构建基线与来源 | 状态 |
 |---|---|---|---|
-| `0.2.2-rc.3` | `releases/0.2.2-rc.3-forks/` | `third_party/source/dsh-v0.2.2-rc.3.tar.gz` | 历史候选；最新源码需适配、重建及精确 rc.3 门禁，未发布当前组合 |
+| `0.2.2-rc.3` | `releases/dsh-v0.2.2-rc.3-tasks-v0.4.2/` | `third_party/source/dsh-v0.2.2-rc.3.tar.gz` | Tasks 0.4.2 适配候选；只认该完整七包与随附 validation，不复用旧库门禁 |
 | `0.2.2-rc.2` | `releases/0.2.2-rc.2-forks/` | `third_party/source/dsh-v0.2.2-rc.2.tar.gz` | 沙盒门禁通过 |
 | `0.2.2-rc.1` | `releases/0.2.2-rc.1-forks/` | `third_party/source/dsh-v0.2.2-rc.1.tar.gz` | 已发布 |
 
 插件本体可以跨线复用，但**必须先确认主包的原生接点兼容**，不能由 peer 区间直接推出支持。
-当前公开主包是 Tasks `0.4.1` / DSH rc.2；rc.3 新增了主包尚未声明/渲染的 `sidebar.session.action` HOC，
-所以本次换线需要主包适配、新 Tasks 版本和完整七包，而不是只取旧 rc.3 fork。
+当前公开组合仍是 Tasks `0.4.1` / DSH rc.2；本轮 Tasks `0.4.2` 在主包声明/渲染 rc.3 新增的 `sidebar.session.action` HOC，
+并配合最新源码构建的 rc.3 六包交付候选；安装见 [rc.3 说明](<install-rc3.md>)，不是只取旧 rc.3 fork。
 `peerDependencies` 仍为 `>=0.2.0-rc.2 <0.3.0-0`；安装器接受范围不是运行时与新扩展接点的证明。
 详见 [rc.3 支持评估](<dsh-0.2.2-rc.3-support.md>)。历史沙盒结果不能代替最新代码在目标运行时上的精确组合门禁。
 

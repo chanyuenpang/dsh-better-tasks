@@ -44,7 +44,7 @@ Source patches live under [src-patches](<src-patches/>), project-owned modules u
 
 **仅在 `main` 上开发和提交**；不再维护按功能、发布或 DSH 版本划分的长期分支。已有分支仅保留历史引用。支持版本只由 `main` 上不可变的 `dsh-v<DSH版本>-tasks-v<Tasks版本>` annotated tag 与完整 Release 标记，`main` 的最新提交不等于已经发布或适配完成，详见[发布规范](<docs/release.md>)。
 
-DSH `0.2.2-rc.3` 已有源码基线和早期 fork，但**当前 Tasks 0.4.1 尚未完成 rc.3 支持**；需要补齐新会话行 HOC 接点、重建最新修复并验证，见[rc.3 支持评估](<docs/dsh-0.2.2-rc.3-support.md>)。不要将旧 rc.3 产物与当前 rc.2 Release 混装。
+**rc.3 开发候选：Tasks `0.4.2` / DSH `0.2.2-rc.3`。** 已接通原生新会话行 HOC，并从最新源码准备六个 rc.3 fork；完整七包及 `validation.json` 的精确目标启动结果随候选交付，见[rc.3 安装说明](<docs/install-rc3.md>)和[适配记录](<docs/dsh-0.2.2-rc.3-support.md>)。这不是 npm/GitHub Release 已发布声明；公开 rc.2 入口保持不变，不混装旧 rc.3 产物。
 
 侧栏新增按钮、调整排版或适配新 DSH 前，先遵循[侧栏排版与适配规范](<docs/sidebar-layout.md>)；数字、原生语义样式与版本合同分层维护。
 

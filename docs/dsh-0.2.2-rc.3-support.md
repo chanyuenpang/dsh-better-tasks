@@ -1,10 +1,10 @@
-# DSH 0.2.2-rc.3 支持评估
+# DSH 0.2.2-rc.3 适配记录
 
-评估日期：2026-11-14。范围：从已发布 DSH `0.2.2-rc.2` / Tasks `0.4.1` 前向适配，不改真实 Profile、不安装或重启 Desktop。
+评估/实施日期：2026-11-14。范围：从已发布 DSH `0.2.2-rc.2` / Tasks `0.4.1` 前向适配为 Tasks `0.4.2` / rc.3 候选，不改真实 Profile、不安装或重启真实 Desktop。
 
 ## 结论
 
-**可以沿用现有源码分层前向适配，无须新建版本分支；但不能直接把旧 rc.3 fork 或当前 Tasks 0.4.1 标为支持。** 最小新增工作是接通新会话行 HOC，并从最新源码重建 rc.3 六包、验证精确目标组合后发布。建议下一版 Tasks `0.4.2`，目标组合 tag 为 `dsh-v0.2.2-rc.3-tasks-v0.4.2`；这是建议，尚未创建 tag 或发布。
+**适配实现在 main，候选组合为 Tasks `0.4.2` / DSH `0.2.2-rc.3`，标识 `dsh-v0.2.2-rc.3-tasks-v0.4.2`。** 主包已接通新会话行 HOC，配合最新源码重建的 rc.3 六包交付；不能把旧 rc.3 fork 或 Tasks 0.4.1 视为该候选。是否完成精确目标启动门禁、清理与包审计，以候选随附 `validation.json` 为准。参见[候选安装](<install-rc3.md>)；本页不声称已上传 GitHub/npm 或完成用户验收。
 
 当前公共安装入口仍为 [rc.2 / Tasks 0.4.1](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.1>)。此次合并主分支及评估不构成 rc.3 支持声明。
 
@@ -29,19 +29,19 @@
 
 官方源码锚点：[侧栏合同](<https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/packages/client/ui-sidebar/src/client/contract/slots.ts#L76-L86>)、[HOC 渲染](<https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/packages/client/ui-sidebar/src/client/SidebarRoot.tsx#L381-L405>)、[Workspace 注册](<https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/packages/client/ui-workspace/src/client/index.ts>)。
 
-当前缺口在 [child 声明](<../src/task-model.mjs#L1-L16>)与[新会话行渲染](<../src/client.js#L1965-L1978>)：前者没有该 HOC，后者直接输出 Tooltip。因组合禁用了原生 ui-sidebar，不能指望上游替我们保留它。不能把这个座位误加为 list/single，也不能把 HOC children 当成普通 owner 字段；官方 kind/调用签名是适配合同。
+已在 [child 声明](<../src/task-model.mjs>)增加 root/hoc，并在[新会话行渲染](<../src/client.js>)使用第三参 `{children}` 透传 Tooltip/新会话按钮；整行仍受 `session/create` 权限保护。新行布局只容纳可选兄弟动作，不改变任务卡或新会话业务。无 occupant 时原生 renderer 原样返回按钮；不注册或硬依赖导入服务，rc.2 没有该 occupant 时同样安全。离线[HOC 回归](<../test/rc3-native-hoc.test.mjs>)执行带来源哈希的目标 renderer 摘录，覆盖无层回退、迟到注册及卸载；[导航回归](<../test/sidebar-navigation.test.mjs>)覆盖权限、children、宽窄状态和原生动作。它们不是完整浏览器或视觉验收。
 
 ## 3. 为什么旧 rc.3 产物不能直接用
 
-[rc.3 六包目录](<../forks-0.2.2-rc.3/>)最后提交于 `e172761`。此后已有：
+实施前的[rc.3 六包目录](<../forks-0.2.2-rc.3/>)停在 `e172761`。此后已存在、且本次重建必须纳入的修复是：
 
 - `948b0b6`：问答 composer 退出竞选，让原生输入回退；
 - `2d2203a`：原生导航/新会话及默认排序修复；
 - `5c34bef`：Tasks 0.4.1 的实际工作时间排序与斜杠仲裁 Promise/lifetime 修复。
 
-新的源码能复用 rc.2 overlay，不代表旧产物已自动更新。旧多版本文档的“沙盒门禁通过”只是一份历史候选记录，既没有证明最新七包，也不能凭候选包版本名证明 Host 本身运行在 rc.3；更不能替代目标 Desktop 浏览器核心激活证据。本次将 rc.3 登记状态更正为 `port-required`。
+新的源码能复用 rc.2 overlay，不代表旧产物已自动更新。旧多版本文档的“沙盒门禁通过”只是一份历史候选记录，既没有证明最新七包，也不能凭候选包版本名证明 Host 本身运行在 rc.3；更不能替代目标 Desktop 浏览器核心激活证据。上一轮据此标记为 `port-required`；本轮实现升级为 `candidate`，不把状态字段当作独立运行通过凭据。
 
-## 4. 后续实施顺序（全部在 main）
+## 4. 本次实施和验证顺序（全部在 main）
 
 1. 在主包按精确原生合同声明并渲染 HOC；缺 provider 时安全保留新会话，不增加启动等待。保持 rc.2 的现有入口与权限行为，不引入新的任务/Pin/宽度所有者。
 2. 添加离线单元/合同覆盖：HOC kind/scope、children 透传和无 occupant 回退、权限，及 workspace factory 未被 patch 丢掉。官方导入行为与视觉由用户验收，不增加沙盒功能探针。
@@ -57,7 +57,7 @@
 5. 按[发布流程](<release.md>)打主包与 **rc.3 六包**，记录目标 runtime/tag、七包字节哈希和来源。用真正的 rc.3 Desktop/Host 和这七包冷启动：独立 Home/Profile/Session/ledger/Electron user-data、禁 Cindy；确认监听、核心浏览器 shell 激活、无启动错误/服务等待，再停止并确认清除所有自有进程/监听。若同时发布更新后的 rc.2 组合，该组合另需自己的证据。
 6. 只在门禁通过且七包/清单/安装/回滚/验证证据就绪后，从 `main` 创建新的 annotated 组合 tag 和 GitHub Release。旧 tag、旧资产保持不变；真实安装和用户确认重启另行处理。
 
-以上为后续适配方案；本轮没有执行 HOC 实现、fork 重建、rc.3 启动或发布，也没有修改当前运行的 DSH。
+HOC/离线回归、版本和文档修改完成后，统一做构建回归与七包审计，再用从官方签名安装包隔离解出的精确 rc.3 Desktop 验证启动；不执行安装程序、不替换真实应用。完整候选只在门禁通过后交付；实际命令、目标版本、浏览器错误、七包哈希与进程/监听清理结果记录在随包 `validation.json`。真实运行中的 DSH 与 Profile 不改动，功能/外观由用户验收。
 
 ## 5. 分支与版本规则
 

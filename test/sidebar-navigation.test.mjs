@@ -15,7 +15,7 @@ function harness(overrides={}) {
   const calls=[],states=[],slots=[]
   const primitives={Tooltip:'Tooltip',Menu:'Menu',IconNewChatOutlineMedium:'NewMedium',IconNewChatOutlineRegular:'NewRegular',IconAppsAddOutlineRegular:'MoreIcon',IconPinFillRegular:'Pin',ShortcutKeys:'ShortcutKeys'}
   const context={element,SIDEBAR_LAYOUT,requireModule:name=>name==='react'?{
-    createElement:element,useState:()=>[false,value=>states.push(typeof value==='function'?value(false):value)],useEffect:()=>{},useRef:value=>({current:value}),
+    createElement:element,useState:initial=>[initial,value=>states.push(typeof value==='function'?value(initial):value)],useEffect:()=>{},useRef:value=>({current:value}),
   }:primitives,
     IconPanelLeftOutlineRegular:'PanelLeft',PanelRow:'PanelRow',PanelMoreMenu:'PanelMoreMenu',SidebarRegion:'SidebarRegion',TASK_GRID_TWO_COLUMN_THRESHOLD:528,
     window:{setTimeout:()=>1,clearTimeout:()=>{}},
@@ -26,7 +26,7 @@ function harness(overrides={}) {
     useTaskPreferences:read=>read({value:DEFAULT_TASK_PREFERENCES}),
     useShortcuts:read=>read([{id:'session.new',aria:'Control+N',keys:['Ctrl','N']}]),useRemoteAccess:permission=>{assert.equal(permission,'session/create');return true},
     nativePanelIcons:true,setPanelPinned:(...args)=>calls.push(['pin',...args]),t:key=>key,
-    renderSlot:(...args)=>{slots.push(args);return element('Slot',{})},...overrides,
+    renderSlot:(...args)=>{slots.push(args);return args[0]==='sidebar.session.action'?args[2].children:element('Slot',{})},...overrides,
   }
   const Root=vm.runInNewContext(rootSource+'\nBetterSidebarRoot',context)
   const components=vm.runInNewContext(navigationSource+'\n({PanelRow,PanelMoreMenu})',context)
@@ -93,6 +93,52 @@ test('denied native session-create capability removes both New Session affordanc
   assert.equal(nodes(f.tree).some(n=>n.props['aria-label']==='session.new.label'),false)
   assert.equal(nodes(f.tree).some(n=>n.props.className==='dbt-new-session'),false)
 })
+test('rc.3 declares the New Session action as root HOC without sharing the icon-factory child',()=>{
+  for(const iconsInFactory of [false,true]) {
+    const children=createSidebarChildDeclarations({iconsInFactory})
+    assert.deepEqual(children['sidebar.session.action'],{kind:'hoc',scope:'root'})
+    assert.equal(children['sidebar.panellist']?.kind,iconsInFactory?undefined:'list')
+  }
+})
+test('rc.3 no-occupant HOC preserves the native New Session content as options.children',()=>{
+  const f=harness(),[name,owner,opts]=f.slots.find(([key])=>key==='sidebar.session.action')
+  assert.equal(name,'sidebar.session.action')
+  assert.equal(JSON.stringify(owner),JSON.stringify({wide:true}))
+  assert.deepEqual(Object.keys(opts),['children'])
+  assert.equal(opts.children.type,'Tooltip')
+  const row=nodes(f.tree).find(n=>n.props.className==='dbt-new-session-row')
+  assert.equal(row.children[0],opts.children)
+  assert.equal(nodes(row).filter(n=>n.props.className==='dbt-new-session').length,1)
+  assert.deepEqual(f.calls,[],'rendering an optional action cannot create a Session')
+})
+test('rc.3 action layers retain the native button exactly once and receive narrow/wide state',()=>{
+  for(const collapsed of [false,true]) {
+    const calls=[],slots=[]
+    const f=harness({collapsed,startSession:()=>calls.push('new'),renderSlot:(name,owner,opts)=>{
+      if(name!=='sidebar.session.action')return null
+      slots.push([owner,opts])
+      return element('HocLayer',{},opts.children,element('button',{'data-import-action':true}))
+    }})
+    const all=nodes(f.tree),button=all.find(n=>n.props.className==='dbt-new-session')
+    assert.equal(slots.length,1)
+    assert.equal(slots[0][0].wide,!collapsed)
+    assert.equal(all.filter(n=>n.props['data-import-action']).length,1)
+    assert.equal(all.filter(n=>n.props.className==='dbt-new-session').length,1)
+    button.props.onClick();assert.deepEqual(calls,['new'])
+  }
+})
+test('rc.3 denied Session creation never renders or invokes the optional action HOC',()=>{
+  const f=harness({useRemoteAccess:()=>false})
+  assert.equal(f.slots.some(([name])=>name==='sidebar.session.action'),false)
+  assert.equal(nodes(f.tree).some(n=>n.props.className==='dbt-new-session-row'),false)
+})
+test('rc.3 row layout leaves sibling actions outside the flexing native button',()=>{
+  assert.match(source,/\.dbt-new-session-row\{[^}]*display:flex;[^}]*gap:6px/)
+  assert.match(source,/\.dbt-new-session\{[^}]*flex:1 1 auto;min-width:0/)
+  assert.match(source,/\.dbt-sidebar\[data-wide="false"\] \.dbt-new-session-row\{[^}]*flex-direction:column/)
+  assert.doesNotMatch(rootSource,/deepseekChatImport|importArchive/)
+})
+
 test('icon-only row has hover label, active state and native factory selection',()=>{
   const f=harness(),factories=[]
   const tree=f.PanelRow({panel:{id:'custom',label:'Custom'},usePanelInfo:f.props.usePanelInfo,selectPanel:f.props.selectPanel,renderFactorySlot:(...args)=>{factories.push(args);return null}})

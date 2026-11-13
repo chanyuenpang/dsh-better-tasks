@@ -33,7 +33,7 @@ function fixture({ windows = false, collapsed = true, settled = collapsed, noDoc
     usePanels: select => select([]),
     useTaskPreferences: select => select({ value: DEFAULT_TASK_PREFERENCES }),
     t: key => key,
-    renderSlot: name => { slots.push(name); return null },
+    renderSlot: (name, owner, opts) => { slots.push(name); return name === 'sidebar.session.action' ? opts.children : null },
   }
   const Root = vm.runInNewContext(`${rootSource}\nBetterSidebarRoot`, context)
   return { tree: Root(props), calls, slots, context, props }

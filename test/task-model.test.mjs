@@ -43,6 +43,7 @@ test('declares compatibility seats including native panel actions in order', () 
     'sidebar.workspaces',
     'sidebar.settings',
     'sidebar.footer.action',
+    'sidebar.session.action',
   ])
 })
 

@@ -1,0 +1,25 @@
+{
+  "upstreamTag": "dsh-v0.2.2-rc.3",
+  "upstreamCommit": "38a6a5c965aa99ab525161efb7cc5cf1fe62fced",
+  "repository": "https://github.com/deepseek-ai/deepseek-harness",
+  "purpose": "Offline exact HOC contract excerpts. React entry transport and registry are stand-ins; not browser, feature or appearance acceptance.",
+  "files": [
+    {
+      "snapshot": "hoc-renderer.tsx",
+      "source": "packages/client/ui-renderer/src/client/scoped-slots.tsx",
+      "first": 1105,
+      "last": 1311,
+      "append": "\nexport { HocOutlet }\n",
+      "sourceSha256": "7f348afba3e4aa2882ee50c7a18800fe03c606bb87b61e02ee64b99d919450a1",
+      "snapshotSha256": "afb36a16a3708a5d10df32e48f8a00f3ca30a0ba1681491b3d52de8cfa0b1380"
+    },
+    {
+      "snapshot": "sidebar-contract.txt",
+      "source": "packages/client/ui-sidebar/src/client/contract/slots.ts",
+      "first": 76,
+      "last": 86,
+      "sourceSha256": "1820bab870ea6254ccaf0b3ca52c427c3acb88ff66400795a9dcdb64c3c91b5c",
+      "snapshotSha256": "7c81b0b4057e7393714a76c008c94571c023492a302a410b33842ea015ddbc17"
+    }
+  ]
+}

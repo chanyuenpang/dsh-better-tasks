@@ -1,6 +1,6 @@
 {
   "name": "@veewo/dsh-better-tasks",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "type": "module",
   "description": "DSH Desktop sidebar replacement with native pinned-task cards and independent task input surfaces.",
   "publishConfig": {
@@ -25,6 +25,8 @@
     "LICENSE",
     "README.md",
     "docs/install.md",
+    "docs/install-rc3.md",
+    "docs/dsh-0.2.2-rc.3-support.md",
     "docs/sidebar-layout.md",
     "docs/rc2-slash-submit-catch.md",
     "docs/release.md",

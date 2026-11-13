@@ -1,6 +1,6 @@
 # Better Tasks：按 DSH 版本发布
 
-## 当前组合与 tag 规则
+## 当前公开组合与 tag 规则
 
 - DSH Desktop 运行时：**0.2.2-rc.2**。
 - Better Tasks npm/package 版本：**0.4.1**。
@@ -15,9 +15,11 @@
 - 2026-11-14 将 `release/0.3.0` 的最新已提交代码 `5c34bef`（Tasks 0.4.1）快进合入 `main`，保留全部 19 个提交的历史；GitHub 默认分支仍为 `main`。
 - 支持标记只用 `main` 上的 annotated 组合 tag；源码可以包含尚未发布的新线适配。某条线只有在目标运行时精确组合门禁和完整七包 Release 就绪后，才能宣称支持。
 - 从历史 tag 排查问题用 detached checkout 或只读对比；修复最终仍提交到 `main`，不维护旧版本开发分支，不移动历史 tag。
-- [rc.3 评估](<dsh-0.2.2-rc.3-support.md>)是下一条线的待办与风险，不是 rc.3 发布公告。当前公共安装入口仍为上面的 rc.2 / Tasks 0.4.1。
+- Tasks 0.4.2 是本轮 rc.3 适配候选，见[适配记录](<dsh-0.2.2-rc.3-support.md>)和[候选安装说明](<install-rc3.md>)。公开 rc.2 / Tasks 0.4.1 入口保留；候选的七包与精确 rc.3 启动证据单独交付，不将源码提交或 tag 当成 GitHub/npm 已发布。
 
-## 本次内容
+## 本次候选与历史内容
+
+0.4.2 / rc.3：主包声明 root/hoc 的 `sidebar.session.action`，把原生新会话内容作为第三参 children 交给渲染器；整行受创建权限保护，可选动作不增加服务硬依赖。六个 fork 按精确 rc.3 基线从最新 overlay/patch 重建，保留 workspace picker factory、问答回退、原生 Pin、导航与真实仲裁 Promise。候选使用新的完整七包、清单与独立 rc.3 Desktop 启动证据，不沿用旧 rc.3 库的接受结论。最终结果以随包 `validation.json` 为准。
 
 0.4.1：原生新会话、紧凑导航/More/入口固定；默认强调任务名；按首次实际工作时间补正新任务顺序，保留较晚手动拖拽；rc.2 conversation 返回真实仲裁 Promise，修复斜杠提交 reading catch。主包与 conversation 改变，其他五包沿用已验证字节；不能只按 fork 的上游版本号判断字节一致。
 

@@ -45,12 +45,12 @@
       "vendoredTarball": "third_party/source/dsh-v0.2.2-rc.3.tar.gz",
       "title": "DeepSeek Harness",
       "profile": "official",
-      "status": "port-required",
+      "status": "candidate",
       "forkLibrary": "better-tasks-forks-0.2.2-rc.3",
       "overlayVariant": "0.2.2-rc.2",
       "contract": {
         "from": "0.2.2-rc.2",
-        "note": "rc.3 keeps the rc.2 row/contextMenu shape, so the rc.2 overlay variant remains the source port base. This does not certify the old rc.3 artifacts: latest questions/navigation/arbitration fixes require rebuilding, and the replacement sidebar must declare and render the new sidebar.session.action HOC while preserving children. See docs/dsh-0.2.2-rc.3-support.md; exact rc.3 runtime startup and a complete combined release are still required."
+        "note": "Tasks 0.4.2 declares/renders sidebar.session.action as root/hoc with native content in options.children and permission-gated safe fallback. The rc.2 overlay shape is reused against exact rc.3 upstream with its workspace.picker factory retained; rebuild all six from latest sources, not the historical rc.3 library. Candidate identity is dsh-v0.2.2-rc.3-tasks-v0.4.2. Exact runtime startup and package evidence belong to that combination's validation.json; source-contract attachable alone does not certify support or publication."
       }
     }
   }

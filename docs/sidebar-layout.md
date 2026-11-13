@@ -1,6 +1,6 @@
 # 侧栏排版与 DSH 适配规范
 
-范围：Better Tasks 的导航外壳；不重设计任务卡、原生 Session Pin、任务排序或插件页面。当前接点基线为 DSH `0.2.2-rc.2`，**不据此宣称未来版本已兼容**。
+范围：Better Tasks 的导航外壳；不重设计任务卡、原生 Session Pin、任务排序或插件页面。接点基线为 DSH `0.2.2-rc.2`，Tasks 0.4.2 增补 rc.3 的新会话行 HOC；运行时支持以精确组合的验证证据为准，**不据此宣称未来版本已兼容**。
 
 ## 1. 固定层级
 
@@ -55,6 +55,7 @@
 | `sidebar.panellist.actions` | root 拥有 list；传 `entries/onOpen/onPinnedChange/onDismiss`；entry 含 `id/label/pinned/active` |
 | 官方菜单 | 核实未固定项过滤、pin/open/dismiss、插件发现/创建动作和图标 factory；不要自绘另一份菜单数据 |
 | 新会话 | `session/create` 权限、`session.new` 快捷键、Workspace `startSession`、原生 DOM/CSS tokens |
+| rc.3 新会话行 HOC | 替代 root 声明 `sidebar.session.action` 为 root/hoc；owner `{wide}`，原生按钮经第三参 `{children}` 透传；无 occupant 保留按钮，拒绝权限不调用 HOC；可选动作是按钮的兄弟，不加导入服务硬依赖 |
 | Primitives | Tooltip、Menu、ShortcutKeys、原生新会话/更多/Pin 图标、焦点转移方法 |
 | Renderer | entry/factory 子座位授权与销毁后的 stale 检查 |
 

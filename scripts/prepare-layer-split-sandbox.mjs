@@ -6,7 +6,7 @@
 // only the six fork payloads change, so the gate proves the new artifact bytes boot.
 //
 // usage:
-//   node scripts/prepare-layer-split-sandbox.mjs [sandboxDir] [releaseDir] [port] [sourceProfile]
+//   node scripts/prepare-layer-split-sandbox.mjs [sandboxDir] [releaseDir] [port] [sourceProfile] [pluginTarball]
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { resolve, join } from 'node:path'
@@ -16,7 +16,7 @@ const base = resolve(root, process.argv[2] ?? 'sandbox/.desktop-layer-split')
 const release = resolve(root, process.argv[3] ?? 'releases/0.2.2-rc.1-forks')
 const port = Number(process.argv[4] ?? 39422)
 const source = (process.argv[5] ?? 'C:/Users/chany/.dsh/profiles/desktop').replaceAll('\\', '/')
-const pluginTarball = resolve(root, 'releases/veewo-dsh-better-tasks-0.4.0.tgz')
+const pluginTarball = resolve(root, process.argv[6] ?? 'releases/veewo-dsh-better-tasks-0.4.0.tgz')
 
 const candidates = JSON.parse(await readFile(join(release, 'candidates.json'), 'utf8'))
 const FORKS = ['ui-layout', 'ui-workspace', 'ui-user-questions', 'ui-input-trigger', 'ui-commands', 'ui-conversation']

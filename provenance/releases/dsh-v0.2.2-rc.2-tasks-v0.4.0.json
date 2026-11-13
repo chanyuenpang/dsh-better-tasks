@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "tag": "dsh-v0.2.2-rc.2-tasks-v0.4.0",
+  "dshVersion": "0.2.2-rc.2",
+  "tasksVersion": "0.4.0",
+  "sourceTag": "dsh-v0.2.2-rc.2-tasks-v0.4.0",
+  "repository": "https://github.com/chanyuenpang/dsh-better-tasks",
+  "upstream": {
+    "tag": "dsh-v0.2.2-rc.2",
+    "commit": "ddac96760b6edf8fa0fe17cbdcf0b512f4c12b2c",
+    "tarball": "https://codeload.github.com/deepseek-ai/deepseek-harness/tar.gz/refs/tags/dsh-v0.2.2-rc.2",
+    "tarballSha256": "d376fe64ec4b7c9b5837fb1155ed3a48e7e0e5f5b0aae0b91d9fb836daa8c20e"
+  },
+  "installation": {
+    "profile": "desktop",
+    "nodeLinker": "isolated",
+    "autoInstallPeers": false,
+    "publicHoistPattern": [
+      "@deepseek-ai/dsh-client-ui-layout",
+      "@deepseek-ai/dsh-client-ui-workspace",
+      "@deepseek-ai/dsh-client-ui-user-questions",
+      "@deepseek-ai/dsh-client-ui-input-trigger",
+      "@deepseek-ai/dsh-client-ui-commands",
+      "@deepseek-ai/dsh-client-ui-conversation"
+    ]
+  },
+  "assets": [
+    {
+      "slug": "ui-layout",
+      "name": "@deepseek-ai/dsh-client-ui-layout",
+      "version": "0.2.2-rc.2",
+      "filename": "deepseek-ai-dsh-client-ui-layout-0.2.2-rc.2.tgz",
+      "archiveSha256": "26d7aeb220f3c1bbdb1e84a6c9d14abe34beb665bded33b4734b392895375b79",
+      "clientSha256": "ab86bbb60ce48f6ae548963982e7ba444211bb7c9b9bbe1567bb2ae7648acc0b",
+      "size": 69853
+    },
+    {
+      "slug": "ui-workspace",
+      "name": "@deepseek-ai/dsh-client-ui-workspace",
+      "version": "0.2.2-rc.2",
+      "filename": "deepseek-ai-dsh-client-ui-workspace-0.2.2-rc.2.tgz",
+      "archiveSha256": "642e3b9a1fb08e5f6e74505bd662425f211483f95b156edbbeba2a8b5fd45158",
+      "clientSha256": "49890b7cf98e53dbe37173a4c1dadec7119035b11141e3ba90601698894cbfe8",
+      "size": 346436
+    },
+    {
+      "slug": "ui-user-questions",
+      "name": "@deepseek-ai/dsh-client-ui-user-questions",
+      "version": "0.2.2-rc.2",
+      "filename": "deepseek-ai-dsh-client-ui-user-questions-0.2.2-rc.2.tgz",
+      "archiveSha256": "314148add28947bc33910fa4a03854c662afbc56d2da643a9af04229b8fb143f",
+      "clientSha256": "2e05948e47322d30ce1a1b3968ed8b3c1ef794d8b663baea70bece617a60f21b",
+      "size": 144876
+    },
+    {
+      "slug": "ui-input-trigger",
+      "name": "@deepseek-ai/dsh-client-ui-input-trigger",
+      "version": "0.2.2-rc.2",
+      "filename": "deepseek-ai-dsh-client-ui-input-trigger-0.2.2-rc.2.tgz",
+      "archiveSha256": "b87acbd860b5f097902e7be83092e557824ca4c940a8a94992b8116c3c9bf282",
+      "clientSha256": "866a261d0f30497a432fd3428c4b7a6d806dbfd125201f46afd9b2cd4f85935b",
+      "size": 102611
+    },
+    {
+      "slug": "ui-commands",
+      "name": "@deepseek-ai/dsh-client-ui-commands",
+      "version": "0.2.2-rc.2",
+      "filename": "deepseek-ai-dsh-client-ui-commands-0.2.2-rc.2.tgz",
+      "archiveSha256": "399286ceda6d9a848a1617f7415ed86ae292da7616ab3041cc29c4d929d29944",
+      "clientSha256": "9790f953aed730bd78c499b0816f18039fd5457c259df09cd4f909910ecf50a4",
+      "size": 111750
+    },
+    {
+      "slug": "ui-conversation",
+      "name": "@deepseek-ai/dsh-client-ui-conversation",
+      "version": "0.2.2-rc.2",
+      "filename": "deepseek-ai-dsh-client-ui-conversation-0.2.2-rc.2.tgz",
+      "archiveSha256": "f16068b72fa908e9efe832f3e3f9e8ee0f09ef61f93b97c02cc5d33f86547f06",
+      "clientSha256": "da352df27af1d630966b769cd46b10333dbf4ceff34bddeb349252f7696d3a69",
+      "size": 994874
+    },
+    {
+      "slug": "better-tasks",
+      "name": "@veewo/dsh-better-tasks",
+      "version": "0.4.0",
+      "filename": "veewo-dsh-better-tasks-0.4.0.tgz",
+      "archiveSha256": "46f727887e0f33ce1d6a4d642977427b82e32d7e48de89b01bfbff283fd2df6f",
+      "clientSha256": "fb88e6b1d3f667b1c20456691d089234d0d63dfeebb2f417ec4b0506969d146f",
+      "size": 120798
+    }
+  ]
+}

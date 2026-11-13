@@ -1,38 +1,27 @@
 # Better Tasks for DSH Desktop
 
-A compositional sidebar and pinned-task view for **DSH Desktop 0.2.x**. The 0.3 line uses the native Workspace Registry as the single Pin owner and ships a removable Cordis bundle with six exact, audited Client compatibility forks.
+DSH 侧栏任务泳道：共享原生 Pin、独立任务输入、Final 预览与任务卡片问答。
 
-> **Runtime baselines:** the six client UI forks are rebuilt from each dsh source tag. `forks-0.2.0-rc.2/` is the audited 0.2.0-rc.2 library; `forks-0.2.1-rc.2/` is the 0.2.1-rc.2 rebuild that the Desktop 0.2.1 runtime loads (see [forks-0.2.1-rc.2 assets](<releases/0.2.1-rc.2-forks/candidates.json>)). The next dsh line is a **forward, not a rebase**: the forks are split into an `a layer` (our own files under `src-overlay/<slug>/`) and a pristine `b layer`, so the only merge surface left is a small, documented patch set. Run `npm run check:contract` to see whether the a layer still attaches; the procedure and the per-file exception list are in [upgrading-dsh-version](<docs/upgrading-dsh-version.md>) and [fork-layers](<docs/fork-layers.md>).
+## 按 DSH 版本安装
 
-> **Compatibility change:** 0.3.1 targets the Desktop 0.2 runtime, not the legacy 0.1.5 Web composition. Legacy users should keep their existing compatible release (npm 0.2.4); do not bypass DSH peer-version checks.
+**当前分发组合：DSH Desktop `0.2.2-rc.2` + Better Tasks `0.4.0`。**
 
-## Install
+| DSH Desktop 运行时 | Better Tasks | 完整安装入口 |
+|---|---|---|
+| `0.2.2-rc.2` | `0.4.0` | [dsh-v0.2.2-rc.2-tasks-v0.4.0](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.0>)（含输入框回退修复） |
+| `0.2.1-rc.2` | `0.3.2` | [历史插件](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/v0.3.2>) + [对应 fork 库](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/better-tasks-forks-0.2.1-rc.2-r1>) |
+| `0.2.0-rc.2` | `0.3.1` | [历史发行版](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/v0.3.1>) |
 
-**See [docs/install.md](<docs/install.md>) — the authoritative, cross-version procedure.** Better Tasks
-replaces six app-owned Client UI modules, so a working install is always **the plugin plus the six fork
-payloads built for the same dsh line**; the npm package alone is not a complete install.
+新 tag 统一为 **`dsh-v<DSH版本>-tasks-v<Tasks版本>`**。先确认 Desktop「关于」中的完整运行时版本，再选对应 Release；同一 DSH 线的 Tasks 更新会创建新的组合 tag，旧包保留供回滚。不要跨 rc.1 / rc.2 / rc.3 混装，也不要仅按 GitHub 的 Latest 或 npm latest 安装。
 
-Quick start for DSH Desktop **0.2.1-rc.2**:
+**完整安装 = 插件本体 + 同一 Release 的六个 UI fork，共 7 个 `.tgz`。** 源码 ZIP 和单独 npm 包都不是完整安装包。六个 fork 保留原生包名，属于本项目兼容性修改，并非 DeepSeek 官方发行包。
 
-```powershell
-# plugin + six fork payloads (tarballs from the releases below; npm is optional for the plugin)
-$tag  = 'better-tasks-forks-0.2.1-rc.2-r1'
-$base = "https://github.com/chanyuenpang/dsh-better-tasks/releases/download/$tag"
-$forks = 'layout','workspace','user-questions','input-trigger','commands','conversation'
-$specs = $forks | ForEach-Object { "$base/deepseek-ai-dsh-client-ui-$_-0.2.1-rc.2.tgz" }
-$specs += 'https://github.com/chanyuenpang/dsh-better-tasks/releases/download/v0.3.2/veewo-dsh-better-tasks-0.3.2.tgz'
-dsh plugin --profile desktop add @specs
-```
+1. 从[当前 Release](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.0>)取齐七包、`release-manifest.json`、`SHA256SUMS.txt` 和 `INSTALL.md`。
+2. 按[安装说明](<docs/install.md>)校验并备份自己的 Profile，配置 `nodeLinker: isolated` 与六个精确的 `publicHoistPattern`。
+3. 完全退出 Desktop（含托盘），安装七包，再手动启动验收。升级与卸载见[回滚说明](<docs/rollback.md>)。
 
-The profile must keep those six names at its root — `nodeLinker: isolated` plus a `publicHoistPattern`
-over `@deepseek-ai/dsh-client-ui-{layout,workspace,user-questions,input-trigger,commands,conversation}`
-(exact snippet and the reason are in [docs/install.md](<docs/install.md#3-profile-配置必需>); with
-`nodeLinker: hoisted` the plugin's own client half is dropped).
+本次完整 Release 包含最新 `ui-user-questions` 修复。较早的 `better-tasks-forks-0.2.2-rc.2` 是历史 fork 库，不含这次最终修复，不要与本次七包混用。
 
-Restart Desktop if Plugin Manager reports **restart required**, then verify with
-`scripts/desktop-probe.ps1 -SourceProfile desktop` (expected `PASS`, all installed client plugins in the
-boot manifest). For the next dsh line see [upgrading-dsh-version](<docs/upgrading-dsh-version.md>);
-for rollback see [rollback](<docs/rollback.md>).
 ## Features
 
 - Switch between the native Session browser and a task swimlane in the same sidebar; native search, Workspace grouping, rename, archive and directory operations remain.
@@ -45,9 +34,9 @@ for rollback see [rollback](<docs/rollback.md>).
 
 ## Distribution and provenance
 
-The six forks preserve upstream package names, ModuleLoader identities, `0.2.0-rc.2` baseline and licenses. They are **not official upstream npm releases** and are not published to the `@deepseek-ai` registry scope. Audited bytes and SHA-256 manifests are release assets; source patches are under [src-patches](<src-patches/>) and upstream source is pinned by [source lock](<provenance/source.lock.json>). Changing a fork requires a new asset-library revision and a new main version; never replace an archive under an existing URL.
+Each combined release freezes one plugin version and six forks built for the exact upstream DSH tag. Original package names, ModuleLoader identities and licenses are retained; nothing is published to the upstream `@deepseek-ai` npm scope. The release includes sanitized archive/client SHA-256 values and upstream provenance. Existing tags and download URLs are never overwritten.
 
-The source tag/release is [v0.3.1](https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/v0.3.1). Release assets contain code archives and sanitized manifests only, never real Profile backups, Session stores, credentials or runtime logs.
+Source patches live under [src-patches](<src-patches/>), project-owned modules under [src-overlay](<src-overlay/>), and per-line upstream source facts in [versions](<provenance/versions.json>). For the forward-port procedure see [upgrading DSH](<docs/upgrading-dsh-version.md>) and [fork layers](<docs/fork-layers.md>). Release assets contain no real Profile backups, Session stores, credentials, runtime logs or workflow state.
 
 ## Development
 

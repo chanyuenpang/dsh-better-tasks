@@ -24,6 +24,7 @@
     "cordis.patch.yml",
     "LICENSE",
     "README.md",
+    "docs/install.md",
     "docs/release.md",
     "docs/rollback.md"
   ],

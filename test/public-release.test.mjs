@@ -41,3 +41,25 @@ test('public npm file allowlist excludes private profiles, runtime logs and work
   assert.ok(manifest.files.includes('LICENSE'))
   assert.equal(manifest.publishConfig.registry, 'https://registry.npmjs.org/')
 })
+
+test('the published package carries installation instructions and matching root lock versions', () => {
+  assert.ok(manifest.files.includes('docs/install.md'))
+  const lock = JSON.parse(readFileSync(new URL('../package-lock.json', import.meta.url), 'utf8'))
+  assert.equal(lock.version, manifest.version)
+  assert.equal(lock.packages[''].version, manifest.version)
+})
+
+test('installation and README select a DSH-first combined release, not npm latest', () => {
+  const install = readFileSync(new URL('../docs/install.md', import.meta.url), 'utf8')
+  const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8')
+  const tag = `dsh-v0.2.2-rc.2-tasks-v${manifest.version}`
+  for (const doc of [install, readme]) {
+    assert.ok(doc.includes(tag))
+    assert.ok(doc.includes('release-manifest.json'))
+    assert.ok(doc.includes('SHA256SUMS.txt'))
+  }
+  assert.ok(install.includes('veewo-dsh-better-tasks-' + manifest.version + '.tgz'))
+  for (const slug of slugs) assert.ok(install.includes(`deepseek-ai-dsh-client-${slug}-0.2.2-rc.2.tgz`))
+  assert.match(install, /nodeLinker: isolated/)
+  assert.match(install, /autoInstallPeers: false/)
+})

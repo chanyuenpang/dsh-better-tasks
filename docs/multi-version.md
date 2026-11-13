@@ -170,57 +170,11 @@ node scripts/prepare-layer-split-sandbox.mjs `
 > `publicHoistPattern` 写错（例如重复 `ui-` 前缀）不会报错，但六个 fork 不会 hoist，
 > 应用会静默回落到自带模块——表现是「装了插件但界面没变」。
 
-## 6. 真机安装（另一台 rc.2 机器）
+## 6. 按 DSH 版本安装（对外入口）
 
-**前置**：那台机器的 `dsh` 必须是 `0.2.2-rc.2`。用错线的 fork 会启动失败或界面错位。
+当前公开完整组合是 **DSH 0.2.2-rc.2 + Tasks 0.4.0**，tag 为 [dsh-v0.2.2-rc.2-tasks-v0.4.0](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.0>)。七包、哈希清单、安装与回滚说明在同一 Release。用户无需 clone 或构建，照[安装说明](<install.md>)操作。
 
-```powershell
-# 1) 取安装物：直接从 GitHub release 下载六个 fork（匿名可下）
-$base = 'https://github.com/chanyuenpang/dsh-better-tasks/releases/download/better-tasks-forks-0.2.2-rc.2'
-$dir = "$env:TEMP\better-tasks-rc2"
-New-Item -ItemType Directory $dir -Force | Out-Null
-foreach ($s in 'layout','workspace','user-questions','input-trigger','commands','conversation') {
-  curl.exe -sS -L -o "$dir\deepseek-ai-dsh-client-ui-$s-0.2.2-rc.2.tgz" `
-    "$base/deepseek-ai-dsh-client-ui-$s-0.2.2-rc.2.tgz"
-}
-curl.exe -sS -L -o "$dir\candidates.json" "$base/candidates.json"
-# 校验：candidates.json 里的 archiveSha256 必须逐个对上
-
-# 插件本体（跨线通用，任一来源均可）
-#   本地：releases/veewo-dsh-better-tasks-0.4.0.tgz
-
-# 2) 完全退出 Desktop（含托盘）
-
-# 3) 先写 profile 的 linker 策略
-#    <DSH_HOME>/profiles/desktop/pnpm-workspace.yaml
-```
-
-```yaml
-packages:
-  - .
-nodeLinker: isolated
-autoInstallPeers: false
-publicHoistPattern:
-  - '@deepseek-ai/dsh-client-ui-layout'
-  - '@deepseek-ai/dsh-client-ui-workspace'
-  - '@deepseek-ai/dsh-client-ui-user-questions'
-  - '@deepseek-ai/dsh-client-ui-input-trigger'
-  - '@deepseek-ai/dsh-client-ui-commands'
-  - '@deepseek-ai/dsh-client-ui-conversation'
-```
-
-```powershell
-# 4) 七个 tarball 一起装
-$specs = @(Get-ChildItem '.\0.2.2-rc.2-forks\*.tgz').FullName + (Resolve-Path '.\veewo-dsh-better-tasks-0.4.0.tgz').Path
-dsh plugin --profile desktop add @specs
-
-# 5) 重启后验收（纯 CLI 结果不可信）
-./scripts/desktop-probe.ps1 -SourceProfile desktop
-# 期望 desktop probe: PASS，六个 fork 全部出现在 boot manifest
-```
-
-**只装插件本体不装六个 fork** 会得到一个「半个安装」：能启动、probe 也可能 PASS，
-但左侧栏整列消失。这是最容易被误判为「插件坏了」的状态。
+今后以 `dsh-v<DSH版本>-tasks-v<Tasks版本>` 标记每个验证过的组合。先匹配 DSH 完整版本，再选择 Tasks 版本。rc.1/rc.3 的本地构建或测试状态不代表本次 Release 支持它们；必须另行发布精确同线七包。早期 `better-tasks-forks-0.2.2-rc.2` fork 库为历史资产，其中 questions 字节早于本次输入框回退修复，不再作为当前安装入口。
 
 ## 7. 已知坑（换线时踩过的）
 

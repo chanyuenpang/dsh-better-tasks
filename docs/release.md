@@ -1,62 +1,45 @@
-# Better Tasks Desktop public-release procedure
+# Better Tasks：按 DSH 版本发布
 
-Current release: **0.3.2**, for DSH Desktop **0.2.1-rc.2** (0.3.1 remains the 0.2.0-rc.2 line). The 0.3.0 preparation tag is retained but was not published to npm: URL subdependencies failed default pnpm `blockExoticSubdeps` protection. Do not force-move that tag or disable the protection.
+## 当前组合与 tag 规则
 
-> ## 0.3.2 — the 0.2.1-rc.2 fork line (published 2026-10-18)
->
-> 0.3.2 ships the six forks rebuilt on the **0.2.1-rc.2** line (see `docs/upgrading-dsh-version.md`).
-> Unlike 0.3.1 the package no longer bundles fork payloads: the Desktop 0.2.1 runtime rejects both a
-> nested Loader subtree (its rows never reach `window.__DSH_BOOT__`, leaving 21 client entries pending)
-> and subpath row names (`client-modules` only accepts exact package specifiers). The install is
-> therefore two steps — plugin from npm, six forks from the fork-library release — with the profile
-> keeping those six names at its root via `nodeLinker: isolated` + `publicHoistPattern`. The full
-> procedure is in the README.
->
-> Release gate used for 0.3.2 (real desktop application, isolated DSH_HOME, clean profile):
-> `scripts/desktop-probe.ps1` → PASS, `7 installed / 7 in boot manifest`, no pending entries.
-> Note for anyone re-running it: with `nodeLinker: hoisted` the same bytes fail the gate (the plugin's
-> own client half is dropped), so the linker layout is part of the acceptance, not a preference.
-## Self-contained distribution
+- DSH Desktop 运行时：**0.2.2-rc.2**。
+- Better Tasks npm/package 版本：**0.4.0**。
+- Git tag / GitHub Release：**`dsh-v0.2.2-rc.2-tasks-v0.4.0`**。
+- 安装入口：[安装说明](<install.md>)；旧版兼容表见 [README](<../README.md>)。
 
-The public `@veewo/dsh-better-tasks` main tarball uses npm `bundledDependencies` to include six exact native-named Client fork payloads. Dependency specs remain regular `0.2.1-rc.2` versions, not machine-local paths or URL subdependencies. Their original names, ModuleLoader IDs and licenses are retained; nothing is published to the upstream npm scope.
+今后统一使用 `dsh-v<DSH版本>-tasks-v<Tasks版本>`。DSH 版本写完整，保留 rc 后缀；Tasks 版本仍由插件自己的 manifest 管理。同一 Tasks 源码可适配多条 DSH 线，但每条线都要有独立验证的组合 Release。已发布的 tag 与资产 URL 不移动、不覆盖；内容变化应升 Tasks 版本并创建新组合 tag。面向 RC 运行时的本次组合标记为 GitHub Pre-release，不依赖全局 Latest 作为安装入口。
 
+## 本次内容
 
-The same six archives remain downloadable from the [immutable fork library](https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/better-tasks-forks-0.2.0-rc.2-r1) and are attached to the main release with a sanitized hash manifest.
+侧栏任务泳道、原生 Pin、Final 预览、独立输入与问答卡片；rc.2 行菜单适配新的 context-menu factory slot，并透传 Workspace/quote/empty-submit 参数。包含最新 questions 修复：问答 composer 选择器失败时退出竞选，让原生输入框回退，不再用区域错误边界吞掉整个输入区。
 
-[The removable patch](<../cordis.patch.yml>) mounts [a package-local Loader subtree](<../src/fork-layer.mjs>). The subtree owns its independent entry store and resolution base: it resolves native package names from bundled node_modules, not a stock fallback in the app. The input/commands/conversation option IDs remain native so user config assertions can still target them. Layout, UI, Pin and Session ownership remain inside their existing packages, not in this assembly group.
+**完整分发是七个独立 tarball，不是 bundledDependencies 或嵌套 Loader 树。** 六个 fork 保留原生包名、ModuleLoader ID、上游版本及许可证，以 Profile 根依赖安装；插件自身依赖不携带 fork。早期 `better-tasks-forks-0.2.2-rc.2` 库保留为历史资产，不覆盖，其中 questions 包并非本次最终修复字节。
 
-## Prepare and audit
+## 一次性准备、构建与审计
 
-1. Verify release permission, native compatibility and npm/GitHub publishing rights without printing tokens.
-2. Finish the batch before testing. Freeze accepted feature code and fork digests; update manifest, packaging layer and docs only as needed.
-3. Stage a separate self-contained package via [the staging helper](<../scripts/stage-self-contained-release.mjs>), checking each bundled Client digest. Never blindly npm-pack stock registry forks after a developer install replaced them.
-4. Build the main client, run necessary unit/contract checks, npm-pack the staged directory once, and audit every payload path, dependency, bundled identity, main/source digest and license. Exclude real Profiles, credentials, Session data, runtime/token logs, backups and workflow data.
-5. Use explicit source/asset allowlists, not `git add .` or a recursive deployment-directory zip. Commit/tag the exact source used by the package. Do not force-move tags or overwrite an archive used for verification.
+1. 确认 GitHub 写权限、源码提交和目标运行时。保留用户未提交的工作，仅显式暂存本次发布文件。
+2. 完成全部代码与文档改动，更新 [安装说明](<install.md>)、[回滚说明](<rollback.md>)、兼容矩阵和 lockfile 根版本，然后统一验证。
+3. Node 24+ 下准备测试源码并运行 `npm run test:prepare`、`npm test`、`npm run check`；对目标线运行 `node scripts/check-upstream-contract.mjs --from-tag 0.2.2-rc.2 --to-tag 0.2.2-rc.2 --version 0.2.2-rc.2`。测试源码默认线由 source lock 管理，与发布线必须分别说明。
+4. 使用已审查的六个 rc.2 fork，检查每个包内客户端与 [fork 构建产物](<../forks-0.2.2-rc.2/>) 的哈希一致。不要误打包 npm 官方未修改模块。只有需要改变 fork 字节时才重建 fork，并重新记录来源。
+5. 在新的 `releases/<组合tag>/` 打包插件本体一次；其余六包复制已验证字节。检查所有 tar 路径和包名、版本、许可、依赖、bundle patch、源码与客户端哈希。公开包仅含代码、文档和许可证，禁止任何 Profile、凭据、Session、日志、备份或工作流状态。
+6. 生成 `release-manifest.json`：组合 tag、两种版本、上游来源、七个文件名/大小/archiveSha256/clientSha256。只用相对文件名，不泄露本机路径。生成 `SHA256SUMS.txt`，附 `INSTALL.md`、`ROLLBACK.md` 和脱敏 `validation.json`。清单副本保存在 provenance 下供源码 tag 追溯。
 
-## Startup gate
+## 隔离冷启动门禁
 
-A new archive or composition must install with **default pnpm protections** and cold-start in its exact package-manager-resolved Desktop graph. Use separate DSH_HOME/Profile/Session storage/ledger/Electron user-data and disable Cindy Host. Confirm Host listening and actual `dsh-app://app/` preload/core layout/sidebar/Session/Workspace/conversation activation with no startup errors, and compare the seven served Client digests to candidates.
+最终七包必须在目标运行时的精确组合中冷启动。独立 DSH_HOME、Profile、Session/ledger 和 Electron user-data；禁用 `dsh-cindy-host`，监听仅 loopback，使用与安装说明相同的 isolated/hoist 策略。不得把沙盒指向真实 Profile 存储。
 
-Sandbox validation is startup-only, not feature or visual QA. Stop the owned process tree and verify all owned processes/listeners disappear. Never modify/restart the real Desktop to repair a failed package gate. Unit/package/startup evidence does not replace user acceptance.
+确认监听地址、实际浏览器核心 shell/侧栏/Session/Workspace/会话激活，无启动错误或可选服务等待死锁，并核对七个 served client 的哈希。只做启动验证，不做功能交互、截图或像素 QA。记录命令、目标版本、隔离 Profile、URL（公开证据移除 token）、浏览器错误与清理结果。退出全部自有沙盒进程并确认监听消失。失败时修复并重跑必要检查，不动真实 DSH。
 
-## Publish verified bytes (optional)
+## 提交、tag 与发布
 
-> **npm is not the install path.** Since 0.3.2 the authoritative, cross-version procedure is
-> [install](<install.md>): the plugin plus the six fork payloads built for the same dsh line, installed
-> from release tarballs. The npm package is a convenience entry and version marker only — 0.3.2 is
-> published with an `npm deprecate` notice pointing back to `docs/install.md`. Publishing is still
-> useful to keep a version marker public, but it must never be described as a complete install, and no
-> release note may imply that `npm i` alone produces a working Better Tasks.
+审查最终 diff，通过后提交准确源码；仅推送需要的分支与新 annotated tag，不用 `--tags` 批量推送历史标签，不 force push。
 
 ```powershell
-npm.cmd publish releases/0.3.1/veewo-dsh-better-tasks-0.3.1.tgz --access public --tag latest --registry=https://registry.npmjs.org/
-npm.cmd view '@veewo/dsh-better-tasks@0.3.1' name version dist.integrity dist.tarball --json --registry=https://registry.npmjs.org/
+$tag = 'dsh-v0.2.2-rc.2-tasks-v0.4.0'
+git tag -a $tag -m 'Better Tasks 0.4.0 for DSH 0.2.2-rc.2'
+git push origin HEAD
+git push origin "refs/tags/$tag"
+# gh release create 用 --verify-tag，显式上传审计后的资产；先 draft，上传完成再公开。
 ```
 
-Publish only the exact verified archive. Re-read registry integrity/version/latest, download/hash-check GitHub assets and confirm stable/non-draft status. Auth/OTP failures must be reported and waited on, not called success. Public evidence must be sanitized; source/asset commits must never contain private deployment files.
-
-Publishing is not a real-Profile installation or restart. The accepted local Desktop 0.2.18 remains unchanged unless the user separately requests an upgrade. For rollback see [rollback](<rollback.md>); the obsolete Web recipe is retained under [legacy release notes](<release-legacy-0.2.md>).
-
-## Development
-
-Use Node 24+, install dependencies, restore the reviewed fork payloads from pinned assets, then run `npm run test:prepare` to stage/apply the TS source contracts before `npm test`. The source is pinned by [source lock](<../provenance/source.lock.json>), with reviewed [patches](<../src-patches/>). `npm run build:fork` is a deliberate rebuild requiring new provenance/archive validation, not a routine public main release step. Keep original vendor and unified-diff context whitespace; do not normalize it and break digests.
+Release 标题包含 DSH 与 Tasks 两种版本，说明链接固定到该 tag 的安装文档。上传完整七包和清单，不使用会匹配 Profile/日志的递归通配上传。发布后确认非 draft、组合 tag 对应准确提交；匿名逐个下载七包并与清单 SHA-256 对照。GitHub Release 发布与 npm 发布、真实 Profile 安装/重启互相独立，本流程不自动执行后两者。

@@ -125,6 +125,38 @@ export function summarizeSession(summary, pendingInteraction) {
   return Object.freeze({ status: 'idle' })
 }
 
+/**
+ * Fold native live status through native subagent catalog edges, not fork ancestry.
+ * Status events win over older list rows, including explicit false. Walk upward
+ * once so grandchildren count even while their direct parent is idle. No retain,
+ * polling, execution ownership, or inference from a persisted open turn.
+ */
+export function runningSessionTreeIds(list, sessionStatuses = new Map()) {
+  const rows = list.byId
+  const projections = list.projectionsBySession ?? {}
+  const parents = new Map()
+  const ids = new Set([...Object.keys(rows), ...Object.keys(projections), ...sessionStatuses.keys()])
+  for (const id of ids) {
+    const catalog = projections[id]?.values?.subagentCatalog ?? rows[id]?.projectionValues?.subagentCatalog
+    if (!Array.isArray(catalog)) continue
+    for (const child of catalog) {
+      ids.add(child.id)
+      if (!parents.has(child.id)) parents.set(child.id, new Set())
+      parents.get(child.id).add(id)
+    }
+  }
+  const running = new Set([...ids].filter((id) => (sessionStatuses.get(id)?.running ?? rows[id]?.running) === true))
+  const queue = [...running]
+  for (let index = 0; index < queue.length; index += 1) {
+    for (const parent of parents.get(queue[index]) ?? []) {
+      if (running.has(parent)) continue // Also bounds malformed cyclic catalogs.
+      running.add(parent)
+      queue.push(parent)
+    }
+  }
+  return running
+}
+
 function projectTask(summary, currentId, pendingInteraction) {
   const projections = summary.projectionValues
   return Object.freeze({
@@ -152,17 +184,18 @@ export function currentTaskSessionId(list, panelActive = false) {
 }
 
 /** Derive task cards in the exact Host-owned pin order. */
-export function derivePinnedTasks({ list, pinnedSessionIds, pendingInteractions = new Map(), panelActive = false }) {
+export function derivePinnedTasks({ list, pinnedSessionIds, pendingInteractions = new Map(), panelActive = false, sessionStatuses = new Map() }) {
   if (!Array.isArray(pinnedSessionIds)) throw new Error('pinnedSessionIds must be an array')
   const seen = new Set()
   const tasks = []
   const currentId = currentTaskSessionId(list, panelActive)
+  const runningIds = runningSessionTreeIds(list, sessionStatuses)
   for (const id of pinnedSessionIds) {
     if (seen.has(id)) continue
     seen.add(id)
     const summary = list.byId[id]
     if (summary === undefined || summary.blank || summary.origin === 'subagent') continue
-    tasks.push(projectTask(summary, currentId, pendingInteractions.get(id)))
+    tasks.push(projectTask({ ...summary, running: runningIds.has(id) }, currentId, pendingInteractions.get(id)))
   }
   return tasks
 }

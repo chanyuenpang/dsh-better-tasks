@@ -4,12 +4,15 @@ DSH 侧栏任务泳道：共享原生 Pin、独立任务输入、Final 预览与
 
 ## 按 DSH 版本安装
 
-**当前公开分发组合：DSH Desktop `0.2.2-rc.2` + Better Tasks `0.4.1`。**
+**当前 rc.3 分发组合：DSH Desktop `0.2.2-rc.3` + Better Tasks `0.4.4`（Pre-release）。**
+
+修复子/孙 agent 仍运行时任务卡误显示 idle；选中会话标题使用 DSH 主题蓝色。安装必须取齐[rc.3 完整七包](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.3-tasks-v0.4.4>)，按[rc.3 安装说明](<docs/install-rc3.md>)处理；npm 主包不是完整运行时组合。以下 rc.2 入口保留供仍在使用 rc.2 的用户。
 
 0.4.1 包含新任务排序与斜杠提交修复，必须同步更新主包和本 Release 的 conversation fork，见[安装说明](<docs/install.md>)。旧 [0.4.0 组合](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.0>)保留供回滚。
 
 | DSH Desktop 运行时 | Better Tasks | 完整安装入口 |
 |---|---|---|
+| `0.2.2-rc.3` | `0.4.4` | [dsh-v0.2.2-rc.3-tasks-v0.4.4](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.3-tasks-v0.4.4>)（会话活跃态与选中标题修复） |
 | `0.2.2-rc.2` | `0.4.1` | [dsh-v0.2.2-rc.2-tasks-v0.4.1](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.1>)（含输入框回退修复） |
 | `0.2.1-rc.2` | `0.3.2` | [历史插件](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/v0.3.2>) + [对应 fork 库](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/better-tasks-forks-0.2.1-rc.2-r1>) |
 | `0.2.0-rc.2` | `0.3.1` | [历史发行版](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/v0.3.1>) |
@@ -44,7 +47,7 @@ Source patches live under [src-patches](<src-patches/>), project-owned modules u
 
 **仅在 `main` 上开发和提交**；不再维护按功能、发布或 DSH 版本划分的长期分支。已有分支仅保留历史引用。支持版本只由 `main` 上不可变的 `dsh-v<DSH版本>-tasks-v<Tasks版本>` annotated tag 与完整 Release 标记，`main` 的最新提交不等于已经发布或适配完成，详见[发布规范](<docs/release.md>)。
 
-**rc.3 开发候选：Tasks `0.4.2` / DSH `0.2.2-rc.3`。** 已接通原生新会话行 HOC，并从最新源码准备六个 rc.3 fork；完整七包及 `validation.json` 的精确目标启动结果随候选交付，见[rc.3 安装说明](<docs/install-rc3.md>)和[适配记录](<docs/dsh-0.2.2-rc.3-support.md>)。这不是 npm/GitHub Release 已发布声明；公开 rc.2 入口保持不变，不混装旧 rc.3 产物。
+rc.3 的 HOC 与六个 fork 来源见[0.4.2 适配记录](<docs/dsh-0.2.2-rc.3-support.md>)；0.4.4 在其基础上加入[会话活跃状态与选中标题修复](<docs/task-session-activity.md>)。精确七包哈希及启动结果随 Release 的 `validation.json` 交付。rc.2 入口保持不变，不混装旧 rc.3 产物或仅按 npm latest 安装。
 
 侧栏新增按钮、调整排版或适配新 DSH 前，先遵循[侧栏排版与适配规范](<docs/sidebar-layout.md>)；数字、原生语义样式与版本合同分层维护。
 

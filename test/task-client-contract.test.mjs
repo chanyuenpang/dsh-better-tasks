@@ -72,7 +72,7 @@ test('only the native current Session card slightly deepens its state background
   const model = await readFile(new URL('../src/task-model.mjs', import.meta.url), 'utf8')
   assert.match(model, /current: summary\.id === currentId/)
   assert.match(model, /const currentId = currentTaskSessionId\(list, panelActive\)/)
-  assert.match(model, /projectTask\(summary, currentId, pendingInteractions\.get\(id\)\)/)
+  assert.match(model, /projectTask\(\{ \.\.\.summary, running: runningIds\.has\(id\) \}, currentId, pendingInteractions\.get\(id\)\)/)
   assert.match(source, /'data-current': String\(task\.current\)/)
   assert.ok(source.includes('.dbt-task-card[data-current="true"]{border-color:var(--dbt-task-border-selected);box-shadow:none;background:color-mix(in srgb,var(--dsw-alias-label-primary) 8%,var(--dsw-alias-bg-layer-1))}'))
   assert.ok(source.includes('.dbt-task-card[data-state="idle"]{--dbt-task-border:color-mix(in srgb,var(--dsw-alias-label-primary) 12%,transparent);--dbt-task-border-selected:color-mix(in srgb,var(--dsw-alias-label-primary) 34%,transparent);background:color-mix(in srgb,var(--dsw-alias-label-primary) 3%,var(--dsw-alias-bg-layer-1))}'))

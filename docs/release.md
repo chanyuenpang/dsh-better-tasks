@@ -2,10 +2,10 @@
 
 ## 当前公开组合与 tag 规则
 
-- DSH Desktop 运行时：**0.2.2-rc.2**。
-- Better Tasks npm/package 版本：**0.4.1**。
-- Git tag / GitHub Release：**`dsh-v0.2.2-rc.2-tasks-v0.4.1`**。
-- 安装入口：[安装说明](<install.md>)；旧版兼容表见 [README](<../README.md>)。
+- DSH Desktop 运行时：**0.2.2-rc.3**。
+- Better Tasks npm/package 版本：**0.4.4**。
+- Git tag / GitHub Release：**`dsh-v0.2.2-rc.3-tasks-v0.4.4`**（Pre-release）。
+- 安装入口：[rc.3 安装说明](<install-rc3.md>)；旧 rc.2 / Tasks 0.4.1 的[安装说明](<install.md>)和资产保持不变，兼容表见 [README](<../README.md>)。
 
 今后统一使用 `dsh-v<DSH版本>-tasks-v<Tasks版本>`。DSH 版本写完整，保留 rc 后缀；Tasks 版本仍由插件自己的 manifest 管理。同一 Tasks 源码可适配多条 DSH 线，但每条线都要有独立验证的组合 Release。已发布的 tag 与资产 URL 不移动、不覆盖；内容变化应升 Tasks 版本并创建新组合 tag。面向 RC 运行时的本次组合标记为 GitHub Pre-release，不依赖全局 Latest 作为安装入口。
 
@@ -17,7 +17,9 @@
 - 从历史 tag 排查问题用 detached checkout 或只读对比；修复最终仍提交到 `main`，不维护旧版本开发分支，不移动历史 tag。
 - Tasks 0.4.2 是本轮 rc.3 适配候选，见[适配记录](<dsh-0.2.2-rc.3-support.md>)和[候选安装说明](<install-rc3.md>)。公开 rc.2 / Tasks 0.4.1 入口保留；候选的七包与精确 rc.3 启动证据单独交付，不将源码提交或 tag 当成 GitHub/npm 已发布。
 
-## 本次候选与历史内容
+## 本次组合与历史内容
+
+0.4.4 / rc.3：在已验证的 0.4.2 上修复子/孙 agent 活跃时任务卡误显示 idle，并用官方主题蓝色标识当前选中会话标题。主包更新，六个 fork 保留 0.4.2 的已验证字节；完整七包有独立最终组合启动证据。0.4.3 是已安装的本地先行候选，不覆盖它的本地包或既有 tag。并行开发的排序重构明确不在这次发布中。GitHub 分发完整七包；npm 只发布 `@veewo/dsh-better-tasks` 主包，不向上游 `@deepseek-ai` scope 发布 fork，且不表示 npm 单包可独立安装。
 
 0.4.2 / rc.3：主包声明 root/hoc 的 `sidebar.session.action`，把原生新会话内容作为第三参 children 交给渲染器；整行受创建权限保护，可选动作不增加服务硬依赖。六个 fork 按精确 rc.3 基线从最新 overlay/patch 重建，保留 workspace picker factory、问答回退、原生 Pin、导航与真实仲裁 Promise。候选使用新的完整七包、清单与独立 rc.3 Desktop 启动证据，不沿用旧 rc.3 库的接受结论。最终结果以随包 `validation.json` 为准。
 

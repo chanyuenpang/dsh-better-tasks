@@ -437,6 +437,8 @@ html[data-platform="darwin"] .dbt-new-session:hover{background:var(--dsw-specifi
 .dbt-task-list[data-title-emphasis="task"] .dbt-task-project{font-size:11px;font-weight:400;line-height:16px;color:var(--dsw-alias-label-secondary)}
 .dbt-task-list[data-title-emphasis="task"] .dbt-task-rename{font-size:14px;font-weight:680;line-height:19px;color:var(--dsw-alias-label-primary)}
 .dbt-task-rename:hover{text-decoration:underline;color:var(--dsw-alias-label-primary)}
+.dbt-task-card[data-current="true"] .dbt-task-rename{color:var(--dsw-alias-brand-primary)}
+.dbt-task-list[data-title-emphasis="task"] .dbt-task-card[data-current="true"] .dbt-task-rename{color:var(--dsw-alias-brand-primary)}
 .dbt-continue-shell,.dbt-continue-form{cursor:text}
 .dbt-continue-form{box-sizing:border-box;display:flex;flex-direction:column;min-width:0;width:100%;border:1px solid var(--dsw-alias-border-l1);border-radius:18px;background:var(--dsw-specific-input-major);box-shadow:var(--dsw-elevation-soft)}
 .dbt-continue-form:focus-within{border-color:var(--dsw-alias-brand-primary)}
@@ -1238,6 +1240,7 @@ function TaskSwimlane({ useSessions, useWorkspaces, useSessionStatus, useTaskCon
     panelActive,
     pinnedSessionIds: taskPins.queue.sessionIds,
     pendingInteractions,
+    sessionStatuses,
   })
   const taskIds = tasks.map((task) => task.id)
   const goalTasks = tasks.filter((task) => task.goal.availability === 'ready' && typeof task.goal.id === 'string').map((task) => ({ id: task.id, goalId: task.goal.id }))
@@ -1431,7 +1434,7 @@ function TaskSwimlane({ useSessions, useWorkspaces, useSessionStatus, useTaskCon
         const todoLabel = task.todos.availability === 'ready' ? `${task.todos.completed}/${task.todos.total}` : availabilityLabel(task.todos, t)
         const executionWarning = taskExecutionWarning({
           ...list.byId[task.id],
-          running: sessionStatuses.get(task.id)?.running ?? list.byId[task.id].running,
+          running: task.session.status === 'running',
         }, pendingInteraction, connectionState, list.phase === undefined || list.phase === 'ready')
         const warningLabel = executionWarning === null ? '' : t(`tasks.execution.${executionWarning.kind}`)
         const stateLabel = executionWarning === null

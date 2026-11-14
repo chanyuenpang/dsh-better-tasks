@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "result": "PASS",
+  "dshVersion": "0.2.2-rc.3",
+  "tasksVersion": "0.4.5",
+  "tag": "dsh-v0.2.2-rc.3-tasks-v0.4.5",
+  "sourceCommit": "306caf308ac318edc4389e24a05a33b8424c2b73",
+  "checkedAt": "2026-11-14T07:40:30.701Z",
+  "startupOnly": true,
+  "command": "node .local/session-release-gate-045.mjs",
+  "sandboxProfile": "sandbox/.desktop-session-release-045-20261114/home/profiles/desktop",
+  "listeningUrl": "http://127.0.0.1:39476/",
+  "rendererUrl": "dsh-app://app/",
+  "runtime": {
+    "applicationVersion": "0.2.2-rc.3",
+    "bundledDshVersion": "0.2.2-rc.3"
+  },
+  "isolation": {
+    "separateHome": true,
+    "separateProfile": true,
+    "separateSessionsAndLedger": true,
+    "separateElectronUserData": true,
+    "cindyDisabled": true,
+    "composition": "Exact seven packages with the installed profile dependency graph; mobile/P2P integration disabled"
+  },
+  "checks": {
+    "unitTests": {
+      "passed": 513,
+      "failed": 0,
+      "targetSourceLine": "0.2.2-rc.3",
+      "notes": "Consolidated exact merged-source regression, including initialization/order persistence and retained activity/title fixes."
+    },
+    "syntax": "PASS",
+    "upstreamDrift": {
+      "result": "attachable",
+      "unchanged": 37,
+      "changed": 2,
+      "missing": 0
+    },
+    "forkExternals": {
+      "result": "PASS",
+      "checked": 6
+    },
+    "packageAudit": {
+      "result": "PASS",
+      "checked": 7,
+      "unchangedForkArchives": 6,
+      "mergedInitializationAndActivityFixes": true
+    },
+    "browserCoreActivated": true,
+    "activeClientEntries": 87,
+    "servedClientHashes": [
+      {
+        "name": "@deepseek-ai/dsh-client-ui-layout",
+        "clientSha256": "ab86bbb60ce48f6ae548963982e7ba444211bb7c9b9bbe1567bb2ae7648acc0b",
+        "servedExecutableSha256": "62d11f97d4ab601847a35ae48503fcef7246603ec03ba2fadac09904549bc1df"
+      },
+      {
+        "name": "@deepseek-ai/dsh-client-ui-workspace",
+        "clientSha256": "1861ca2db05446a0dbd80132eb5c42221387786009772753a5c7411ea2f3340e",
+        "servedExecutableSha256": "bcad3e52fd0f1a6c1ac99b181f0172cd564ba1396deaf28ea93bc6a2b2586b1c"
+      },
+      {
+        "name": "@deepseek-ai/dsh-client-ui-user-questions",
+        "clientSha256": "2e05948e47322d30ce1a1b3968ed8b3c1ef794d8b663baea70bece617a60f21b",
+        "servedExecutableSha256": "582ca5847238d5aafe14078155c933670121ccc4d3228c225ca020910eaf97e2"
+      },
+      {
+        "name": "@deepseek-ai/dsh-client-ui-input-trigger",
+        "clientSha256": "866a261d0f30497a432fd3428c4b7a6d806dbfd125201f46afd9b2cd4f85935b",
+        "servedExecutableSha256": "d49c0b5852dabf2dc45bba12a5c21f7a08a10866e5cde1b9241320b42fbcb048"
+      },
+      {
+        "name": "@deepseek-ai/dsh-client-ui-commands",
+        "clientSha256": "9790f953aed730bd78c499b0816f18039fd5457c259df09cd4f909910ecf50a4",
+        "servedExecutableSha256": "8a5df87c2298d5652594182eebd808fe8750d563166ba819622f16c9224c3806"
+      },
+      {
+        "name": "@deepseek-ai/dsh-client-ui-conversation",
+        "clientSha256": "765aecf768699cd30db462c6559332ddf18d4644e5d37a7966b56fff88910eed",
+        "servedExecutableSha256": "02b1756e192e27ca5047f7319e4d879328ca7ca8d6445355d55d3db909bbeed7"
+      },
+      {
+        "name": "@veewo/dsh-better-tasks",
+        "clientSha256": "04fe941100d3ee34267734f3ffc5b5b6f77c9fa65a1660a79e30e55c9d41e6c4",
+        "servedExecutableSha256": "e74428050b42da08927df6a4434ed4e1ca21596f49e91d15701a367145c9048f"
+      }
+    ],
+    "browserErrors": [],
+    "cleanup": {
+      "ports": [
+        39476,
+        9234
+      ],
+      "ownedListenersRemaining": 0,
+      "ownedProcessesRemaining": 0
+    }
+  },
+  "cleanupComplete": true,
+  "uiReview": {
+    "mode": "Bounded read-only review of merged initialization/status feedback",
+    "substantiveFindings": 0,
+    "visualVerification": false
+  },
+  "acceptance": "Functional and appearance acceptance remains with the user",
+  "realDesktopRestarted": false
+}

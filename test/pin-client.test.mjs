@@ -25,23 +25,25 @@ function fixture(pins = ['a'], order = pins) {
   return f
 }
 
-test('first nonblank catalog transition refreshes rank without any Pin membership change',async()=>{
+test('catalog hydration and activity do not refresh or reorder a persisted task sequence',async()=>{
   const f=fixture(['active','blank'],['active','blank'])
-  let snapshot={phase:'ready',byId:{active:{blank:false},blank:{blank:true}}}
-  const listeners=new Set()
-  const sessions={getSnapshot:()=>snapshot,subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn)}}
+  let subscriptions=0
+  const sessions={getSnapshot:()=>({phase:'ready',byId:{blank:{blank:false}}}),subscribe:()=>{subscriptions++;return()=>{}}}
   f.off=f.client.connectNative({source:f.native,sessions,pinSession:f.pin,unpinSession:f.unpin})
-  const stop=f.client.start();await f.client.refresh();const before=f.requests.length
-  f.request=async()=>reply(200,{queue:queue(3,['blank','active'])})
-  snapshot={phase:'ready',byId:{active:{blank:false},blank:{blank:false}}}
-  for(const fn of [...listeners])fn();await flush()
-  assert.deepEqual(f.ids(),['blank','active']);assert.ok(f.requests.length>before)
-  assert.ok(f.requests.every(([method])=>method==='GET'))
-  const settled=f.requests.length
-  snapshot={...snapshot,byId:{...snapshot.byId,blank:{blank:false,updatedAt:999999}}}
-  for(const fn of [...listeners])fn();await flush()
-  assert.equal(f.requests.length,settled,'ordinary activity must not refetch or reorder')
-  f.off();assert.equal(listeners.size,0);stop()
+  const stop=f.client.start();await f.client.refresh();await flush()
+  const reads=f.requests.length
+  assert.equal(subscriptions,0);assert.deepEqual(f.ids(),['active','blank'])
+  await flush();assert.equal(f.requests.length,reads);stop()
+})
+test('unsaved membership order is read-only and bounded polling adopts the saved revision',async()=>{
+  const f=fixture(['fresh','a'])
+  f.request=async()=>reply(200,{queue:queue(2,['fresh','a']),migration:{status:'done'},writable:false,warnings:['Task order was not saved']})
+  const stop=f.client.start();await flush()
+  assert.equal(f.client.source.getSnapshot().writable,false);assert.equal(f.timers.size,1)
+  f.request=async()=>reply(200,{queue:queue(3,['fresh','a']),migration:{status:'done'},writable:true})
+  const retry=[...f.timers.values()][0];f.timers.clear();retry();await flush()
+  assert.equal(f.client.source.getSnapshot().writable,true);assert.equal(f.client.source.getSnapshot().error,null)
+  assert.equal(f.timers.size,0);stop()
 })
 
 test('rank projection intersects official pins, excludes archives, and never resurrects legacy membership', () => {

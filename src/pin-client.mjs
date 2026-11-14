@@ -67,7 +67,9 @@ export function createTaskPinsClient({ request = pinRequest, schedule = setTimeo
   const stopTimer = () => { if (timer !== undefined) { cancel(timer); timer = undefined } }
   const armMigrationRefresh = () => {
     stopTimer()
-    if (!started || disposed || !['pending', 'initializing', 'running'].includes(migration?.status)) { polls = 0; return }
+    const restoring = ['pending', 'initializing', 'running'].includes(migration?.status)
+    const saving = loaded && !writable && ['done', 'partial'].includes(migration?.status)
+    if (!started || disposed || !(restoring || saving)) { polls = 0; return }
     if (polls >= 60) return // Native follow/focus still refresh; never poll indefinitely after a stuck migration.
     polls++
     timer = schedule(() => { timer = undefined; void refresh().catch(() => {}) }, 1000)
@@ -115,17 +117,6 @@ export function createTaskPinsClient({ request = pinRequest, schedule = setTimeo
     }
     binding = next; generation++
     let signature, closed = false
-    let visible = new Set()
-    const observeStartedTasks = () => {
-      if (closed || disposed || !nativeReady()) return
-      const sessions = next.sessions?.getSnapshot?.()
-      if (sessions?.phase !== 'ready') return
-      const nextVisible = new Set(native.pinnedSessionIds.filter(id => sessions.byId?.[id]?.blank === false))
-      const appeared = [...nextVisible].some(id => !visible.has(id))
-      visible = nextVisible
-      // A pre-existing Pin can become a new task without a workspace change.
-      if (appeared && started) void refresh().catch(() => {})
-    }
     const observe = () => {
       if (closed || disposed) return
       const snapshot = next.source.getSnapshot()
@@ -133,14 +124,12 @@ export function createTaskPinsClient({ request = pinRequest, schedule = setTimeo
       const value = JSON.stringify([native.pinnedSessionIds, native.archivedSessionIds, native.phase, native.state])
       const changed = signature !== value
       signature = value; publish()
-      observeStartedTasks()
       if (changed && nativeReady() && started) void refresh().catch(() => {})
     }
     const off = next.source.subscribe(observe)
-    const offSessions = typeof next.sessions?.subscribe === 'function' ? next.sessions.subscribe(observeStartedTasks) : () => {}
     disconnect = () => {
       if (closed) return
-      closed = true; off(); offSessions(); stopTimer(); generation++
+      closed = true; off(); stopTimer(); generation++
       if (binding === next) { binding = undefined; native = undefined; loaded = false; writable = false; publish() }
     }
     observe()
@@ -171,7 +160,7 @@ export function createTaskPinsClient({ request = pinRequest, schedule = setTimeo
     actionError = null; countPending(sessionId, 1)
     return enqueue(async () => {
       if (!loaded || !writable) await readOrder()
-      if (!writable) throw new Error('Task order is not ready; pin migration may still be running')
+      if (!writable) throw new Error('Task order is not ready or has not been saved; official Pin remains usable')
       for (let attempt = 0; attempt < 2; attempt++) {
         const queue = source.getSnapshot().queue
         if (!queue.sessionIds.includes(sessionId) || beforeSessionId != null && !queue.sessionIds.includes(beforeSessionId)) throw new Error('Task is no longer pinned')

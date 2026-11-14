@@ -9,7 +9,7 @@ import {
 } from './pin-model.mjs'
 import { installProjectAppearance } from './project-appearance.mjs'
 import { createFinalMessageHttpHandler } from './final-message.mjs'
-import { createNativePinHost, taskFirstWorkAt } from './native-pin-host.mjs'
+import { createNativePinHost } from './native-pin-host.mjs'
 import { createTaskExecutionProjection } from './task-execution.mjs'
 
 export const name = 'dsh-better-tasks'
@@ -75,10 +75,11 @@ export const pinQueueDomain = defineDomain({
 export const nativePinOrderDomain = defineDomain({
   name: 'better_tasks_native_order', version: 1,
   tables: { state: domainTable(pinQueueRecord.extend({
-    // Absent on older auto-seeded records; only an explicit drag writes this.
+    // Read compatibility only. sessionIds is the sole order; new writes omit
+    // the former manual subset and time-derived sorting metadata.
     manualSessionIds: z.array(z.string().min(1)).refine((ids) => new Set(ids).size === ids.length).optional(),
     manualOrderAt: z.number().int().nonnegative().optional(),
-    // Task admission time may differ from an older/reused Session header.
+    // Old admission/work caches are accepted, never read to determine order.
     taskCreatedAtBySession: z.record(z.string().min(1), z.number().int().nonnegative()).optional(),
     taskFirstWorkAtBySession: z.record(z.string().min(1), z.number().int().nonnegative()).optional(),
     migration: z.object({
@@ -194,9 +195,6 @@ export async function apply(ctx) {
   }
   const controller = createNativePinHost({
     registry: ctx.workspaceRegistry,
-    listSessions: (signal) => ctx.sessionQuery.listSessions(signal),
-    readTaskStartedAt: async (header, signal) => typeof ctx.sessionQuery.listEvents === 'function'
-      ? taskFirstWorkAt(await ctx.sessionQuery.listEvents(header.id, signal)) : undefined,
     openOrder: () => open(nativePinOrderDomain, 'state'),
     openLegacy: () => open(pinQueueDomain, 'queues'),
     subscribe: listener => ctx.on('domain/changed', listener),

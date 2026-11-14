@@ -3,8 +3,8 @@
 ## 当前公开组合与 tag 规则
 
 - DSH Desktop 运行时：**0.2.2-rc.3**。
-- Better Tasks npm/package 版本：**0.4.5**。
-- Git tag / GitHub Release：**`dsh-v0.2.2-rc.3-tasks-v0.4.5`**（Pre-release）。
+- Better Tasks npm/package 版本：**0.4.6**。
+- Git tag / GitHub Release：**`dsh-v0.2.2-rc.3-tasks-v0.4.6`**（Pre-release）。
 - 安装入口：[rc.3 安装说明](<install-rc3.md>)；旧 rc.2 / Tasks 0.4.1 的[安装说明](<install.md>)和资产保持不变，兼容表见 [README](<../README.md>)。
 
 今后统一使用 `dsh-v<DSH版本>-tasks-v<Tasks版本>`。DSH 版本写完整，保留 rc 后缀；Tasks 版本仍由插件自己的 manifest 管理。同一 Tasks 源码可适配多条 DSH 线，但每条线都要有独立验证的组合 Release。已发布的 tag 与资产 URL 不移动、不覆盖；内容变化应升 Tasks 版本并创建新组合 tag。面向 RC 运行时的本次组合标记为 GitHub Pre-release，不依赖全局 Latest 作为安装入口。
@@ -18,6 +18,8 @@
 - Tasks 0.4.2 是本轮 rc.3 适配候选，见[适配记录](<dsh-0.2.2-rc.3-support.md>)和[候选安装说明](<install-rc3.md>)。公开 rc.2 / Tasks 0.4.1 入口保留；候选的七包与精确 rc.3 启动证据单独交付，不将源码提交或 tag 当成 GitHub/npm 已发布。
 
 ## 本次组合与历史内容
+
+0.4.6 / rc.3：明确创建成功的新任务直接前插（含复用已 Pin 空白），不读取原会话日期。创建提交期间保护前插显示，迟到 GET 不覆盖；CAS 重试重新锚定最新首项，快速创建按意图串行保存。Host 保存完整顺序，刷新/重建后恢复，除手动调整、新任务前插或移除外不重排。新增实际 Host/Client 接口链路的保存、重建、手动调整后再重建回归。保留0.4.5初始化优化和0.4.4状态/标题修复，六个 fork 原字节不变；旧 tag/assets 不覆盖。
 
 0.4.5 / rc.3：在 0.4.4 的 subagent 活跃态和选中标题修复上，完整合入初始化优化、唯一完整顺序持久化及恢复/旧队列导入提示分离。排序不再调用 listSessions/listEvents 或读取历史首工作时间；旧 native-order schema 保持可读，旧队列只读，导入仍有副作用前栅栏与中断不重试规则。完整七包独立通过本轮启动门禁后交付；六个 fork 不改字节。0.4.4 tag 与资产保留，不覆盖。
 

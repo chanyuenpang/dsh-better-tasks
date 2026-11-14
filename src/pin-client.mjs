@@ -40,6 +40,10 @@ export function createTaskPinsClient({ request = pinRequest, schedule = setTimeo
   const source = createClientSource(Object.freeze({ phase: 'loading', queue: EMPTY_QUEUE,
     pendingSessionIds: Object.freeze([]), error: null, writable: false, migration: null }))
   const pending = new Map(), pinFlights = new Map()
+  // Explicit creation intent only; never infer task birth from dates or history.
+  // This affects display order, not official Pin membership or committed rank.
+  const created = new Set(), creationFlights = new Map()
+  let creationTail = Promise.resolve()
   const lifetime = new AbortController()
   let rank = EMPTY_QUEUE, native, binding, disconnect, tail = Promise.resolve()
   let started = false, disposed = false, generation = 0, loaded = false, writable = false, hasStableRank = false
@@ -49,8 +53,13 @@ export function createTaskPinsClient({ request = pinRequest, schedule = setTimeo
   const publish = () => {
     if (disposed) return
     const nativeError = native?.error?.message ?? (native?.state === 'error' ? 'Native Pin service is unavailable' : null)
+    const queue = projectNativeTaskQueue(rank, native)
+    const front = [...created].reverse().filter(id => queue.sessionIds.includes(id))
+    const displayed = front.length === 0 ? queue : Object.freeze({ ...queue,
+      sessionIds: Object.freeze([...front, ...queue.sessionIds.filter(id => !created.has(id))]),
+    })
     source.set(Object.freeze({ phase: nativeReady() ? 'ready' : 'loading',
-      queue: projectNativeTaskQueue(rank, native), pendingSessionIds: Object.freeze([...pending.keys()]),
+      queue: displayed, pendingSessionIds: Object.freeze([...pending.keys()]),
       error: actionError ?? orderError ?? nativeError ?? (warnings.length ? warnings.join('; ') : null),
       writable: nativeReady() && loaded && writable, migration: migration?.status ?? null }))
   }
@@ -156,16 +165,19 @@ export function createTaskPinsClient({ request = pinRequest, schedule = setTimeo
     pinFlights.set(sessionId, { pinned, promise })
     return promise
   }
-  const moveBefore = (sessionId, beforeSessionId) => {
+  const moveBefore = (sessionId, beforeSessionId, { front = false } = {}) => {
     actionError = null; countPending(sessionId, 1)
     return enqueue(async () => {
       if (!loaded || !writable) await readOrder()
       if (!writable) throw new Error('Task order is not ready or has not been saved; official Pin remains usable')
       for (let attempt = 0; attempt < 2; attempt++) {
-        const queue = source.getSnapshot().queue
-        if (!queue.sessionIds.includes(sessionId) || beforeSessionId != null && !queue.sessionIds.includes(beforeSessionId)) throw new Error('Task is no longer pinned')
+        const queue = projectNativeTaskQueue(rank, native)
+        // Creation means absolute first, so rebase its anchor after a CAS conflict.
+        // Manual drag keeps its explicit anchor and does not acquire this policy.
+        const before = front ? queue.sessionIds.find(id => id !== sessionId) : beforeSessionId
+        if (!queue.sessionIds.includes(sessionId) || before != null && !queue.sessionIds.includes(before)) throw new Error('Task is no longer pinned')
         const { response, payload } = await request('POST', {
-          action: 'move', sessionId, beforeSessionId: beforeSessionId ?? null, expectedRevision: rank.revision,
+          action: 'move', sessionId, beforeSessionId: before ?? null, expectedRevision: rank.revision,
         }, lifetime.signal)
         if (disposed) throw new Error('Task pins are disposed')
         if (response.ok) return adopt(payload)
@@ -177,8 +189,36 @@ export function createTaskPinsClient({ request = pinRequest, schedule = setTimeo
       throw new Error('Task order changed again; retry the move')
     }).catch(error => { actionError = String(error?.message ?? error); publish(); throw error }).finally(() => countPending(sessionId, -1))
   }
+  const pinCreated = sessionId => {
+    const prior = creationFlights.get(sessionId)
+    if (prior !== undefined) return prior
+    created.add(sessionId)
+    actionError = null
+    // Pin still goes through the native action. The display overlay only applies
+    // after official membership confirms the id, including an already-pinned blank.
+    const pin = setPinned(sessionId, true)
+    countPending(sessionId, 1)
+    void pin.catch(() => {}) // A later creation may be waiting behind an earlier one.
+    const work = creationTail.then(async () => {
+      await pin
+      if (disposed) throw new Error('Task pins are disposed')
+      if (!hasStableRank) await refresh()
+      const ids = projectNativeTaskQueue(rank, native).sessionIds
+      if (!ids.includes(sessionId)) throw new Error('Task is no longer pinned')
+      if (ids[0] !== sessionId) await moveBefore(sessionId, undefined, { front: true })
+      return source.getSnapshot().queue
+    }).catch(error => { actionError = String(error?.message ?? error); publish(); throw error }).finally(() => {
+      created.delete(sessionId); creationFlights.delete(sessionId)
+      countPending(sessionId, -1)
+    })
+    // Persist in creation-intent order even when native acknowledgements arrive
+    // out of order. A later task stays visibly first throughout earlier commits.
+    creationTail = work.catch(() => {})
+    creationFlights.set(sessionId, work)
+    return work
+  }
   return {
-    source, connectNative, refresh, setPinned, pinCreated: sessionId => setPinned(sessionId, true), moveBefore,
+    source, connectNative, refresh, setPinned, pinCreated, moveBefore,
     start() {
       started = true
       const onFocus = () => { polls = 0; void refresh().catch(() => {}) }

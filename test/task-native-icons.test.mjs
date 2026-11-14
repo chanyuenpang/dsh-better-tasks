@@ -39,7 +39,10 @@ test('native Pin bridge invokes official UI actions without a second membership 
   assert.match(source, /unpinSession: \(id\) => ctx\.uiWorkspace\.unpinSession\(id\)/)
   const client = readFileSync(new URL('../src/pin-client.mjs', import.meta.url), 'utf8')
   assert.doesNotMatch(client, /optimisticPins|action: pinned \? 'pin'|action: 'pin-created'/)
-  assert.match(client, /pinCreated: sessionId => setPinned\(sessionId, true\)/)
+  const creation = client.slice(client.indexOf('const pinCreated ='), client.indexOf('creationTail = work.catch'))
+  assert.match(creation, /const pin = setPinned\(sessionId, true\)/)
+  assert.match(creation, /moveBefore\(sessionId, undefined, \{ front: true \}\)/)
+  assert.doesNotMatch(creation, /request\('POST'/)
 })
 test('animation fix does not add a local force-motion override to task or workspace styling', () => {
   const rows = readFileSync(new URL('../.srcbuild/packages/client/ui-workspace/src/client/rows/Rows.module.css', import.meta.url), 'utf8')

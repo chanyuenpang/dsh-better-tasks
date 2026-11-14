@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "result": "PASS",
+  "dshVersion": "0.2.2-rc.3",
+  "tasksVersion": "0.4.4",
+  "tag": "dsh-v0.2.2-rc.3-tasks-v0.4.4",
+  "sourceCommit": "97773a8f404b22f17bc397783c7d93c8c4ae41e2",
+  "checkedAt": "2026-11-14T07:12:46.127Z",
+  "startupOnly": true,
+  "command": "node .local/session-release-gate-044.mjs",
+  "sandboxProfile": "sandbox/.desktop-session-release-044-20261114/home/profiles/desktop",
+  "listeningUrl": "http://127.0.0.1:39475/",
+  "rendererUrl": "dsh-app://app/",
+  "runtime": {
+    "applicationVersion": "0.2.2-rc.3",
+    "bundledDshVersion": "0.2.2-rc.3"
+  },
+  "isolation": {
+    "separateHome": true,
+    "separateProfile": true,
+    "separateSessionsAndLedger": true,
+    "separateElectronUserData": true,
+    "cindyDisabled": true,
+    "composition": "Exact seven packages with the installed profile dependency graph; mobile/P2P integration disabled"
+  },
+  "checks": {
+    "unitTests": {
+      "passed": 511,
+      "failed": 0,
+      "targetSourceLine": "0.2.2-rc.3",
+      "notes": "Initial isolated snapshot lacked one historical input-view fixture. Restored the unchanged fixture; its 16 tests passed. The other 495 tests passed in the consolidated run."
+    },
+    "syntax": "PASS",
+    "upstreamDrift": {
+      "result": "attachable",
+      "unchanged": 37,
+      "changed": 2,
+      "missing": 0
+    },
+    "forkExternals": {
+      "result": "PASS",
+      "checked": 6
+    },
+    "packageAudit": {
+      "result": "PASS",
+      "checked": 7,
+      "unchangedForkArchives": 6,
+      "executableCodeIdenticalToInstalled043": true
+    },
+    "browserCoreActivated": true,
+    "activeClientEntries": 87,
+    "servedClientHashes": [
+      {
+        "name": "@deepseek-ai/dsh-client-ui-layout",
+        "clientSha256": "ab86bbb60ce48f6ae548963982e7ba444211bb7c9b9bbe1567bb2ae7648acc0b",
+        "servedExecutableSha256": "62d11f97d4ab601847a35ae48503fcef7246603ec03ba2fadac09904549bc1df"
+      },
+      {
+        "name": "@deepseek-ai/dsh-client-ui-workspace",
+        "clientSha256": "1861ca2db05446a0dbd80132eb5c42221387786009772753a5c7411ea2f3340e",
+        "servedExecutableSha256": "bcad3e52fd0f1a6c1ac99b181f0172cd564ba1396deaf28ea93bc6a2b2586b1c"
+      },
+      {
+        "name": "@deepseek-ai/dsh-client-ui-user-questions",
+        "clientSha256": "2e05948e47322d30ce1a1b3968ed8b3c1ef794d8b663baea70bece617a60f21b",
+        "servedExecutableSha256": "582ca5847238d5aafe14078155c933670121ccc4d3228c225ca020910eaf97e2"
+      },
+      {
+        "name": "@deepseek-ai/dsh-client-ui-input-trigger",
+        "clientSha256": "866a261d0f30497a432fd3428c4b7a6d806dbfd125201f46afd9b2cd4f85935b",
+        "servedExecutableSha256": "d49c0b5852dabf2dc45bba12a5c21f7a08a10866e5cde1b9241320b42fbcb048"
+      },
+      {
+        "name": "@deepseek-ai/dsh-client-ui-commands",
+        "clientSha256": "9790f953aed730bd78c499b0816f18039fd5457c259df09cd4f909910ecf50a4",
+        "servedExecutableSha256": "8a5df87c2298d5652594182eebd808fe8750d563166ba819622f16c9224c3806"
+      },
+      {
+        "name": "@deepseek-ai/dsh-client-ui-conversation",
+        "clientSha256": "765aecf768699cd30db462c6559332ddf18d4644e5d37a7966b56fff88910eed",
+        "servedExecutableSha256": "02b1756e192e27ca5047f7319e4d879328ca7ca8d6445355d55d3db909bbeed7"
+      },
+      {
+        "name": "@veewo/dsh-better-tasks",
+        "clientSha256": "3756be1987190cb627ba40756f844c5331a39f667ee649bfb77d3e76a7caa0e1",
+        "servedExecutableSha256": "5ea48239f064371d8b3fa511ba0a6957c28c32b1b061e6fa9f8067d5f79f6ea9"
+      }
+    ],
+    "browserErrors": [],
+    "cleanup": {
+      "ports": [
+        39475,
+        9233
+      ],
+      "ownedListenersRemaining": 0,
+      "ownedProcessesRemaining": 0
+    }
+  },
+  "cleanupComplete": true,
+  "uiReview": {
+    "mode": "Existing bounded read-only source review of identical executable code",
+    "substantiveFindings": 0,
+    "visualVerification": false
+  },
+  "acceptance": "Functional and appearance acceptance remains with the user",
+  "realDesktopRestarted": false
+}

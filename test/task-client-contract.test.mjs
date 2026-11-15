@@ -42,7 +42,7 @@ test('task card emphasis setting swaps only project and task name typography', a
   assert.match(source, /\.dbt-task-project\{[^}]*font-size:14px;font-weight:680/)
   assert.match(source, /\.dbt-task-rename\{[^}]*font-size:11px/)
   assert.match(source, /\.dbt-task-list\[data-title-emphasis="task"\] \.dbt-task-project\{font-size:11px;font-weight:400;line-height:16px;color:var\(--dsw-alias-label-secondary\)\}/)
-  assert.match(source, /\.dbt-task-list\[data-title-emphasis="task"\] \.dbt-task-rename\{font-size:14px;font-weight:680;line-height:19px;color:var\(--dsw-alias-label-primary\)\}/)
+  assert.match(source, /\.dbt-task-list\[data-title-emphasis="task"\] \.dbt-task-rename\{font-size:14px;font-weight:680;line-height:19px;color:var\(--dsw-alias-label-secondary\)\}/)
   assert.match(source, /\.dbt-settings-segments\[data-options="2"\]\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}/)
   assert.match(settings, /\.\.\.\['project', 'task'\]\.map\(\(emphasis\) => element\('button'/)
   assert.match(settings, /'aria-pressed': String\(draft\.titleEmphasis === emphasis\)/)

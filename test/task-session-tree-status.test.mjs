@@ -74,11 +74,17 @@ test('card rendering and idle-only disclosures share the aggregate instead of re
   assert.match(source, /'data-state': task\.session\.status/)
 })
 
-test('only selected session titles use the official theme accent in either emphasis mode and on hover', async () => {
+test('task title selection uses grayscale in both emphasis modes and preserves background/border', async () => {
   const source = await readFile(new URL('../src/client.js', import.meta.url), 'utf8')
-  const rule = '.dbt-task-card[data-current="true"] .dbt-task-rename{color:var(--dsw-alias-brand-primary)}'
+  const rule = '.dbt-task-card[data-current="true"] .dbt-task-rename{color:var(--dsw-alias-label-primary)}'
+  assert.match(source, /^\.dbt-task-rename\{[^}]*color:var\(--dsw-alias-label-secondary\)/m)
+  assert.ok(source.includes('.dbt-task-list[data-title-emphasis="task"] .dbt-task-rename{font-size:14px;font-weight:680;line-height:19px;color:var(--dsw-alias-label-secondary)}'))
+  assert.ok(source.includes('.dbt-task-rename:hover{text-decoration:underline;color:var(--dsw-alias-label-secondary)}'), 'hover must keep unselected titles secondary; the selected rule has higher specificity')
+  assert.ok(source.includes('.dbt-task-card[data-current="true"]{border-color:var(--dbt-task-border-selected);box-shadow:none;--dbt-task-bg:color-mix(in srgb,var(--dsw-alias-label-primary) 8%,var(--dsw-alias-bg-layer-1))}'))
+  assert.ok(source.includes('--dbt-task-border-selected:color-mix(in srgb,var(--dsw-alias-brand-primary) 72%,var(--dsw-alias-label-primary))'))
   assert.ok(source.includes(rule))
   assert.ok(source.indexOf(rule) > source.indexOf('.dbt-task-rename:hover{'))
   assert.ok(source.includes('.dbt-task-list[data-title-emphasis="task"] ' + rule))
-  assert.doesNotMatch(source, /^\.dbt-task-rename\{[^}]*color:var\(--dsw-alias-brand-primary\)/m)
+  assert.doesNotMatch(source, /^.*\.dbt-task-rename[^\n{]*\{[^}]*var\(--dsw-alias-link\)/m)
+  assert.doesNotMatch(source, /^\.dbt-task-rename\{[^}]*color:var\(--dsw-alias-label-primary\)/m)
 })

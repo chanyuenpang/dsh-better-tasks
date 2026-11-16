@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "result": "PASS",
+  "tag": "dsh-v0.2.2-rc.3-tasks-v0.4.8",
+  "tagCommit": "331f83a9a2f4157a20e1379c1e2bda04b898dc8e",
+  "annotatedTag": true,
+  "sourceCommit": "d469f02621abe57c88b4e0d885e33b18852ed32e",
+  "checkedAt": "2026-11-16T08:18:17.793Z",
+  "github": {
+    "url": "https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.3-tasks-v0.4.8",
+    "isDraft": false,
+    "isPrerelease": true,
+    "assets": [
+      {
+        "filename": "deepseek-ai-dsh-client-ui-layout-0.2.2-rc.3.tgz",
+        "sha256": "06d032dadeb532b36458457bf14c7184aef782c8ce1ac163925ef95dc014a324",
+        "bytes": 69891
+      },
+      {
+        "filename": "deepseek-ai-dsh-client-ui-workspace-0.2.2-rc.3.tgz",
+        "sha256": "504ee0c5cdfe9dc8eb23a95754cfca190e5753ad2973ae8e0dc5db2f21ad2030",
+        "bytes": 351227
+      },
+      {
+        "filename": "deepseek-ai-dsh-client-ui-user-questions-0.2.2-rc.3.tgz",
+        "sha256": "f65831c08cbc69f5964fcf2bf02d99726d291c0f220bcd4bfef0758155c7b069",
+        "bytes": 144876
+      },
+      {
+        "filename": "deepseek-ai-dsh-client-ui-input-trigger-0.2.2-rc.3.tgz",
+        "sha256": "e50e5855d3237b842ac42f6b266cf4d9c340a14c1a13d622630b143892cb2fb4",
+        "bytes": 102611
+      },
+      {
+        "filename": "deepseek-ai-dsh-client-ui-commands-0.2.2-rc.3.tgz",
+        "sha256": "4f82bb18e201486b400aa5089d0330733c75f3d9cc858fb51149e7db16549f44",
+        "bytes": 111750
+      },
+      {
+        "filename": "deepseek-ai-dsh-client-ui-conversation-0.2.2-rc.3.tgz",
+        "sha256": "3cdeaf6d94037cea18e6e6251916fa547ac4a31c34013c2e97971c59908c1d60",
+        "bytes": 997635
+      },
+      {
+        "filename": "veewo-dsh-better-tasks-0.4.8.tgz",
+        "sha256": "cdf1fa342fce42fbaa56e5b05547a061c8d2c24b3c39042cafa6c88555e5370a",
+        "bytes": 154050
+      },
+      {
+        "filename": "release-manifest.json",
+        "sha256": "98ad57936c56d06ec56e6dd3bc9685669d18825c69c1f1000da45550cdd90e9d",
+        "bytes": 3885
+      },
+      {
+        "filename": "SHA256SUMS.txt",
+        "sha256": "07c505bcd179e58fe2e240e3b8c85f2e7919269789a8954ad7bd1a54d43bdd81",
+        "bytes": 1134
+      },
+      {
+        "filename": "INSTALL.md",
+        "sha256": "741a121682ed3444cfc662bb657d14cd7913b5774330c4832759f04933b187e8",
+        "bytes": 8525
+      },
+      {
+        "filename": "ROLLBACK.md",
+        "sha256": "43ee9ff3aa29d0aa6306d904dccf7950c5700ea0bb43a74c329a178c37a34605",
+        "bytes": 8259
+      },
+      {
+        "filename": "validation.json",
+        "sha256": "71e67d6014df1a224032463570053105804498820585c750b4c46cc92d365946",
+        "bytes": 4210
+      }
+    ],
+    "anonymousDownloadsVerified": 12
+  },
+  "npm": {
+    "result": "PASS",
+    "name": "@veewo/dsh-better-tasks",
+    "version": "0.4.8",
+    "url": "https://www.npmjs.com/package/@veewo/dsh-better-tasks/v/0.4.8",
+    "distTag": "latest",
+    "integrity": "sha512-GmodF6ZJObhkpXagKAIxDkaZYKXKRHUw6rsvBnA8wo+wUpZQ/C/fcdM6TDCKbzKBgCZOjWLcLv7ENg1KKQ7Mtw==",
+    "archiveSha256": "cdf1fa342fce42fbaa56e5b05547a061c8d2c24b3c39042cafa6c88555e5370a",
+    "anonymousRegistryAndTarballVerified": true,
+    "checkedAt": "2026-11-16T08:17:38.502Z"
+  },
+  "upstreamDiscussion": "https://github.com/deepseek-ai/deepseek-harness/discussions/5043#discussioncomment-19649223",
+  "realProfileChanged": false,
+  "realDesktopRestarted": false,
+  "performanceFixClaimed": false
+}

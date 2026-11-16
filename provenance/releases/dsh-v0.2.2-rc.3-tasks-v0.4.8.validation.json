@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "result": "PASS",
+  "tag": "dsh-v0.2.2-rc.3-tasks-v0.4.8",
+  "dshVersion": "0.2.2-rc.3",
+  "tasksVersion": "0.4.8",
+  "sourceCommit": "d469f02621abe57c88b4e0d885e33b18852ed32e",
+  "checkedAt": "2026-11-16T08:10:51.928Z",
+  "startupOnly": true,
+  "command": "isolated Desktop cold start with exact seven-package composition",
+  "sandboxProfile": "sandbox/.desktop-release-048-20261116/home/profiles/desktop",
+  "listeningUrl": "http://127.0.0.1:39487/",
+  "rendererUrl": "dsh-app://app/",
+  "runtime": {
+    "applicationVersion": "0.2.2-rc.3",
+    "bundledDshVersion": "0.2.2-rc.3"
+  },
+  "isolation": {
+    "separateHome": true,
+    "separateProfile": true,
+    "separateSessionsAndLedger": true,
+    "separateElectronUserData": true,
+    "cindyDisabled": true
+  },
+  "checks": {
+    "unitTests": {
+      "result": "PASS",
+      "testsPassed": 549,
+      "testsFailed": 0,
+      "testFiles": 62,
+      "targetSourceLine": "0.2.2-rc.3",
+      "syntax": "PASS",
+      "forkExternals": 6,
+      "realProfileChanged": false
+    },
+    "syntax": "PASS",
+    "upstreamDrift": {
+      "result": "attachable",
+      "unchanged": 39,
+      "changed": 0,
+      "missing": 0
+    },
+    "forkExternals": {
+      "result": "PASS",
+      "checked": 6
+    },
+    "packageAudit": {
+      "result": "PASS",
+      "checked": 7,
+      "unchangedForkArchives": 6,
+      "allExecutableBytesIdenticalToAcceptedLocal5": true
+    },
+    "browserCoreActivated": true,
+    "activeClientEntries": 87,
+    "servedClientHashes": [
+      {
+        "name": "@deepseek-ai/dsh-client-ui-layout",
+        "clientSha256": "39c2a3dc32477b4ad4983d962690d3f313aeef4bbfb8d4bcb276c38d33f435af",
+        "servedExecutableSha256": "48cf0db52a8fd9630cb9cd4053a8a43701697a46a26deb2eb51023c8f39f53e6"
+      },
+      {
+        "name": "@deepseek-ai/dsh-client-ui-workspace",
+        "clientSha256": "d1f59f4f66162d1a3a7ea6395ce8687bcdfcd82a8788979f6cfe0712ab24c18c",
+        "servedExecutableSha256": "4860a214185fecc4450001f8ad88d5ae019df38c91c07031efb6831fe4a61116"
+      },
+      {
+        "name": "@deepseek-ai/dsh-client-ui-user-questions",
+        "clientSha256": "2e05948e47322d30ce1a1b3968ed8b3c1ef794d8b663baea70bece617a60f21b",
+        "servedExecutableSha256": "582ca5847238d5aafe14078155c933670121ccc4d3228c225ca020910eaf97e2"
+      },
+      {
+        "name": "@deepseek-ai/dsh-client-ui-input-trigger",
+        "clientSha256": "866a261d0f30497a432fd3428c4b7a6d806dbfd125201f46afd9b2cd4f85935b",
+        "servedExecutableSha256": "d49c0b5852dabf2dc45bba12a5c21f7a08a10866e5cde1b9241320b42fbcb048"
+      },
+      {
+        "name": "@deepseek-ai/dsh-client-ui-commands",
+        "clientSha256": "9790f953aed730bd78c499b0816f18039fd5457c259df09cd4f909910ecf50a4",
+        "servedExecutableSha256": "8a5df87c2298d5652594182eebd808fe8750d563166ba819622f16c9224c3806"
+      },
+      {
+        "name": "@deepseek-ai/dsh-client-ui-conversation",
+        "clientSha256": "92e24f2e3162950e5df52f1c258f0c253da8bb23c46411708f126fd4973d6d04",
+        "servedExecutableSha256": "23b65862bf99709b3fabad020b175082dcac3c8b1648e56a31d236bc051747a0"
+      },
+      {
+        "name": "@veewo/dsh-better-tasks",
+        "clientSha256": "b7f74174c1e90a1fd97de31e957ff2460406c49982e2ec58b80dea8c117b02d5",
+        "servedExecutableSha256": "dd5c8f44b9cf2b8b294450fb1afd8b26ea4507b18410658b22ad01707cd33e6f"
+      }
+    ],
+    "browserErrors": [],
+    "cleanup": {
+      "ports": [
+        39487,
+        9245
+      ],
+      "ownedListenersRemaining": 0,
+      "ownedProcessesRemaining": 0
+    }
+  },
+  "cleanupComplete": true,
+  "uiReview": {
+    "mode": "Prior skill-prescribed bounded source UX review on identical local.5 executable code; nested-area hover finding corrected before baseline validation",
+    "visualVerification": false
+  },
+  "acceptance": "User confirmed citation insertion works on local.5; functional and appearance acceptance remains user-owned. Native reference latency is unresolved and not claimed fixed.",
+  "upstreamDiscussion": "https://github.com/deepseek-ai/deepseek-harness/discussions/5043#discussioncomment-19649223",
+  "realDesktopRestarted": false,
+  "realProfileChanged": false,
+  "releaseOnly": true
+}

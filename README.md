@@ -4,15 +4,15 @@ DSH 侧栏任务泳道：共享原生 Pin、独立任务输入、Final 预览与
 
 ## 按 DSH 版本安装
 
-**当前 rc.3 分发组合：DSH Desktop `0.2.2-rc.3` + Better Tasks `0.4.7`（Pre-release）。**
+**当前 rc.3 分发组合：DSH Desktop `0.2.2-rc.3` + Better Tasks `0.4.8`（Pre-release）。**
 
-新任务创建成功后直接置首并持久化，不读取原会话日期；刷新、重启、消息与运行状态变化不重排，之后仅手动调整、新任务前插或移除会改变任务序列。已合并初始化优化：不扫描会话历史、按持久化的完整顺序恢复任务，并区分顺序恢复与旧队列导入提示；同时保留子/孙 agent 活跃状态修复；标题改用灰阶：普通深灰、选中主要文字色（浅色近黑/深色近白），背景、描边及状态色不变。安装必须取齐[rc.3 完整七包](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.3-tasks-v0.4.7>)，按[rc.3 安装说明](<docs/install-rc3.md>)处理；npm 主包不是完整运行时组合。以下 rc.2 入口保留供仍在使用 rc.2 的用户。
+0.4.8 发布已使用的 local.5 执行代码：任务卡与会话行既可合法列表内排序，也可拖入另一主会话的消息区/输入区，向已有草稿插入原生会话引用，不自动发送。修复传输模块漏打包及可选 Remote 子服务访问错误；取消、切会话和真实草稿修改不误提交。合入侧栏期望宽度恢复与标题主要文字色/选中常规字重400。保留初始化、完整顺序持久化、新建置首和子agent状态修复。 引用速度仍受 DSH 原生候选查询影响，本版不声称性能优化。新任务创建成功后直接置首并持久化，不读取原会话日期；刷新、重启、消息与运行状态变化不重排，之后仅手动调整、新任务前插或移除会改变任务序列。已合并初始化优化：不扫描会话历史、按持久化的完整顺序恢复任务，并区分顺序恢复与旧队列导入提示；同时保留子/孙 agent 活跃状态修复；标题统一原生主要文字色，选中采用常规字重400，背景、描边及状态色不变。安装必须取齐[rc.3 完整七包](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.3-tasks-v0.4.8>)，按[rc.3 安装说明](<docs/install-rc3.md>)处理；npm 主包不是完整运行时组合。以下 rc.2 入口保留供仍在使用 rc.2 的用户。
 
 0.4.1 包含新任务排序与斜杠提交修复，必须同步更新主包和本 Release 的 conversation fork，见[安装说明](<docs/install.md>)。旧 [0.4.0 组合](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.0>)保留供回滚。
 
 | DSH Desktop 运行时 | Better Tasks | 完整安装入口 |
 |---|---|---|
-| `0.2.2-rc.3` | `0.4.7` | [dsh-v0.2.2-rc.3-tasks-v0.4.7](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.3-tasks-v0.4.7>)（会话活跃态与选中标题修复） |
+| `0.2.2-rc.3` | `0.4.8` | [dsh-v0.2.2-rc.3-tasks-v0.4.8](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.3-tasks-v0.4.8>)（拖动排序与整会话区引用、宽度恢复） |
 | `0.2.2-rc.2` | `0.4.1` | [dsh-v0.2.2-rc.2-tasks-v0.4.1](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.1>)（含输入框回退修复） |
 | `0.2.1-rc.2` | `0.3.2` | [历史插件](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/v0.3.2>) + [对应 fork 库](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/better-tasks-forks-0.2.1-rc.2-r1>) |
 | `0.2.0-rc.2` | `0.3.1` | [历史发行版](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/v0.3.1>) |
@@ -21,7 +21,7 @@ DSH 侧栏任务泳道：共享原生 Pin、独立任务输入、Final 预览与
 
 **完整安装 = 插件本体 + 同一 Release 的六个 UI fork，共 7 个 `.tgz`。** 源码 ZIP 和单独 npm 包都不是完整安装包。六个 fork 保留原生包名，属于本项目兼容性修改，并非 DeepSeek 官方发行包。
 
-1. 按表格中的完整 DSH 版本选择 Release，取齐七包、`release-manifest.json`、`SHA256SUMS.txt` 和 `INSTALL.md`；rc.3 使用 0.4.7，rc.2 保留 0.4.1。
+1. 按表格中的完整 DSH 版本选择 Release，取齐七包、`release-manifest.json`、`SHA256SUMS.txt` 和 `INSTALL.md`；rc.3 使用 0.4.8，rc.2 保留 0.4.1。
 2. 按对应的 [rc.3 安装说明](<docs/install-rc3.md>)或 [rc.2 安装说明](<docs/install.md>)校验并备份自己的 Profile，配置 `nodeLinker: isolated` 与六个精确的 `publicHoistPattern`。
 3. 完全退出 Desktop（含托盘），安装七包，再手动启动验收。升级与卸载见[回滚说明](<docs/rollback.md>)。
 
@@ -30,6 +30,7 @@ DSH 侧栏任务泳道：共享原生 Pin、独立任务输入、Final 预览与
 ## Features
 
 - Switch between the native Session browser and a task swimlane in the same sidebar; native search, Workspace grouping, rename, archive and directory operations remain.
+- Drag a task card or Session row into the main conversation message/input area to insert a native Session-reference chip into the existing draft without sending. Legal in-list drops still reorder; copy and cancellation never commit a move. [Reference contract](<docs/session-drag-reference.md>).
 - Native Pin membership is shared with official Session rows. Better Tasks persists a separate task-card order, not a second membership truth. New Session paths use the same native action and auto-Pin lifecycle hook.
 - Cards keep the native running StateDot, localized relative time and current main-view selection. Clicking a card immediately opens its Session. Double-clicking its non-interactive area toggles Final: close immediately when expanded; open only when a current, nonempty Final preview is available.
 - Final is a bounded, read-only Host projection (up to 4000 Unicode code points). The currently browsed task does not automatically expand Final for a new idle cycle; manual choices win, and navigation does not retroactively expand it. Cold startup catalog fallback/hydration does not erase saved choices or lower the consumed activity watermark.
@@ -47,7 +48,7 @@ Source patches live under [src-patches](<src-patches/>), project-owned modules u
 
 **仅在 `main` 上开发和提交**；不再维护按功能、发布或 DSH 版本划分的长期分支。已有分支仅保留历史引用。支持版本只由 `main` 上不可变的 `dsh-v<DSH版本>-tasks-v<Tasks版本>` annotated tag 与完整 Release 标记，`main` 的最新提交不等于已经发布或适配完成，详见[发布规范](<docs/release.md>)。
 
-rc.3 的 HOC 与六个 fork 来源见[0.4.2 适配记录](<docs/dsh-0.2.2-rc.3-support.md>)；0.4.7 合并[初始化与完整顺序持久化](<docs/task-order-persistence.md>)，并保留 0.4.4 的[会话活跃状态与选中标题修复](<docs/task-session-activity.md>)。精确七包哈希及启动结果随 Release 的 `validation.json` 交付。rc.2 入口保持不变，不混装旧 rc.3 产物或仅按 npm latest 安装。
+rc.3 的 HOC 与六个 fork 来源见[0.4.2 适配记录](<docs/dsh-0.2.2-rc.3-support.md>)；0.4.8 合并[初始化与完整顺序持久化](<docs/task-order-persistence.md>)，并保留 0.4.4 的[会话活跃状态与选中标题修复](<docs/task-session-activity.md>)。精确七包哈希及启动结果随 Release 的 `validation.json` 交付。rc.2 入口保持不变，不混装旧 rc.3 产物或仅按 npm latest 安装。
 
 侧栏新增按钮、调整排版或适配新 DSH 前，先遵循[侧栏排版与适配规范](<docs/sidebar-layout.md>)；数字、原生语义样式与版本合同分层维护。
 
@@ -55,7 +56,7 @@ Use Node **24+** for the source-contract tests (`stripTypeScriptTypes`) and inst
 
 ```powershell
 npm ci --ignore-scripts
-npm run test:prepare  # stage pinned, patched TS test sources; does not rebuild fork artifacts
+npm run test:prepare -- --version 0.2.2-rc.3  # stage pinned, patched TS test sources; does not rebuild fork artifacts
 npm test             # build the main client, then run unit/contract tests
 npm run check
 ```

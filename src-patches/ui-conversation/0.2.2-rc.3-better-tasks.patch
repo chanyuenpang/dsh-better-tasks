@@ -1,0 +1,725 @@
+===================================================================
+--- "a/packages/client/ui-conversation/src/client\\apply.ts"
++++ "b/packages/client/ui-conversation/src/client\\apply.ts"
+@@ -127,8 +127,8 @@
+     name: string
+     label(): string
+     icon: typeof IconPaperclipOutlineRegular
+-    available(session: { sessionId: SessionId }): boolean
+-    ui: { kind: 'action'; run(session: { sessionId: SessionId }): void }
++    available(session: { sessionId: SessionId; surface?: object }): boolean
++    ui: { kind: 'action'; run(session: { sessionId: SessionId; surface?: object }): void }
+   }): () => void
+ }
+ 
+@@ -308,8 +308,8 @@
+       name: 'file',
+       label: () => t('input.file'),
+       icon: IconPaperclipOutlineRegular,
+-      available: session => inputHub.canPickFiles(session.sessionId),
+-      ui: { kind: 'action', run: (session) => { inputHub.pickFiles(session.sessionId) } },
++      available: session => session.surface === undefined && inputHub.canPickFiles(session.sessionId),
++      ui: { kind: 'action', run: (session) => { if (session.surface === undefined) inputHub.pickFiles(session.sessionId) } },
+     }), 'ui-conversation: File action')
+   })
+ 
+===================================================================
+--- "a/packages/client/ui-conversation/src/client\\contract\\input.ts"
++++ "b/packages/client/ui-conversation/src/client\\contract\\input.ts"
+@@ -220,6 +220,8 @@
+ 
+ /** Session-addressed access to the per-session input facade. */
+ export interface SessionInputResolver {
++  /** Create a separately owned text/skill/command composer over a real Session. */
++  createSurface(options: import('./input-surface.ts').ComposerSurfaceOptions): Promise<import('./input-surface.ts').ComposerSurfaceHandle>
+   /** Resolve the facade for one session-scope ctx. */
+   for(actx: Context): SessionInput
+   /**
+===================================================================
+--- "a/packages/client/ui-conversation/src/client\\index.ts"
++++ "b/packages/client/ui-conversation/src/client\\index.ts"
+@@ -69,6 +69,8 @@
+ export { inspectRequestPrompt } from './contract/request-inspection.ts'
+ export type { SystemPromptState, SystemPromptInspector } from './contract/system-prompt.ts'
+ export type { ConversationStoreState, ConversationViewRequest, ViewTab } from './contract/views.ts'
++export { InputSurfaceView } from './input/InputSurfaceView.tsx'
++export type { ComposerSurfaceHandle, ComposerSurfaceOptions, ComposerSurfaceSinkArgs, ComposerSurfaceViewProps } from './contract/input-surface.ts'
+ 
+ export { ConversationNodeAssembler } from './conversation/assembler.ts'
+ export type {
+===================================================================
+--- "a/packages/client/ui-conversation/src/client\\input\\hub.ts"
++++ "b/packages/client/ui-conversation/src/client\\input\\hub.ts"
+@@ -27,6 +27,8 @@
+ import { SessionInputShell } from './facade.ts'
+ import { reportMessageSubmission } from './submission-analytics.ts'
+ import { readConversationDraft } from '../stores.ts'
++import { createInputSurface } from './surface.ts'
++import type { ComposerSurfaceHandle, ComposerSurfaceOptions } from '../contract/input-surface.ts'
+ 
+ /** Structural command face for per-session popup resolution. */
+ interface CommandFace {
+@@ -72,6 +74,10 @@
+    * @param actx - session-scope context.
+    * @returns the resident per-session facade.
+    */
++  createSurface(options: ComposerSurfaceOptions): Promise<ComposerSurfaceHandle> {
++    return createInputSurface(this.rootCtx, options)
++  }
++
+   for(actx: Context): SessionInput {
+     const sessions = this.sessions()
+     const session = sessions.sessionOf(actx)
+
+===================================================================
+--- a/packages/client/ui-conversation/src/client/apply.ts
++++ b/packages/client/ui-conversation/src/client/apply.ts
+@@ -34,6 +34,8 @@
+ import type { ComposerBlock } from './contract/composer-blocks.ts'
+ import { InputHub } from './input/hub.ts'
+ import { createComposerFileIntake } from './input/file-intake.ts'
++import { createSessionReferenceInsertion } from './input/session-reference-drop.ts'
++import type {} from '@deepseek-ai/dsh-api-remotes/client'
+ import { ComposerSubmissionPolicy } from './input/submission-policy.ts'
+ import { queueDockEntry } from './queue/QueueDock.tsx'
+ import { EnterBehaviorRow } from './settings/EnterBehaviorRow.tsx'
+@@ -505,6 +507,10 @@
+       return {
+         registerFileIntake: fileIntake,
+         keyboard: shell,
++        insertSessionReference: createSessionReferenceInsertion({
++          sessions, targetId: sessionId, shell,
++          resolve: () => ctx.get('remote')?.sessionReferenceResolver,
++        }),
+         addFiles: (files, directories = new Set()) => {
+           if (sessions.binding(sessionId) === undefined) return t('file.sessionUnavailable')
+           const { phase } = shell.snapshot
+===================================================================
+--- a/packages/client/ui-conversation/src/client/contract/slots.ts
++++ b/packages/client/ui-conversation/src/client/contract/slots.ts
+@@ -588,6 +588,8 @@
+   /** Document paste routing across mounted composers. */
+   registerFileIntake: ComposerFileIntake
+   keyboard: ComposerKeyboard | undefined
++  /** Optional, scoped native Session-reference insertion; never a global editor route. */
++  insertSessionReference?: import('../input/session-reference-drop.ts').InsertSessionReference
+   /**
+    * Register one picked batch; resolves to the rejection copy or null. Where
+    * the browser shell reports host paths (the Desktop application), files
+===================================================================
+--- a/packages/client/ui-conversation/src/client/input/editor/runtime.ts
++++ b/packages/client/ui-conversation/src/client/input/editor/runtime.ts
+@@ -293,14 +293,14 @@
+    * @param tail - the character following the range before editing.
+    * @returns whether the range mapped and the edit applied.
+    */
+-  insertReference(span: DetectSpan, ref: ReferenceInsert, tail: string): boolean {
++  insertReference(span: DetectSpan, ref: ReferenceInsert, tail: string, historyBoundary = false): boolean {
+     let applied = false
+     this.applyEdit(() => {
+       const nodes = tail === ' '
+         ? [$createReferenceChipNode(ref)]
+         : [$createReferenceChipNode(ref), $createTextNode(' ')]
+       applied = $replaceDetectSpanWithNodes(span, nodes)
+-    })
++    }, historyBoundary ? HISTORY_PUSH_TAG : undefined)
+     return applied
+   }
+ 
+===================================================================
+--- a/packages/client/ui-conversation/src/client/input/facade.ts
++++ b/packages/client/ui-conversation/src/client/input/facade.ts
+@@ -530,12 +530,13 @@
+    * @param span - pick-time span snapshot (detect coordinates).
+    * @returns whether the edit applied.
+    */
+-  insertReference(ref: ReferenceInsert, span: TokenSpan): boolean {
++  insertReference(ref: ReferenceInsert, span: TokenSpan, historyBoundary = false): boolean {
++    if (this.disposed) return false
+     const phase = this.core.state.phase
+     if (phase !== 'plain' && phase !== 'claimed') return false
+     if (span.draftRev !== this.rev) return false
+     const tail = this.projection.detectText.slice(span.end, span.end + 1)
+-    return this.draftEditor.insertReference(span, ref, tail)
++    return this.draftEditor.insertReference(span, ref, tail, historyBoundary)
+   }
+ 
+   /**
+===================================================================
+--- a/packages/client/ui-conversation/src/client/input/session-reference-drag.d.mts
++++ b/packages/client/ui-conversation/src/client/input/session-reference-drag.d.mts
+@@ -0,0 +1,5 @@
++export const SESSION_REFERENCE_MIME: string
++export function isSessionReferenceDrag(transfer: DataTransfer | null | undefined): boolean
++export function readSessionReferenceDrag(transfer: DataTransfer | null | undefined): {version: 1; sessionId: string} | null
++export function writeSessionReferenceDrag(transfer: DataTransfer | null | undefined, sessionId: string, canMove?: boolean): boolean
++export function matchesSessionReferenceMove(transfer: DataTransfer | null | undefined, activeId: string | null | undefined, permitted?: boolean): boolean
+===================================================================
+--- a/packages/client/ui-conversation/src/client/input/session-reference-drag.mjs
++++ b/packages/client/ui-conversation/src/client/input/session-reference-drag.mjs
+@@ -0,0 +1,40 @@
++/** Transient drag transport only. Native session-reference owns citation content. */
++export const SESSION_REFERENCE_MIME = 'application/x-dsh-session-reference+json'
++const MAX_PAYLOAD_BYTES = 8192
++
++/** File drags always remain owned by native attachment intake. */
++export function isSessionReferenceDrag(transfer) {
++  const types = Array.from(transfer?.types ?? [])
++  return !types.includes('Files') && types.includes(SESSION_REFERENCE_MIME)
++}
++
++/** Read only at drop: browsers protect custom data during dragover. */
++export function readSessionReferenceDrag(transfer) {
++  if (!isSessionReferenceDrag(transfer)) return null
++  try {
++    const raw = transfer.getData(SESSION_REFERENCE_MIME)
++    if (!raw || raw.length > MAX_PAYLOAD_BYTES || new TextEncoder().encode(raw).length > MAX_PAYLOAD_BYTES) return null
++    const value = JSON.parse(raw)
++    if (!value || typeof value !== 'object' || Array.isArray(value)) return null
++    if (Object.keys(value).length !== 2 || value.version !== 1) return null
++    const id = value.sessionId
++    if (typeof id !== 'string' || id === '' || id.trim() !== id || /[\u0000-\u001f\u007f]/u.test(id)) return null
++    return { version: 1, sessionId: id }
++  } catch { return null }
++}
++
++/** Publish no title/body and grant no authority; the target resolves native metadata. */
++export function writeSessionReferenceDrag(transfer, sessionId, canMove = false) {
++  if (!transfer || typeof sessionId !== 'string' || sessionId === '') return false
++  const raw = JSON.stringify({ version: 1, sessionId })
++  if (new TextEncoder().encode(raw).length > MAX_PAYLOAD_BYTES) return false
++  transfer.setData(SESSION_REFERENCE_MIME, raw)
++  transfer.setData('text/plain', sessionId)
++  transfer.effectAllowed = canMove ? 'copyMove' : 'copy'
++  return true
++}
++
++/** A move must belong to this owner's active source, never a foreign copy/drop. */
++export function matchesSessionReferenceMove(transfer, activeId, permitted = true) {
++  return permitted && typeof activeId === 'string' && readSessionReferenceDrag(transfer)?.sessionId === activeId
++}
+===================================================================
+--- a/packages/client/ui-conversation/src/client/input/session-reference-drop.ts
++++ b/packages/client/ui-conversation/src/client/input/session-reference-drop.ts
+@@ -0,0 +1,66 @@
++/** One composer-owned asynchronous insertion; transport never grants authority. */
++import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
++import type { SessionId } from '@deepseek-ai/dsh-session/types'
++import type { ReferenceInsert, TokenSpan } from '../contract/draft-editor.ts'
++
++export interface SessionDropShell {
++  readonly snapshot: { readonly draftRev: number }
++  insertReference(value: ReferenceInsert, span: TokenSpan, historyBoundary?: boolean): boolean
++}
++export type InsertSessionReference = (sourceId: string, span: TokenSpan, signal: AbortSignal, current: () => boolean) => Promise<boolean>
++
++/** Native lookup is deliberately late-bound: its absence must not block startup. */
++export function createSessionReferenceInsertion(options: {
++  sessions: ISessions
++  targetId: SessionId
++  shell: SessionDropShell
++  resolve: () => { candidates(target: SessionId, query: string, signal: AbortSignal): Promise<{ ok: boolean; value?: readonly { sessionId: string; mention: string; label: string; displayTitle?: string }[] }> } | undefined
++}): InsertSessionReference {
++  return async (sourceId, span, signal, current) => {
++    if (sourceId === options.targetId || !current()) return false
++    const binding = options.sessions.binding(options.targetId)
++    const resolver = options.resolve()
++    if (binding === undefined || resolver === undefined) return false
++    return options.sessions.using(options.targetId, { source: 'controllerOperation', signal }, async reference => {
++      const stillCurrent = (): boolean => !signal.aborted && current()
++        && reference.binding === binding && options.sessions.binding(options.targetId) === binding
++        && options.shell.snapshot.draftRev === span.draftRev
++      if (!stillCurrent() || binding.session.getSnapshot().openState !== 'open') return false
++      const result = await resolver.candidates(options.targetId, sourceId, signal)
++      if (!stillCurrent() || !result.ok) return false
++      const candidate = result.value?.find(value => value.sessionId === sourceId)
++      if (candidate === undefined || typeof candidate.mention !== 'string' || !candidate.mention.startsWith('@[')) return false
++      return options.shell.insertReference({
++        source: 'reference', ref: candidate.mention,
++        label: candidate.displayTitle ?? candidate.label,
++        appearance: 'session', clipboardText: candidate.mention,
++      }, span, true)
++    })
++  }
++}
++
++/** Instance generation plus request identity: switching away and back is stale. */
++export class SessionReferenceDropTransaction {
++  private generation = 0
++  private pending: AbortController | undefined
++  cancel(): void {
++    this.generation++
++    this.pending?.abort()
++    this.pending = undefined
++  }
++  async insert(insert: InsertSessionReference, sourceId: string, span: TokenSpan, current: () => boolean): Promise<'inserted' | 'stale' | 'rejected'> {
++    this.cancel()
++    const generation = this.generation, controller = new AbortController()
++    this.pending = controller
++    const active = (): boolean => !controller.signal.aborted && this.generation === generation && current()
++    try {
++      if (!active()) return 'stale'
++      const applied = await insert(sourceId, span, controller.signal, active)
++      return !active() ? 'stale' : applied ? 'inserted' : 'rejected'
++    } catch {
++      return active() ? 'rejected' : 'stale'
++    } finally {
++      if (this.pending === controller) this.pending = undefined
++    }
++  }
++}
+===================================================================
+--- a/packages/client/ui-conversation/src/client/locales.ts
++++ b/packages/client/ui-conversation/src/client/locales.ts
+@@ -9,6 +9,10 @@
+ 
+ /** Simplified Chinese dictionary (the key-set source of truth). */
+ export const zh = {
++  'reference.dropHint': "松开以引用会话",
++  'reference.loading': "正在准备会话引用…",
++  'reference.failed': "草稿已变化或引用不可用，请重新拖入",
++  'reference.self': "不能引用当前会话自身",
+   'quote.remove': '移除引用',
+   'shortcut.newline': '换行',
+   'shortcut.complementary': '使用互补的 Queue／Steer 方式',
+@@ -408,6 +412,10 @@
+ 
+ /** English dictionary, checked complete against the zh key set. */
+ export const en = {
++  'reference.dropHint': "Release to reference this session",
++  'reference.loading': "Preparing session reference…",
++  'reference.failed': "Draft changed or reference unavailable; drag it again",
++  'reference.self': "A session cannot reference itself",
+   'quote.remove': 'Remove quote',
+   'shortcut.newline': 'New line',
+   'shortcut.complementary': 'Use the complementary Queue / Steer action',
+@@ -806,6 +814,10 @@
+ 
+ /** Japanese copy, checked against the English keys. */
+ export const ja = {
++  'reference.dropHint': "Release to reference this session",
++  'reference.loading': "Preparing session reference…",
++  'reference.failed': "Draft changed or reference unavailable; drag it again",
++  'reference.self': "A session cannot reference itself",
+   'quote.remove': '引用を削除',
+   'shortcut.newline': '改行',
+   'shortcut.complementary': '補助のキュー / 実行中の指示変更を使用',
+@@ -1202,6 +1214,10 @@
+ 
+ /** Spanish dictionary, checked against the English keys. */
+ export const es = {
++  'reference.dropHint': "Release to reference this session",
++  'reference.loading': "Preparing session reference…",
++  'reference.failed': "Draft changed or reference unavailable; drag it again",
++  'reference.self': "A session cannot reference itself",
+   'quote.remove': 'Eliminar cotización',
+   'shortcut.newline': 'Nueva linea',
+   'shortcut.complementary': 'Usar la acción alternativa de poner en cola o redirigir',
+@@ -1600,6 +1616,10 @@
+ 
+ /** French dictionary, checked against the English keys. */
+ export const fr = {
++  'reference.dropHint': "Release to reference this session",
++  'reference.loading': "Preparing session reference…",
++  'reference.failed': "Draft changed or reference unavailable; drag it again",
++  'reference.self': "A session cannot reference itself",
+   'quote.remove': 'Supprimer le devis',
+   'shortcut.newline': 'Nouvelle ligne',
+   'shortcut.complementary': 'Utiliser l’action alternative de mise en attente ou de guidage',
+@@ -1998,6 +2018,10 @@
+ 
+ /** German dictionary, checked against the English keys. */
+ export const de = {
++  'reference.dropHint': "Release to reference this session",
++  'reference.loading': "Preparing session reference…",
++  'reference.failed': "Draft changed or reference unavailable; drag it again",
++  'reference.self': "A session cannot reference itself",
+   'quote.remove': 'Zitat entfernen',
+   'shortcut.newline': 'Neue Zeile',
+   'shortcut.complementary': 'Die alternative Aktion zum Vormerken oder Lenken verwenden',
+@@ -2396,6 +2420,10 @@
+ 
+ /** Russian dictionary, checked against the English keys. */
+ export const ru = {
++  'reference.dropHint': "Release to reference this session",
++  'reference.loading': "Preparing session reference…",
++  'reference.failed': "Draft changed or reference unavailable; drag it again",
++  'reference.self': "A session cannot reference itself",
+   'quote.remove': 'Удалить цитату',
+   'shortcut.newline': 'Новая линия',
+   'shortcut.complementary': 'Использовать альтернативное действие: поставить в очередь или направить',
+@@ -2794,6 +2822,10 @@
+ 
+ /** Portuguese dictionary, checked against the English keys. */
+ export const pt = {
++  'reference.dropHint': "Release to reference this session",
++  'reference.loading': "Preparing session reference…",
++  'reference.failed': "Draft changed or reference unavailable; drag it again",
++  'reference.self': "A session cannot reference itself",
+   'quote.remove': 'Remover cotação',
+   'shortcut.newline': 'Nova linha',
+   'shortcut.complementary': 'Usar a ação alternativa de enfileirar ou orientar',
+===================================================================
+--- a/packages/client/ui-conversation/src/client/skeleton/InputBar.module.css
++++ b/packages/client/ui-conversation/src/client/skeleton/InputBar.module.css
+@@ -470,3 +470,7 @@
+ .activity { display: flex; align-items: center; flex: none; }
+ .activity:empty { display: none; }
+ .activityExpanded { flex: 1; min-width: 0; }
++
++/* Transient drop feedback; the native composer keeps its normal geometry/style. */
++.card[data-session-reference-drop] { outline: 1px solid var(--dsw-alias-label-primary); outline-offset: 2px; }
++.referenceDropHint { color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 18px; padding: 2px 8px; }
+===================================================================
+--- a/packages/client/ui-conversation/src/client/skeleton/InputBar.tsx
++++ b/packages/client/ui-conversation/src/client/skeleton/InputBar.tsx
+@@ -14,7 +14,7 @@
+  */
+ 
+ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+-import type { ChangeEvent, KeyboardEvent, MouseEvent } from 'react'
++import type { ChangeEvent, DragEvent, KeyboardEvent, MouseEvent } from 'react'
+ import clsx from 'clsx'
+ import {
+   focusWithoutRing, IconPlusOutlineMedium, IconTriangleRightFillRegular, IconWarningOutlineRegular, isMobileDevice, Toast, Tooltip,
+@@ -35,6 +35,8 @@
+   keepDraftFocus, revealDraftSelection,
+ } from '../input/editor/view-binding.ts'
+ import { resolveSubmitMode } from '../input/submission-policy.ts'
++import { SessionReferenceDropTransaction } from '../input/session-reference-drop.ts'
++import { isSessionReferenceDrag, readSessionReferenceDrag } from '../input/session-reference-drag.mjs'
+ import { attachmentErrorText, imageSizeText } from '../image-labels.ts'
+ import { isImageMediaType } from '../service.ts'
+ import { ContextMeter } from './ContextMeter.tsx'
+@@ -44,7 +46,7 @@
+ export type InputBarProps = ComposerBarProps
+ 
+ export const InputBar = memo(function InputBar({
+-  useSession, useInput, inputActions, keyboard, addFiles, removeAttachment, resolveDraftAttachments,
++  useSession, useInput, inputActions, keyboard, insertSessionReference, addFiles, removeAttachment, resolveDraftAttachments,
+   retryFileUpload, registerFileIntake,
+   toggleCommandMenu, stop, retry, t,
+   renderSlot, useBusyEnter, useFileUploads, useNotices, useLexicon, useMenuLauncher, useStopShortcut,
+@@ -60,7 +62,8 @@
+   // A page whose access snapshot excludes prompting, stopping, or uploading to this Session is offered
+   // no Send, no Stop, or no file intake rather than a disabled control. `useAccess` is undefined only
+   // without a Session, where the bar is an inert placeholder with no keyboard, stop, or file intake.
+-  const promptDenied = useAccess('session/prompt') === false
++  const promptAccess = useAccess('session/prompt')
++  const promptDenied = promptAccess === false
+   const cancelDenied = useAccess('session/cancel') === false
+   const uploadDenied = useAccess('fileUploads/upload') === false
+   const stopAction = cancelDenied ? undefined : stop
+@@ -169,6 +172,65 @@
+   const workspaceTrigger = inert && !removed && onRequestWorkspace !== undefined
+   const editorDisabled = removed || (locked && !workspaceTrigger)
+   const editable = live && !locked && !machineBusy
++  const [referenceHover, setReferenceHover] = useState(false)
++  const [referencePending, setReferencePending] = useState(false)
++  const referenceTransaction = useMemo(() => new SessionReferenceDropTransaction(), [])
++  const referenceRequest = useRef(0)
++  const referenceCurrent = useRef({ sessionId, keyboard, inputActions, editable, occurrence, promptAllowed: promptAccess === true })
++  referenceCurrent.current = { sessionId, keyboard, inputActions, editable, occurrence, promptAllowed: promptAccess === true }
++  useLayoutEffect(() => {
++    referenceTransaction.cancel()
++    referenceRequest.current++
++    setReferenceHover(false)
++    setReferencePending(false)
++    return () => { referenceTransaction.cancel(); referenceRequest.current++ }
++  }, [sessionId, keyboard, occurrence, referenceTransaction])
++  const referenceAvailable = (): boolean => {
++    const value = referenceCurrent.current, card = cardRef.current
++    if (value.occurrence !== 'main' || value.sessionId === undefined || !value.keyboard || !value.inputActions
++      || !value.editable || !value.promptAllowed || !insertSessionReference || !card?.isConnected) return false
++    if (card.closest('[inert],[hidden],[aria-hidden="true"]') !== null || card.checkVisibility?.({ checkVisibilityCSS: true }) === false) return false
++    const active = card.ownerDocument.activeElement
++    const modal = active instanceof Element ? active.closest('[aria-modal="true"]') : null
++    return modal === null || card.contains(modal)
++  }
++  const onReferenceDragOver = (event: DragEvent<HTMLDivElement>): void => {
++    if (!isSessionReferenceDrag(event.dataTransfer)) return
++    event.preventDefault(); event.stopPropagation()
++    const accepts = referenceAvailable()
++    event.dataTransfer.dropEffect = accepts ? 'copy' : 'none'
++    setReferenceHover(accepts)
++  }
++  const onReferenceDrop = (event: DragEvent<HTMLDivElement>): void => {
++    if (!isSessionReferenceDrag(event.dataTransfer)) return
++    event.preventDefault(); event.stopPropagation()
++    event.dataTransfer.dropEffect = 'copy'
++    setReferenceHover(false)
++    setReferencePending(false)
++    referenceTransaction.cancel()
++    const request = ++referenceRequest.current
++    const payload = readSessionReferenceDrag(event.dataTransfer)
++    if (!referenceAvailable() || payload === null || !inputActions || !keyboard || !insertSessionReference) {
++      event.dataTransfer.dropEffect = 'none'
++      if (occurrence === 'main') showToast(t('reference.failed'))
++      return
++    }
++    if (payload.sessionId === sessionId) { showToast(t('reference.self')); return }
++    const targetId = sessionId, targetKeyboard = keyboard, targetActions = inputActions
++    const span = inputActions.captureInsertion()
++    const current = (): boolean => request === referenceRequest.current && referenceAvailable()
++      && referenceCurrent.current.sessionId === targetId && referenceCurrent.current.keyboard === targetKeyboard
++      && referenceCurrent.current.inputActions === targetActions
++    setReferencePending(true)
++    focusDraftEditor(keyboard.editor, revealSelection)
++    void referenceTransaction.insert(insertSessionReference, payload.sessionId, span, current).then(result => {
++      if (request !== referenceRequest.current) return
++      setReferencePending(false)
++      if (!current()) return
++      if (result !== 'inserted') showToast(t('reference.failed'))
++      else if (cardRef.current?.contains(document.activeElement)) focusDraftEditor(targetKeyboard.editor, revealSelection)
++    })
++  }
+   const steeringAvailable = subagent === null || subagent.address.mode === 'continuable'
+   const canSteerQueue = !locked && !machineBusy && !commandMenuOpen && empty && running && steeringAvailable
+     && input.queue.length > 0
+@@ -460,6 +522,11 @@
+         tabIndex={-1}
+         className={clsx(css.card, workspaceTrigger && css.cardWorkspaceTrigger)}
+         data-composer-card
++        data-session-reference-drop={referenceHover || referencePending || undefined}
++        aria-busy={referencePending || undefined}
++        onDragOverCapture={onReferenceDragOver}
++        onDragLeaveCapture={(event) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setReferenceHover(false) }}
++        onDropCapture={onReferenceDrop}
+         onClick={workspaceTrigger ? onRequestWorkspace : undefined}
+         onPointerDown={workspaceTrigger ? (e) => { e.stopPropagation() } : undefined}
+         onMouseDown={onCardMouseDown}
+@@ -486,6 +553,7 @@
+             thing that scrolls. Chips are decorator portals inside the same
+             surface, so wrapping, caret geometry, and scrolling are the
+             browser's own. */}
++        {(referenceHover || referencePending) && <div className={css.referenceDropHint} role="status">{t(referencePending ? 'reference.loading' : 'reference.dropHint')}</div>}
+         <DraftEditor
+           classNames={css}
+           editor={editor}
+
+===================================================================
+--- a/packages/client/ui-conversation/src/client/apply.ts
++++ b/packages/client/ui-conversation/src/client/apply.ts
+@@ -509,7 +509,7 @@
+         keyboard: shell,
+         insertSessionReference: createSessionReferenceInsertion({
+           sessions, targetId: sessionId, shell,
+-          resolve: () => ctx.get('remote')?.sessionReferenceResolver,
++          resolve: () => ctx.get('remote.sessionReferenceResolver'),
+         }),
+         addFiles: (files, directories = new Set()) => {
+           if (sessions.binding(sessionId) === undefined) return t('file.sessionUnavailable')
+===================================================================
+--- a/packages/client/ui-conversation/src/client/skeleton/InputBar.tsx
++++ b/packages/client/ui-conversation/src/client/skeleton/InputBar.tsx
+@@ -13,7 +13,7 @@
+  * trigger instead of a parallel tree.
+  */
+ 
+-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
++import { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+ import type { ChangeEvent, DragEvent, KeyboardEvent, MouseEvent } from 'react'
+ import clsx from 'clsx'
+ import {
+@@ -36,6 +36,7 @@
+ } from '../input/editor/view-binding.ts'
+ import { resolveSubmitMode } from '../input/submission-policy.ts'
+ import { SessionReferenceDropTransaction } from '../input/session-reference-drop.ts'
++import { SessionReferenceDropContext } from '../input/session-reference-drop-zone.ts'
+ import { isSessionReferenceDrag, readSessionReferenceDrag } from '../input/session-reference-drag.mjs'
+ import { attachmentErrorText, imageSizeText } from '../image-labels.ts'
+ import { isImageMediaType } from '../service.ts'
+@@ -176,6 +177,7 @@
+   const [referencePending, setReferencePending] = useState(false)
+   const referenceTransaction = useMemo(() => new SessionReferenceDropTransaction(), [])
+   const referenceRequest = useRef(0)
++  const referenceZone = useContext(SessionReferenceDropContext)
+   const referenceCurrent = useRef({ sessionId, keyboard, inputActions, editable, occurrence, promptAllowed: promptAccess === true })
+   referenceCurrent.current = { sessionId, keyboard, inputActions, editable, occurrence, promptAllowed: promptAccess === true }
+   useLayoutEffect(() => {
+@@ -194,14 +196,14 @@
+     const modal = active instanceof Element ? active.closest('[aria-modal="true"]') : null
+     return modal === null || card.contains(modal)
+   }
+-  const onReferenceDragOver = (event: DragEvent<HTMLDivElement>): void => {
++  const onReferenceDragOver = (event: DragEvent<HTMLElement>): void => {
+     if (!isSessionReferenceDrag(event.dataTransfer)) return
+     event.preventDefault(); event.stopPropagation()
+     const accepts = referenceAvailable()
+     event.dataTransfer.dropEffect = accepts ? 'copy' : 'none'
+     setReferenceHover(accepts)
+   }
+-  const onReferenceDrop = (event: DragEvent<HTMLDivElement>): void => {
++  const onReferenceDrop = (event: DragEvent<HTMLElement>): void => {
+     if (!isSessionReferenceDrag(event.dataTransfer)) return
+     event.preventDefault(); event.stopPropagation()
+     event.dataTransfer.dropEffect = 'copy'
+@@ -231,6 +233,26 @@
+       else if (cardRef.current?.contains(document.activeElement)) focusDraftEditor(targetKeyboard.editor, revealSelection)
+     })
+   }
++  const onReferenceDragLeave = (event: DragEvent<HTMLElement>): void => {
++    if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setReferenceHover(false)
++  }
++  // Register the concrete mounted composer, not a global Session-id editor route.
++  // Event closures are refreshed without unregistering/cancelling on hover renders.
++  const referenceHandlers = useRef({ over: onReferenceDragOver, drop: onReferenceDrop, leave: onReferenceDragLeave })
++  referenceHandlers.current = { over: onReferenceDragOver, drop: onReferenceDrop, leave: onReferenceDragLeave }
++  useLayoutEffect(() => {
++    if (occurrence !== 'main' || sessionId === undefined || keyboard === undefined || referenceZone === undefined) return
++    return referenceZone.register({
++      sessionId,
++      over: event => { referenceHandlers.current.over(event) },
++      drop: event => { referenceHandlers.current.drop(event) },
++      leave: event => { referenceHandlers.current.leave(event) },
++      cancel: () => {
++        referenceTransaction.cancel(); referenceRequest.current++
++        setReferenceHover(false); setReferencePending(false)
++      },
++    })
++  }, [referenceZone, sessionId, keyboard, occurrence, referenceTransaction])
+   const steeringAvailable = subagent === null || subagent.address.mode === 'continuable'
+   const canSteerQueue = !locked && !machineBusy && !commandMenuOpen && empty && running && steeringAvailable
+     && input.queue.length > 0
+@@ -525,7 +547,7 @@
+         data-session-reference-drop={referenceHover || referencePending || undefined}
+         aria-busy={referencePending || undefined}
+         onDragOverCapture={onReferenceDragOver}
+-        onDragLeaveCapture={(event) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setReferenceHover(false) }}
++        onDragLeaveCapture={onReferenceDragLeave}
+         onDropCapture={onReferenceDrop}
+         onClick={workspaceTrigger ? onRequestWorkspace : undefined}
+         onPointerDown={workspaceTrigger ? (e) => { e.stopPropagation() } : undefined}
+===================================================================
+--- a/packages/client/ui-conversation/src/client/skeleton/ConversationContent.tsx
++++ b/packages/client/ui-conversation/src/client/skeleton/ConversationContent.tsx
+@@ -1,10 +1,11 @@
+-import { useCallback, useEffect, useRef, useState } from 'react'
++import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+ import clsx from 'clsx'
+ import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
+ import { workspaceDisplayTitle } from '@deepseek-ai/dsh-api-workspace-controller/default-workspace'
+ import type { ConversationContentProps, ConversationViewsProps, InputZone } from '../contract/slots.ts'
+ import { HeroShell, WorkspaceChip, workspaceLabel } from './EmptyHero.tsx'
+ import css from './ConversationRoot.module.css'
++import { SessionReferenceDropContext, SessionReferenceDropZone } from '../input/session-reference-drop-zone.ts'
+ 
+ function ConversationSessionView({ renderSlot }: ConversationViewsProps) {
+   return renderSlot('conversation.session', {})
+@@ -25,6 +26,15 @@
+     useWorkspaces, useInput, useComposerBlock, renderSlot, renderSlotChain,
+     selectWorkspace, t, useFactorySlot,
+   } = props
++  const [referenceHover, setReferenceHover] = useState(false)
++  const referenceZone = useMemo(() => new SessionReferenceDropZone(setReferenceHover), [])
++  useEffect(() => { setReferenceHover(false) }, [sessionId, props.variant])
++  // Cleanup/feedback only. Never accept or sort at document level.
++  useEffect(() => {
++    const reset = (): void => { setReferenceHover(false) }
++    document.addEventListener('dragend', reset)
++    return () => { document.removeEventListener('dragend', reset) }
++  }, [])
+   const session = useSession(snapshot => snapshot)
+   const Views = useFactorySlot('views', ConversationSessionView)
+   const WidthControls = useFactorySlot('widthControls', NoConversationWidthControls)
+@@ -188,10 +198,15 @@
+   )
+ 
+   return (
++    <SessionReferenceDropContext.Provider value={referenceZone}>
+     <div
+       ref={setBody}
+       className={clsx(css.body, props.variant === 'embedded' && css.embeddedBody)}
+       data-conversation-content=""
++      data-session-reference-drop={referenceHover || undefined}
++      onDragOverCapture={event => { referenceZone.route('over', event, sessionId, props.variant === 'main') }}
++      onDropCapture={event => { referenceZone.route('drop', event, sessionId, props.variant === 'main') }}
++      onDragLeaveCapture={event => { referenceZone.route('leave', event, sessionId, props.variant === 'main') }}
+       data-conversation-session={sessionId}
+       data-conversation-region="chat"
+       data-content-phase={phase}
+@@ -206,6 +221,8 @@
+         ),
+       })}
+       <WidthControls container={body} phase={phase} />
++      {referenceHover && <div className={css.referenceDropArea} role="status">{t('reference.dropHint')}</div>}
+     </div>
++    </SessionReferenceDropContext.Provider>
+   )
+ }
+===================================================================
+--- a/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css
++++ b/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css
+@@ -474,6 +474,21 @@
+   --dsh-composer-dock-inset: 8px;
+ }
+ 
++.referenceDropArea {
++  position: absolute;
++  inset: 8px;
++  z-index: 20;
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  pointer-events: none;
++  border: 1px dashed var(--dsw-alias-label-secondary);
++  border-radius: 12px;
++  background: color-mix(in srgb, var(--dsw-alias-bg-base) 85%, transparent);
++  color: var(--dsw-alias-label-primary);
++  font-size: 14px;
++}
++
+ .embeddedBody {
+   overflow: hidden;
+   --dsh-chat-content-width: min(calc(100% - 32px), 920px);
+===================================================================
+--- a/packages/client/ui-conversation/src/client/input/session-reference-drop-zone.ts
++++ b/packages/client/ui-conversation/src/client/input/session-reference-drop-zone.ts
+@@ -0,0 +1,47 @@
++/** Area-local routing only; the mounted main composer still owns every edit. */
++import { createContext } from 'react'
++import type { DragEvent } from 'react'
++import { isSessionReferenceDrag } from './session-reference-drag.mjs'
++
++type DropEvent = DragEvent<HTMLElement>
++export interface SessionReferenceDropOwner {
++  readonly sessionId: string
++  over(event: DropEvent): void
++  drop(event: DropEvent): void
++  leave(event: DropEvent): void
++  cancel(): void
++}
++
++/** One instance per resident ConversationContent, never a global current editor. */
++export class SessionReferenceDropZone {
++  private owner: SessionReferenceDropOwner | undefined
++  constructor(private readonly feedback: (active: boolean) => void = () => {}) {}
++  register(owner: SessionReferenceDropOwner): () => void {
++    this.owner?.cancel()
++    this.owner = owner
++    return () => {
++      owner.cancel()
++      if (this.owner === owner) { this.owner = undefined; this.feedback(false) }
++    }
++  }
++  route(kind: 'over' | 'drop' | 'leave', event: DropEvent, sessionId: string | undefined, main: boolean): void {
++    if (!isSessionReferenceDrag(event.dataTransfer)) return
++    // A nested/embedded conversation keeps its own refusal/owner, not the outer main target.
++    const target = event.target as HTMLElement
++    if (target.closest?.('[data-conversation-content]') !== event.currentTarget) { this.feedback(false); return }
++    const owner = this.owner
++    if (main && sessionId !== undefined && owner?.sessionId === sessionId) {
++      if (kind === 'drop' || kind === 'leave' && (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget))) this.feedback(false)
++      owner[kind](event)
++      if (kind === 'over') this.feedback(event.dataTransfer.dropEffect === 'copy')
++      return
++    }
++    // Never let a private payload degrade into a browser text/plain ID insertion.
++    this.feedback(false)
++    event.preventDefault()
++    event.stopPropagation()
++    event.dataTransfer.dropEffect = 'none'
++  }
++}
++
++export const SessionReferenceDropContext = createContext<SessionReferenceDropZone | undefined>(undefined)

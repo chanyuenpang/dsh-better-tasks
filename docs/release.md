@@ -3,8 +3,8 @@
 ## 当前公开组合与 tag 规则
 
 - DSH Desktop 运行时：**0.2.2-rc.3**。
-- Better Tasks npm/package 版本：**0.4.7**。
-- Git tag / GitHub Release：**`dsh-v0.2.2-rc.3-tasks-v0.4.7`**（Pre-release）。
+- Better Tasks npm/package 版本：**0.4.8**。
+- Git tag / GitHub Release：**`dsh-v0.2.2-rc.3-tasks-v0.4.8`**（Pre-release）。
 - 安装入口：[rc.3 安装说明](<install-rc3.md>)；旧 rc.2 / Tasks 0.4.1 的[安装说明](<install.md>)和资产保持不变，兼容表见 [README](<../README.md>)。
 
 今后统一使用 `dsh-v<DSH版本>-tasks-v<Tasks版本>`。DSH 版本写完整，保留 rc 后缀；Tasks 版本仍由插件自己的 manifest 管理。同一 Tasks 源码可适配多条 DSH 线，但每条线都要有独立验证的组合 Release。已发布的 tag 与资产 URL 不移动、不覆盖；内容变化应升 Tasks 版本并创建新组合 tag。面向 RC 运行时的本次组合标记为 GitHub Pre-release，不依赖全局 Latest 作为安装入口。
@@ -18,6 +18,8 @@
 - Tasks 0.4.2 是本轮 rc.3 适配候选，见[适配记录](<dsh-0.2.2-rc.3-support.md>)和[候选安装说明](<install-rc3.md>)。公开 rc.2 / Tasks 0.4.1 入口保留；候选的七包与精确 rc.3 启动证据单独交付，不将源码提交或 tag 当成 GitHub/npm 已发布。
 
 ## 本次组合与历史内容
+
+0.4.8 发布已使用的 local.5 执行代码：任务卡与会话行既可合法列表内排序，也可拖入另一主会话的消息区/输入区，向已有草稿插入原生会话引用，不自动发送。修复传输模块漏打包及可选 Remote 子服务访问错误；取消、切会话和真实草稿修改不误提交。合入侧栏期望宽度恢复与标题主要文字色/选中常规字重400。保留初始化、完整顺序持久化、新建置首和子agent状态修复。 六个 fork 采用 local.5 的精确已安装字节，正式0.4.8另做完整七包启动门禁；不移动旧tag，不再次安装或重启本机。本版不包含原生引用性能优化；上游讨论见 [#5043 补充反馈](<https://github.com/deepseek-ai/deepseek-harness/discussions/5043#discussioncomment-19649223>)。
 
 0.4.7 / rc.3：发布与已安装 0.4.7-local.2 相同的执行代码。任务标题采用原生灰阶：普通及未选中 hover 使用 label-secondary，选中使用 label-primary（浅色近黑/深色近白）；保留原背景、描边、字号字重和状态色，不再引入蓝色标题。完整保留0.4.6新建置首持久化、0.4.5初始化优化及subagent状态修复，六个 fork 字节不变。本轮仅发布，不再次安装或重启本机。
 
@@ -39,8 +41,8 @@
 
 1. 确认 GitHub 写权限、源码提交和目标运行时。保留用户未提交的工作，仅显式暂存本次发布文件。
 2. 完成全部代码与文档改动，更新 [安装说明](<install.md>)、[回滚说明](<rollback.md>)、兼容矩阵和 lockfile 根版本，然后统一验证。
-3. Node 24+ 下准备测试源码并运行 `npm run test:prepare`、`npm test`、`npm run check`；对目标线运行 `node scripts/check-upstream-contract.mjs --from-tag 0.2.2-rc.2 --to-tag 0.2.2-rc.2 --version 0.2.2-rc.2`。测试源码默认线由 source lock 管理，与发布线必须分别说明。
-4. 使用已审查的六个 rc.2 fork，检查每个包内客户端与 [fork 构建产物](<../forks-0.2.2-rc.2/>) 的哈希一致。不要误打包 npm 官方未修改模块。只有需要改变 fork 字节时才重建 fork，并重新记录来源。
+3. Node 24+ 下准备测试源码并运行 `npm run test:prepare -- --version 0.2.2-rc.3`、`npm test`、`npm run check`；对目标线运行 `node scripts/check-upstream-contract.mjs --from-tag 0.2.2-rc.3 --to-tag 0.2.2-rc.3 --version 0.2.2-rc.3`。测试源码默认线由 source lock 管理，与发布线必须分别说明。
+4. 使用已审查的目标线六个 fork，检查每个包内客户端与 [fork 构建产物](<../forks-0.2.2-rc.3/>) 的哈希一致。不要误打包 npm 官方未修改模块。只有需要改变 fork 字节时才重建 fork，并重新记录来源。
 5. 在新的 `releases/<组合tag>/` 打包插件本体一次；其余六包复制已验证字节。检查所有 tar 路径和包名、版本、许可、依赖、bundle patch、源码与客户端哈希。公开包仅含代码、文档和许可证，禁止任何 Profile、凭据、Session、日志、备份或工作流状态。
 6. 生成 `release-manifest.json`：组合 tag、两种版本、上游来源、七个文件名/大小/archiveSha256/clientSha256。只用相对文件名，不泄露本机路径。生成 `SHA256SUMS.txt`，附 `INSTALL.md`、`ROLLBACK.md` 和脱敏 `validation.json`。清单副本保存在 provenance 下供源码 tag 追溯。
 

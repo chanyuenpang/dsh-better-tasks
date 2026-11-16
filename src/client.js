@@ -14,6 +14,7 @@ import {
 } from './task-model.mjs'
 import { createTaskPinsClient } from './pin-client.mjs'
 import { createTaskInputManager } from './task-input-surface.mjs'
+import { isSessionReferenceDrag, matchesSessionReferenceMove, writeSessionReferenceDrag } from './session-reference-drag.mjs'
 import { TASK_SETTINGS_NAMESPACE, TASK_SETTINGS_ENTRY_ID, createTaskPreferencesStore } from './task-preferences.mjs'
 
 export const name = 'dsh-better-tasks'
@@ -435,12 +436,12 @@ html[data-platform="darwin"] .dbt-new-session:hover{background:var(--dsw-specifi
 .dbt-task-project{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;font-weight:680;line-height:19px}
 .dbt-task-session-line{display:flex;align-items:center;gap:5px;min-width:0;margin-top:1px}
 .dbt-task-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--dsw-alias-label-secondary)}
-.dbt-task-rename{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;text-align:left;cursor:pointer;padding:0}
+.dbt-task-rename{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:11px;font-weight:680;text-align:left;cursor:pointer;padding:0}
 .dbt-task-list[data-title-emphasis="task"] .dbt-task-project{font-size:11px;font-weight:400;line-height:16px;color:var(--dsw-alias-label-secondary)}
-.dbt-task-list[data-title-emphasis="task"] .dbt-task-rename{font-size:14px;font-weight:680;line-height:19px;color:var(--dsw-alias-label-secondary)}
-.dbt-task-rename:hover{text-decoration:underline;color:var(--dsw-alias-label-secondary)}
-.dbt-task-card[data-current="true"] .dbt-task-rename{color:var(--dsw-alias-label-primary)}
-.dbt-task-list[data-title-emphasis="task"] .dbt-task-card[data-current="true"] .dbt-task-rename{color:var(--dsw-alias-label-primary)}
+.dbt-task-list[data-title-emphasis="task"] .dbt-task-rename{font-size:14px;font-weight:680;line-height:19px;color:var(--dsw-alias-label-primary)}
+.dbt-task-rename:hover{text-decoration:underline;color:var(--dsw-alias-label-primary)}
+.dbt-task-card[data-current="true"] .dbt-task-rename{color:var(--dsw-alias-label-primary);font-weight:400}
+.dbt-task-list[data-title-emphasis="task"] .dbt-task-card[data-current="true"] .dbt-task-rename{color:var(--dsw-alias-label-primary);font-weight:400}
 .dbt-continue-shell,.dbt-continue-form{cursor:text}
 .dbt-continue-form{box-sizing:border-box;display:flex;flex-direction:column;min-width:0;width:100%;border:1px solid var(--dsw-alias-border-l1);border-radius:18px;background:var(--dsw-specific-input-major);box-shadow:var(--dsw-elevation-soft)}
 .dbt-continue-form:focus-within{border-color:var(--dsw-alias-brand-primary)}
@@ -961,7 +962,15 @@ function TaskContinueInput({ sessionId, active, createTaskInput, onWarning, t })
     })
     return () => { controller.abort(); owned?.dispose() }
   }, [activated, sessionId, createTaskInput, attempt])
+  const rejectSessionDrop = (event) => {
+    if (!isSessionReferenceDrag(event.dataTransfer)) return
+    event.preventDefault()
+    event.stopPropagation()
+    event.dataTransfer.dropEffect = 'none'
+  }
   return element('div', { className: 'dbt-continue-host', 'data-no-card-drag': true, draggable: false,
+    onDragOverCapture: rejectSessionDrop,
+    onDropCapture: rejectSessionDrop,
     onDragStart: (event) => event.preventDefault(),
     onClick: (event) => {
       if (event.target?.closest?.('button,a,input,textarea,select,[role="dialog"],[role="listbox"],[role="option"],[data-input-popup],[contenteditable="true"]')) return
@@ -1370,8 +1379,11 @@ function TaskSwimlane({ useSessions, useWorkspaces, useSessionStatus, useTaskCon
       return { ...resolved, [disclosureKey]: !isProjectionExpanded(resolved, disclosureKey, defaultExpanded) }
     })
   }
+  const canCommitTaskDrop = (event) => drag !== null && taskIds.includes(drag.sessionId)
+    && !pendingMoves.has(drag.sessionId)
+    && matchesSessionReferenceMove(event.dataTransfer, drag.sessionId, taskPins.writable === true)
   const commitDrop = (overId, half) => {
-    if (drag === null || taskPins.writable !== true) return
+    if (drag === null || taskPins.writable !== true || pendingMoves.has(drag.sessionId) || !taskIds.includes(drag.sessionId)) return
     const sessionId = drag.sessionId
     const beforeSessionId = beforeIdForTaskDrop(taskIds, overId, half)
     setDrag(null)
@@ -1396,14 +1408,17 @@ function TaskSwimlane({ useSessions, useWorkspaces, useSessionStatus, useTaskCon
         'data-columns': twoColumns ? '2' : '1',
         'data-title-emphasis': preferences.titleEmphasis,
         onDragOver: (event) => {
-          if (drag === null || event.target !== event.currentTarget) return
+          if (drag === null || event.target !== event.currentTarget || taskPins.writable !== true || pendingMoves.has(drag.sessionId) || !isSessionReferenceDrag(event.dataTransfer)) return
           event.preventDefault()
+          event.stopPropagation()
+          event.dataTransfer.dropEffect = 'move'
           const lastId = taskIds.at(-1)
           if (lastId !== undefined && (drag.overId !== lastId || drag.half !== 'after')) setDrag({ ...drag, overId: lastId, half: 'after' })
         },
         onDrop: (event) => {
-          if (drag === null || event.target !== event.currentTarget) return
+          if (event.target !== event.currentTarget || !canCommitTaskDrop(event)) return
           event.preventDefault()
+          event.stopPropagation()
           const lastId = taskIds.at(-1)
           if (lastId !== undefined) commitDrop(lastId, 'after')
         },
@@ -1535,7 +1550,7 @@ function TaskSwimlane({ useSessions, useWorkspaces, useSessionStatus, useTaskCon
           'aria-label': `${projectName}: ${stateLabel}`,
           title: stateLabel,
           tabIndex: 0,
-          draggable: taskPins.writable === true && !pendingMoves.has(task.id),
+          draggable: true,
           onPointerDownCapture: (event) => {
             dragOriginGuard.current = event.target?.closest?.('[data-no-card-drag]') ? task.id : null
           },
@@ -1557,31 +1572,34 @@ function TaskSwimlane({ useSessions, useWorkspaces, useSessionStatus, useTaskCon
             }
           },
           onDragStart: (event) => {
-            if (taskPins.writable !== true) { event.preventDefault(); return }
             if (dragOriginGuard.current === task.id || event.target?.closest?.('[data-no-card-drag]')) {
               dragOriginGuard.current = null
               event.preventDefault()
               return
             }
+            const canMove = taskPins.writable === true && !pendingMoves.has(task.id)
+            if (!writeSessionReferenceDrag(event.dataTransfer, task.id, canMove)) { event.preventDefault(); return }
             dragClickGuard.current = task.id
-            event.dataTransfer.effectAllowed = 'move'
-            event.dataTransfer.setData('text/plain', task.id)
-            setDrag({ sessionId: task.id, overId: task.id, half: 'before' })
+            setDrag(canMove ? { sessionId: task.id, overId: task.id, half: 'before' } : null)
           },
           onDragEnd: () => {
             setDrag(null)
             window.setTimeout(() => { if (dragClickGuard.current === task.id) dragClickGuard.current = null }, 0)
           },
           onDragOver: (event) => {
-            if (drag === null) return
+            if (drag === null || taskPins.writable !== true || pendingMoves.has(drag.sessionId) || !isSessionReferenceDrag(event.dataTransfer)) return
             event.preventDefault()
+            event.stopPropagation()
+            event.dataTransfer.dropEffect = 'move'
             const rect = event.currentTarget.getBoundingClientRect()
             const half = twoColumns ? (event.clientX < rect.left + rect.width / 2 ? 'before' : 'after') : (event.clientY < rect.top + rect.height / 2 ? 'before' : 'after')
             if (drag.overId !== task.id || drag.half !== half) setDrag({ ...drag, overId: task.id, half })
           },
           onDrop: (event) => {
+            if (!canCommitTaskDrop(event)) return
             event.preventDefault()
-            if (drag !== null) commitDrop(task.id, drag.overId === task.id ? drag.half : 'before')
+            event.stopPropagation()
+            commitDrop(task.id, drag.overId === task.id ? drag.half : 'before')
           },
         },
         element('div', { className: 'dbt-task-title-row' },

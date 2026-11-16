@@ -223,3 +223,175 @@
      },
    })
  }
+
+===================================================================
+--- a/packages/client/ui-workspace/src/client/rows/Rows.tsx
++++ b/packages/client/ui-workspace/src/client/rows/Rows.tsx
+@@ -1,3 +1,4 @@
++import { isSessionReferenceDrag, matchesSessionReferenceMove, writeSessionReferenceDrag } from '../session-reference-drag.mjs'
+ /**
+  * Workspace browser tree row components (figma Cell set 14:3080): pure presentational —
+  * all data and callbacks arrive via props. Hover swaps (folder->chevron,
+@@ -195,6 +196,8 @@
+  * row where the pointer released so the owner can resolve an insert anchor.
+  */
+ export interface RowDragProps {
++  /** Active owner source; a foreign copy cannot commit this list's order. */
++  sourceId?: string | undefined
+   /** Start dragging this row. */
+   start: () => void
+   /** A compatible row drag is in flight. */
+@@ -643,7 +646,8 @@
+   // their drop targets to fellow pinned rows.
+   const renamable = useSessionAccess(node.id, 'session/rename')
+   const reorderable = useSessionAccess(node.id, 'workspace/insertSessionBefore')
+-  const draggable = drag !== undefined && reorderable && !row.blank && !row.archived
++  const draggable = !row.blank && !row.archived
++  const canMove = drag !== undefined && reorderable && draggable
+   const menuOpen = useContextMenuTarget(target => target?.kind === 'session' && target.value.sessionId === node.id)
+   const dragPreview = useRowDragPreview(css.dragPreview as string, DRAG_PREVIEW_PROPERTIES)
+   const rowRef = useRef<HTMLDivElement>(null)
+@@ -690,25 +694,26 @@
+       onDragStart={!draggable
+         ? undefined
+         : (e) => {
+-          e.dataTransfer.effectAllowed = 'move'
+-          e.dataTransfer.setData('text/plain', node.id)
+-          drag.start()
++          if (!writeSessionReferenceDrag(e.dataTransfer, node.id, canMove)) { e.preventDefault(); return }
++          if (canMove) drag!.start()
+           dragPreview.start(e)
+         }}
+-      onDragEnd={() => { if (dragPreview.clear()) drag?.end() }}
++      onDragEnd={() => { if (dragPreview.clear() && canMove) drag?.end() }}
+       onDragOver={drag === undefined
+         ? undefined
+         : (e) => {
+-          if (!drag.active) return
++          if (!drag.active || !reorderable || !isSessionReferenceDrag(e.dataTransfer)) return
+           e.preventDefault()
++          e.stopPropagation()
+           e.dataTransfer.dropEffect = 'move'
+           drag.hover(rowHalf(e))
+         }}
+       onDrop={drag === undefined
+         ? undefined
+         : (e) => {
+-          if (!drag.active) return
++          if (!drag.active || !matchesSessionReferenceMove(e.dataTransfer, drag.sourceId, reorderable)) return
+           e.preventDefault()
++          e.stopPropagation()
+           drag.drop(rowHalf(e))
+         }}
+     >
+===================================================================
+--- a/packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx
++++ b/packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx
+@@ -366,7 +366,8 @@
+   const [workspaceDrag, setWorkspaceDrag] = useState<WorkspaceDragState | null>(null)
+   const workspaceDropCommitted = useRef(false)
+   const nativeDragActive = drag !== null || workspaceDrag !== null
+-  useNativeDragAcceptance(nativeDragActive)
++  // Session moves commit only at real row drops; only workspace drags retain legacy document acceptance.
++  useNativeDragAcceptance(workspaceDrag !== null)
+   const currentGroup = current === undefined || !workspaceReady
+     ? undefined
+     : owningGroupKey(workspaces, current)
+@@ -620,6 +621,7 @@
+           const normalizeHalf = (half: 'before' | 'after'): 'before' | 'after' =>
+             node.blank ? 'after' : half
+           const dragProps = {
++            sourceId: drag?.sessionId,
+             start: () => {
+               sessionDropCommitted.current = false
+               setDrag({ accountKey: group.key, sessionId: node.id, pinned: node.pinned, over: null })
+@@ -638,8 +640,7 @@
+               commitSessionDrag(drag, { id: node.id, half: normalizeHalf(half) })
+             },
+             end: () => {
+-              if (drag?.over !== null && drag?.over !== undefined) commitSessionDrag(drag, drag.over)
+-              else setDrag(null)
++              setDrag(null)
+               sessionDropCommitted.current = false
+             },
+           }
+@@ -759,7 +760,7 @@
+   )
+   const [drag, setDrag] = useState<DragState | null>(null)
+   const dropCommitted = useRef(false)
+-  useNativeDragAcceptance(drag !== null)
++  // No document-level acceptance for Session drags: external copies/cancels do not reorder.
+   const currentId = panelActive
+     ? undefined
+     : Object.values(list.byId).find(session => (session.retainedBy.mainView ?? 0) > 0)?.id
+@@ -804,6 +805,7 @@
+               flat
+               useSessionAccess={useSessionAccess}
+               drag={{
++                sourceId: drag?.sessionId,
+                 start: () => {
+                   dropCommitted.current = false
+                   setDrag({ accountKey: FLAT_SESSION_ORDER_KEY, sessionId: node.id, pinned: node.pinned, over: null })
+@@ -819,8 +821,7 @@
+                   if (drag !== null) commitDrag(drag, { id: node.id, half: normalizeHalf(half) })
+                 },
+                 end: () => {
+-                  if (drag?.over !== null && drag?.over !== undefined) commitDrag(drag, drag.over)
+-                  else setDrag(null)
++                  setDrag(null)
+                   dropCommitted.current = false
+                 },
+               }}
+===================================================================
+--- a/packages/client/ui-workspace/src/client/session-reference-drag.d.mts
++++ b/packages/client/ui-workspace/src/client/session-reference-drag.d.mts
+@@ -0,0 +1,5 @@
++export const SESSION_REFERENCE_MIME: string
++export function isSessionReferenceDrag(transfer: DataTransfer | null | undefined): boolean
++export function readSessionReferenceDrag(transfer: DataTransfer | null | undefined): {version: 1; sessionId: string} | null
++export function writeSessionReferenceDrag(transfer: DataTransfer | null | undefined, sessionId: string, canMove?: boolean): boolean
++export function matchesSessionReferenceMove(transfer: DataTransfer | null | undefined, activeId: string | null | undefined, permitted?: boolean): boolean
+===================================================================
+--- a/packages/client/ui-workspace/src/client/session-reference-drag.mjs
++++ b/packages/client/ui-workspace/src/client/session-reference-drag.mjs
+@@ -0,0 +1,40 @@
++/** Transient drag transport only. Native session-reference owns citation content. */
++export const SESSION_REFERENCE_MIME = 'application/x-dsh-session-reference+json'
++const MAX_PAYLOAD_BYTES = 8192
++
++/** File drags always remain owned by native attachment intake. */
++export function isSessionReferenceDrag(transfer) {
++  const types = Array.from(transfer?.types ?? [])
++  return !types.includes('Files') && types.includes(SESSION_REFERENCE_MIME)
++}
++
++/** Read only at drop: browsers protect custom data during dragover. */
++export function readSessionReferenceDrag(transfer) {
++  if (!isSessionReferenceDrag(transfer)) return null
++  try {
++    const raw = transfer.getData(SESSION_REFERENCE_MIME)
++    if (!raw || raw.length > MAX_PAYLOAD_BYTES || new TextEncoder().encode(raw).length > MAX_PAYLOAD_BYTES) return null
++    const value = JSON.parse(raw)
++    if (!value || typeof value !== 'object' || Array.isArray(value)) return null
++    if (Object.keys(value).length !== 2 || value.version !== 1) return null
++    const id = value.sessionId
++    if (typeof id !== 'string' || id === '' || id.trim() !== id || /[\u0000-\u001f\u007f]/u.test(id)) return null
++    return { version: 1, sessionId: id }
++  } catch { return null }
++}
++
++/** Publish no title/body and grant no authority; the target resolves native metadata. */
++export function writeSessionReferenceDrag(transfer, sessionId, canMove = false) {
++  if (!transfer || typeof sessionId !== 'string' || sessionId === '') return false
++  const raw = JSON.stringify({ version: 1, sessionId })
++  if (new TextEncoder().encode(raw).length > MAX_PAYLOAD_BYTES) return false
++  transfer.setData(SESSION_REFERENCE_MIME, raw)
++  transfer.setData('text/plain', sessionId)
++  transfer.effectAllowed = canMove ? 'copyMove' : 'copy'
++  return true
++}
++
++/** A move must belong to this owner's active source, never a foreign copy/drop. */
++export function matchesSessionReferenceMove(transfer, activeId, permitted = true) {
++  return permitted && typeof activeId === 'string' && readSessionReferenceDrag(transfer)?.sessionId === activeId
++}

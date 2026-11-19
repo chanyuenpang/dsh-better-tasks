@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "id": "dsh-v0.2.2-rc.5-tasks-v0.4.9",
+  "tag": "dsh-v0.2.2-rc.5-tasks-v0.4.9",
+  "sourceTag": "dsh-v0.2.2-rc.5-tasks-v0.4.9",
+  "checkedAt": "2026-11-19T05:54:54.986Z",
+  "result": "PASS",
+  "dshVersion": "0.2.2-rc.5",
+  "tasksVersion": "0.4.9",
+  "startupOnly": true,
+  "command": "node run-gate-release-049.mjs",
+  "sandboxProfile": "sandbox-release-049/home/profiles/desktop",
+  "listeningUrl": "http://127.0.0.1:39496/",
+  "rendererUrl": "dsh-app://app/",
+  "isolation": {
+    "separateHome": true,
+    "separateProfile": true,
+    "separateSessionsAndLedger": true,
+    "separateElectronUserData": true,
+    "cindyDisabled": true
+  },
+  "realProfileChanged": false,
+  "realDesktopRestarted": false,
+  "browserCoreActivated": true,
+  "browserErrors": [],
+  "servedClientHashes": [
+    {
+      "name": "@deepseek-ai/dsh-client-ui-layout",
+      "clientSha256": "1e0d502ec9e02792060e8c9d879f18237015855903658aac3db5b42d1cd71545",
+      "servedExecutableSha256": "62de1fbe72e2e49b4f42b1b0b80e0d4a4ceaa0613a6fa44bbe43230331acb20b"
+    },
+    {
+      "name": "@deepseek-ai/dsh-client-ui-workspace",
+      "clientSha256": "827ae384c2dc29fc1f92631a49934a31c2c7bc64cdd03edebbba30f81884a156",
+      "servedExecutableSha256": "1d061697f240a92dedebfadfab0e9937de8f97e5b310e423682ae8ed45a24a28"
+    },
+    {
+      "name": "@deepseek-ai/dsh-client-ui-user-questions",
+      "clientSha256": "b6fa613c238635bc3e5d3912a006457e4dd75fcdde2ba6056b89867613164d9c",
+      "servedExecutableSha256": "65e389b38af978ee1d3fb2bf7200757bc05b049c42d43ac4614dbaf95a035ce3"
+    },
+    {
+      "name": "@deepseek-ai/dsh-client-ui-input-trigger",
+      "clientSha256": "8948acaa8560f7f50e9e3dd12ff33fe8533132e89b5df3e5815afdd45956f8cb",
+      "servedExecutableSha256": "358be018ff9d450263ac0b8887a0c1ccd6d49d8e21711ecae1f2c0ff036abf7e"
+    },
+    {
+      "name": "@deepseek-ai/dsh-client-ui-commands",
+      "clientSha256": "77b4fabb7dec38a6e6958305115fa295802c022e274332fbe9c690535ea2ee04",
+      "servedExecutableSha256": "937f1b799342375f16a6715f5d62680f0475abd86e82fbbf70b2f7822a5756df"
+    },
+    {
+      "name": "@deepseek-ai/dsh-client-ui-conversation",
+      "clientSha256": "4b0cad9563563b9315cdf9678e527103eee58ffe557fd9f23b6e061d9fcf928b",
+      "servedExecutableSha256": "4cbb50a6888a90e8ff7350cc0b58c03ee349351b62c43abc809f182543326d80"
+    },
+    {
+      "name": "@veewo/dsh-better-tasks",
+      "clientSha256": "b7f74174c1e90a1fd97de31e957ff2460406c49982e2ec58b80dea8c117b02d5",
+      "servedExecutableSha256": "dd5c8f44b9cf2b8b294450fb1afd8b26ea4507b18410658b22ad01707cd33e6f"
+    }
+  ],
+  "activeClientEntries": 77,
+  "cleanupComplete": true,
+  "cleanup": {
+    "ports": [
+      39496,
+      9255
+    ],
+    "ownedListenersRemaining": 0,
+    "ownedProcessesRemaining": 0
+  },
+  "runtime": {
+    "applicationVersion": "0.2.2-rc.5",
+    "bundledDshVersion": "0.2.2-rc.5",
+    "officialInstallerUrl": "https://download.deepseek.com/dsh-desk/bin/win-x64/deepseek-harness-0.2.2-rc.5-win-x64.exe",
+    "size": 299593552,
+    "sha256": "013e28bc8c714749331308386d814108336851914d243aa6bcfd14de1ab30923",
+    "signature": "Valid; Hangzhou DeepSeek Artificial Intelligence Co., Ltd.",
+    "installerExecuted": false
+  },
+  "composition": "Official rc.5 base/web bundles and these seven archives only; no unrelated profile plugins. pnpm isolated, autoInstallPeers false, named six public hoists.",
+  "checks": {
+    "regression": {
+      "result": "PASS",
+      "testsPassed": 550,
+      "testsFailed": 0,
+      "targetSourceVersion": "0.2.2-rc.5"
+    },
+    "syntax": "PASS",
+    "upstreamContract": {
+      "result": "attachable",
+      "unchanged": 39,
+      "changed": 0,
+      "missing": 0
+    },
+    "forkExternals": {
+      "result": "PASS",
+      "count": 6,
+      "verifiedCandidateForkArchivesReused": true
+    },
+    "packageAudit": {
+      "result": "PASS",
+      "count": 7,
+      "mainExecutablesUnchanged": true,
+      "exactCandidateForkArchivesReused": 6
+    }
+  },
+  "scope": {
+    "realRuntimeUpgraded": false,
+    "npmPublished": false,
+    "fullRealProfileTested": false,
+    "userFunctionalAcceptance": false
+  }
+}

@@ -2,10 +2,9 @@
 
 ## 当前公开组合与 tag 规则
 
-- DSH Desktop 运行时：**0.2.2-rc.3**。
-- Better Tasks npm/package 版本：**0.4.8**。
-- Git tag / GitHub Release：**`dsh-v0.2.2-rc.3-tasks-v0.4.8`**（Pre-release）。
-- 安装入口：[rc.3 安装说明](<install-rc3.md>)；旧 rc.2 / Tasks 0.4.1 的[安装说明](<install.md>)和资产保持不变，兼容表见 [README](<../README.md>)。
+- DSH Desktop：**0.2.2-rc.5**；Better Tasks：**0.4.9**。
+- Git tag / GitHub Release：**`dsh-v0.2.2-rc.5-tasks-v0.4.9`**（Pre-release，仅 GitHub 七包；npm 不更新）。
+- 安装入口：[rc.5 安装说明](<install-rc5.md>)。历史 [rc.3 / 0.4.8](<install-rc3.md>)、[rc.2 / 0.4.1](<install.md>)资产保持不变。
 
 今后统一使用 `dsh-v<DSH版本>-tasks-v<Tasks版本>`。DSH 版本写完整，保留 rc 后缀；Tasks 版本仍由插件自己的 manifest 管理。同一 Tasks 源码可适配多条 DSH 线，但每条线都要有独立验证的组合 Release。已发布的 tag 与资产 URL 不移动、不覆盖；内容变化应升 Tasks 版本并创建新组合 tag。面向 RC 运行时的本次组合标记为 GitHub Pre-release，不依赖全局 Latest 作为安装入口。
 
@@ -18,6 +17,8 @@
 - Tasks 0.4.2 是本轮 rc.3 适配候选，见[适配记录](<dsh-0.2.2-rc.3-support.md>)和[候选安装说明](<install-rc3.md>)。公开 rc.2 / Tasks 0.4.1 入口保留；候选的七包与精确 rc.3 启动证据单独交付，不将源码提交或 tag 当成 GitHub/npm 已发布。
 
 ## 本次组合与历史内容
+
+0.4.9 / rc.5：保留 0.4.8 功能。六个 fork 沿用 rc.5 隔离候选的归档字节，正式七包重新通过精确 rc.5 Windows Desktop 启动门禁。本轮不纳入其他工作树改动，不安装或重启本机。
 
 0.4.8 发布已使用的 local.5 执行代码：任务卡与会话行既可合法列表内排序，也可拖入另一主会话的消息区/输入区，向已有草稿插入原生会话引用，不自动发送。修复传输模块漏打包及可选 Remote 子服务访问错误；取消、切会话和真实草稿修改不误提交。合入侧栏期望宽度恢复与标题主要文字色/选中常规字重400。保留初始化、完整顺序持久化、新建置首和子agent状态修复。 六个 fork 采用 local.5 的精确已安装字节，正式0.4.8另做完整七包启动门禁；不移动旧tag，不再次安装或重启本机。本版不包含原生引用性能优化；上游讨论见 [#5043 补充反馈](<https://github.com/deepseek-ai/deepseek-harness/discussions/5043#discussioncomment-19649223>)。
 

@@ -4,7 +4,9 @@ DSH 侧栏任务泳道：共享原生 Pin、独立任务输入、Final 预览与
 
 ## 按 DSH 版本安装
 
-**当前 rc.3 分发组合：DSH Desktop `0.2.2-rc.3` + Better Tasks `0.4.8`（Pre-release）。**
+**最新分发组合：DSH Desktop `0.2.2-rc.5` + Better Tasks `0.4.9`（GitHub Pre-release）。** 本版沿用 0.4.8 功能，按 rc.5 重建六个 fork；不跨 RC 混装。见 [rc.5 安装说明](<docs/install-rc5.md>)。
+
+**rc.3 分发组合：DSH Desktop `0.2.2-rc.3` + Better Tasks `0.4.8`（Pre-release）。**
 
 0.4.8 发布已使用的 local.5 执行代码：任务卡与会话行既可合法列表内排序，也可拖入另一主会话的消息区/输入区，向已有草稿插入原生会话引用，不自动发送。修复传输模块漏打包及可选 Remote 子服务访问错误；取消、切会话和真实草稿修改不误提交。合入侧栏期望宽度恢复与标题主要文字色/选中常规字重400。保留初始化、完整顺序持久化、新建置首和子agent状态修复。 引用速度仍受 DSH 原生候选查询影响，本版不声称性能优化。新任务创建成功后直接置首并持久化，不读取原会话日期；刷新、重启、消息与运行状态变化不重排，之后仅手动调整、新任务前插或移除会改变任务序列。已合并初始化优化：不扫描会话历史、按持久化的完整顺序恢复任务，并区分顺序恢复与旧队列导入提示；同时保留子/孙 agent 活跃状态修复；标题统一原生主要文字色，选中采用常规字重400，背景、描边及状态色不变。安装必须取齐[rc.3 完整七包](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.3-tasks-v0.4.8>)，按[rc.3 安装说明](<docs/install-rc3.md>)处理；npm 主包不是完整运行时组合。以下 rc.2 入口保留供仍在使用 rc.2 的用户。
 
@@ -12,17 +14,18 @@ DSH 侧栏任务泳道：共享原生 Pin、独立任务输入、Final 预览与
 
 | DSH Desktop 运行时 | Better Tasks | 完整安装入口 |
 |---|---|---|
+| `0.2.2-rc.5` | `0.4.9` | [dsh-v0.2.2-rc.5-tasks-v0.4.9](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.5-tasks-v0.4.9>)（完整七包） |
 | `0.2.2-rc.3` | `0.4.8` | [dsh-v0.2.2-rc.3-tasks-v0.4.8](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.3-tasks-v0.4.8>)（拖动排序与整会话区引用、宽度恢复） |
 | `0.2.2-rc.2` | `0.4.1` | [dsh-v0.2.2-rc.2-tasks-v0.4.1](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.1>)（含输入框回退修复） |
 | `0.2.1-rc.2` | `0.3.2` | [历史插件](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/v0.3.2>) + [对应 fork 库](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/better-tasks-forks-0.2.1-rc.2-r1>) |
 | `0.2.0-rc.2` | `0.3.1` | [历史发行版](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/v0.3.1>) |
 
-新 tag 统一为 **`dsh-v<DSH版本>-tasks-v<Tasks版本>`**。先确认 Desktop「关于」中的完整运行时版本，再选对应 Release；同一 DSH 线的 Tasks 更新会创建新的组合 tag，旧包保留供回滚。不要跨 rc.1 / rc.2 / rc.3 混装，也不要仅按 GitHub 的 Latest 或 npm latest 安装。
+新 tag 统一为 **`dsh-v<DSH版本>-tasks-v<Tasks版本>`**。先确认 Desktop「关于」中的完整运行时版本，再选对应 Release；同一 DSH 线的 Tasks 更新会创建新的组合 tag，旧包保留供回滚。不要跨 RC 运行时版本混装，也不要仅按 GitHub 的 Latest 或 npm latest 安装。
 
 **完整安装 = 插件本体 + 同一 Release 的六个 UI fork，共 7 个 `.tgz`。** 源码 ZIP 和单独 npm 包都不是完整安装包。六个 fork 保留原生包名，属于本项目兼容性修改，并非 DeepSeek 官方发行包。
 
-1. 按表格中的完整 DSH 版本选择 Release，取齐七包、`release-manifest.json`、`SHA256SUMS.txt` 和 `INSTALL.md`；rc.3 使用 0.4.8，rc.2 保留 0.4.1。
-2. 按对应的 [rc.3 安装说明](<docs/install-rc3.md>)或 [rc.2 安装说明](<docs/install.md>)校验并备份自己的 Profile，配置 `nodeLinker: isolated` 与六个精确的 `publicHoistPattern`。
+1. 按表格中的完整 DSH 版本选择 Release，取齐七包、`release-manifest.json`、`SHA256SUMS.txt` 和 `INSTALL.md`；rc.5 使用 0.4.9，rc.3 使用 0.4.8，rc.2 保留 0.4.1。
+2. 按对应的 [rc.5 安装说明](<docs/install-rc5.md>)、[rc.3 安装说明](<docs/install-rc3.md>)或 [rc.2 安装说明](<docs/install.md>)校验并备份自己的 Profile，配置 `nodeLinker: isolated` 与六个精确的 `publicHoistPattern`。
 3. 完全退出 Desktop（含托盘），安装七包，再手动启动验收。升级与卸载见[回滚说明](<docs/rollback.md>)。
 
 本次完整 Release 包含最新 `ui-user-questions` 修复。较早的 `better-tasks-forks-0.2.2-rc.2` 是历史 fork 库，不含这次最终修复，不要与本次七包混用。

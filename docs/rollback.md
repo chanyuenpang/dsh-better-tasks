@@ -1,5 +1,9 @@
 # 卸载 / 回滚 Better Tasks
 
+## rc.5 / Tasks 0.4.9 回滚
+
+如从 rc.5 退回 rc.3，先停止 Desktop（含托盘），同时恢复官方 rc.3 运行时、升级前 Profile 配置/依赖锁及完整 rc.3 七包。不要把 rc.3 fork 混入 rc.5，也不要删除 Session、ledger、原生 Pin、顺序或设置。若升级曾写入数据，先保留故障副本，再核对升级前备份。若继续用 rc.5 而只卸载 Better Tasks，按下方通用移除流程移除 bundle 与全部六个 fork。
+
 ## rc.3 / Tasks 0.4.8 回滚
 
 0.4.8 增加整主会话区引用并保留列表排序，修复宽度恢复与标题字重。回到0.4.7时恢复其完整七包和配置，特别是 Layout、Workspace、Conversation fork；不删除草稿、会话、Pin、持久化任务顺序或原宽度键。旧0.4.7资产不覆盖。

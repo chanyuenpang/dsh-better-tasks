@@ -3,10 +3,11 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { stripTypeScriptTypes } from 'node:module'
 
-// Focused owner contracts. Stage explicit rc.3 sources first; no browser/profile,
-// React rendering, visual measurements or real storage are exercised.
+// Focused owner contracts for the explicitly staged runtime-matched sources.
+// No browser/profile, React rendering, visual measurements or real storage are exercised.
 const root = '.srcbuild/packages/client/ui-layout/src/client/'
-assert.equal(JSON.parse(readFileSync('.srcbuild/package.json', 'utf8')).version, '0.2.2-rc.3')
+const testSourceVersion = process.env.DSH_FORK_VERSION ?? '0.2.2-rc.3'
+assert.equal(JSON.parse(readFileSync('.srcbuild/package.json', 'utf8')).version, testSourceVersion)
 const columnsText = readFileSync(root + 'columns.ts', 'utf8')
 const storesText = readFileSync(root + 'stores.ts', 'utf8')
 const frameText = readFileSync(root + 'AppFrame.tsx', 'utf8')

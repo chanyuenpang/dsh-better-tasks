@@ -6,8 +6,6 @@ const patch = readFileSync(new URL('../cordis.patch.yml', import.meta.url), 'utf
 const slugs = ['ui-layout', 'ui-workspace', 'ui-user-questions', 'ui-input-trigger', 'ui-commands', 'ui-conversation']
 
 test('fork payloads are installed as profile dependencies, never bundled or fetched as subdependencies', () => {
-  // The release line moved to 0.4.0; asserting a literal here made the suite fail
-  // on a version bump that had already shipped instead of on the rule it guards.
   assert.match(manifest.version, /^0\.(?:[3-9]|\d{2})\.\d+$/)
   for (const slug of slugs) {
     const name = '@deepseek-ai/dsh-client-' + slug
@@ -49,12 +47,12 @@ test('the published package carries installation instructions and matching root 
   assert.equal(lock.packages[''].version, manifest.version)
 })
 
-test('rc.3 candidate instructions match the main version and seven exact-runtime packages', () => {
+test('rc.3 public instructions retain the immutable seven-package release', () => {
   const install = readFileSync(new URL('../docs/install-rc3.md', import.meta.url), 'utf8')
   const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8')
   assert.ok(manifest.files.includes('docs/install-rc3.md'))
-  assert.ok(install.includes('dsh-v0.2.2-rc.3-tasks-v' + manifest.version))
-  assert.ok(install.includes('veewo-dsh-better-tasks-' + manifest.version + '.tgz'))
+  assert.ok(install.includes('dsh-v0.2.2-rc.3-tasks-v0.4.8'))
+  assert.ok(install.includes('veewo-dsh-better-tasks-0.4.8.tgz'))
   for (const slug of slugs) assert.ok(install.includes(`deepseek-ai-dsh-client-${slug}-0.2.2-rc.3.tgz`))
   for (const item of ['release-manifest.json', 'SHA256SUMS.txt', 'validation.json', 'nodeLinker: isolated']) assert.ok(install.includes(item))
   assert.ok(readme.includes('docs/install-rc3.md'))
@@ -74,4 +72,12 @@ test('installation and README select a DSH-first combined release, not npm lates
   for (const slug of slugs) assert.ok(install.includes(`deepseek-ai-dsh-client-${slug}-0.2.2-rc.2.tgz`))
   assert.match(install, /nodeLinker: isolated/)
   assert.match(install, /autoInstallPeers: false/)
+})
+
+test('rc.5 installation uses its exact immutable GitHub composition', () => {
+  const install = readFileSync(new URL('../docs/install-rc5.md', import.meta.url), 'utf8')
+  assert.ok(manifest.files.includes('docs/install-rc5.md'))
+  assert.ok(install.includes('dsh-v0.2.2-rc.5-tasks-v0.4.9'))
+  assert.ok(install.includes('veewo-dsh-better-tasks-0.4.9.tgz'))
+  assert.ok(install.includes('nodeLinker: isolated'))
 })

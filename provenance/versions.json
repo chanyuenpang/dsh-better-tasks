@@ -52,6 +52,23 @@
         "from": "0.2.2-rc.2",
         "note": "Tasks 0.4.2 declares/renders sidebar.session.action as root/hoc with native content in options.children and permission-gated safe fallback. The rc.2 overlay shape is reused against exact rc.3 upstream with its workspace.picker factory retained; rebuild all six from latest sources, not the historical rc.3 library. Candidate identity is dsh-v0.2.2-rc.3-tasks-v0.4.2. Exact runtime startup and package evidence belong to that combination's validation.json; source-contract attachable alone does not certify support or publication."
       }
+    },
+    "0.2.2-rc.5": {
+      "tag": "dsh-v0.2.2-rc.5",
+      "commit": "9c2670d3bce5275e0d1610272958121af87787bb",
+      "tarball": "https://codeload.github.com/deepseek-ai/deepseek-harness/tar.gz/refs/tags/dsh-v0.2.2-rc.5",
+      "tarballSha256": "4e24e132a9fc267d5cdc5724525873db2575680e073fd2db4519b92553614215",
+      "vendoredTarball": "third_party/source/dsh-v0.2.2-rc.5.tar.gz",
+      "title": "DeepSeek Harness",
+      "profile": "official",
+      "status": "candidate",
+      "forkLibrary": "better-tasks-forks-0.2.2-rc.5",
+      "overlayVariant": "0.2.2-rc.2",
+      "contract": {
+        "from": "0.2.2-rc.3",
+        "verdict": "attachable",
+        "note": "The six upstream client src trees, replacement row IDs and direct contract anchors are unchanged. Rebuild all six against rc.5; this source registration is not a support or publication claim."
+      }
     }
   }
 }

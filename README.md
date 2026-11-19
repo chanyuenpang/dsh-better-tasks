@@ -24,9 +24,11 @@ DSH 侧栏任务泳道：共享原生 Pin、独立任务输入、Final 预览与
 
 **完整安装 = 插件本体 + 同一 Release 的六个 UI fork，共 7 个 `.tgz`。** 源码 ZIP 和单独 npm 包都不是完整安装包。六个 fork 保留原生包名，属于本项目兼容性修改，并非 DeepSeek 官方发行包。
 
-1. 按表格中的完整 DSH 版本选择 Release，取齐七包、`release-manifest.json`、`SHA256SUMS.txt` 和 `INSTALL.md`；rc.5 使用 0.4.9，rc.3 使用 0.4.8，rc.2 保留 0.4.1。
-2. 按对应的 [rc.5 安装说明](<docs/install-rc5.md>)、[rc.3 安装说明](<docs/install-rc3.md>)或 [rc.2 安装说明](<docs/install.md>)校验并备份自己的 Profile，配置 `nodeLinker: isolated` 与六个精确的 `publicHoistPattern`。
-3. 完全退出 Desktop（含托盘），安装七包，再手动启动验收。升级与卸载见[回滚说明](<docs/rollback.md>)。
+**实际安装走 [Windows Desktop 安装手册](<docs/install-desktop.md>)。** 旧 Release 内的批量 Desktop CLI 步骤不适用；历史资产保持原样。
+
+1. 选运行时完全匹配的 Release，按 [rc.5 / 0.4.9](<docs/install-rc5.md>)、[rc.3 / 0.4.8](<docs/install-rc3.md>) 或 [rc.2 / 0.4.1](<docs/install.md>) 下载并校验七包、`release-manifest.json`、`SHA256SUMS.txt` 和启动验证记录。
+2. 隔离验证目标组合并备份 Profile。六个 fork 是根依赖，只补齐缺失或不匹配的包；主包才走 Desktop 插件管理器。不是每次都重装七包，也不是一次批量安装。
+3. 七包一致后才启用新组合；若需要重启，由用户确认并验收。升级、卸载和故障恢复见[回滚说明](<docs/rollback.md>)。
 
 本次完整 Release 包含最新 `ui-user-questions` 修复。较早的 `better-tasks-forks-0.2.2-rc.2` 是历史 fork 库，不含这次最终修复，不要与本次七包混用。
 

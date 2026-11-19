@@ -4,6 +4,21 @@ import { readFileSync } from 'node:fs'
 const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
 const patch = readFileSync(new URL('../cordis.patch.yml', import.meta.url), 'utf8')
 const slugs = ['ui-layout', 'ui-workspace', 'ui-user-questions', 'ui-input-trigger', 'ui-commands', 'ui-conversation']
+const readDoc = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8')
+
+test('Desktop install and rollback point to the managed-profile runbook, not a runnable CLI recipe', () => {
+  assert.ok(manifest.files.includes('docs/install-desktop.md'))
+  for (const path of ['README.md', 'AGENTS.md', 'docs/install.md', 'docs/install-rc3.md', 'docs/install-rc5.md', 'docs/rollback.md', 'docs/release.md']) {
+    const text = readDoc(path)
+    assert.match(text, /\]\(<?(?:docs\/)?install-desktop\.md>?\)/, path)
+    assert.doesNotMatch(text, /^\s*dsh\s+plugin\s+--profile\s+desktop\b/m, path)
+  }
+  const runbook = readDoc('docs/install-desktop.md')
+  assert.match(runbook, /managed exclusively by the Electron application/)
+  assert.match(runbook, /not-bundle/)
+  assert.match(runbook, /enabled: false/)
+  for (const slug of slugs) assert.ok(runbook.includes(`'@deepseek-ai/dsh-client-${slug}'`))
+})
 
 test('fork payloads are installed as profile dependencies, never bundled or fetched as subdependencies', () => {
   assert.match(manifest.version, /^0\.(?:[3-9]|\d{2})\.\d+$/)

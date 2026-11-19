@@ -25,9 +25,12 @@ foreach ($a in $m.assets) {
 }
 ```
 
-## 真实升级是另一步
+## 安装与启用（旧 Release 安装说明勘误）
 
-1. 先安排停机，再备份真实 Profile 的配置、依赖锁、现有匹配的 rc.3 七包及恢复所需的数据备份；保留其他插件。不要将真实 Profile 或数据指给沙盒。评估现有其他本地插件的 rc.5 兼容性。
-2. 只用官方发行的 Windows Desktop，确认运行时和 CLI 都是 `0.2.2-rc.5`。不要先让 rc.3 fork 在 rc.5 上运行，也不要把 rc.5 fork 装到运行中的 rc.3 上。
-3. 真实安装时保持 Desktop 停止。在 Profile 的 `pnpm-workspace.yaml` 保留其他配置；使用 `nodeLinker: isolated`、`autoInstallPeers: false`，仅将六个 fork 的完整 `@deepseek-ai/dsh-client-ui-*` 包名加入 `publicHoistPattern`，不要 hoist 整个 scope。用目标 CLI 一次安装所有七个本地归档：`dsh plugin --profile desktop add @specs`，其中 `$specs = @($m.assets | ForEach-Object { (Resolve-Path -LiteralPath $_.filename).Path })`。不要手改或重复 native disable 行。
-4. 安装与重新打开真实 Desktop 各自确认。启动门禁只验证核心 shell，不替代真实 Profile 的兼容性检查及用户功能验收。失败先按随包 `ROLLBACK.md` 恢复版本匹配的组合。
+固定 tag 的 `INSTALL.md` 步骤 3 中的批量 Desktop CLI **不可用**。`desktop` Profile 由 Electron 管理，六个 fork 也不是可单独安装的 bundle。请按 [Windows Desktop 安装手册](<install-desktop.md>)操作。该组合使用 `nodeLinker: isolated` 及六个精确 hoist 条目，详见手册。
+
+- 已运行 rc.5 但仍有 rc.3 fork：不要启用旧 Better Tasks；先验证候选并备份，再经授权替换不匹配的 fork。主包走插件管理器，七包实装哈希核对后才启用。
+- 已运行 rc.5 且目标六个 fork 全部匹配：只需走插件管理器更新主包，不必重装六个 fork。
+- 尚未升级到 rc.5：先准备与目标版本匹配的组合和回滚方案，不把 rc.5 包装进 rc.3。Desktop 自身的升级、插件安装和真实重启分别处理。
+
+旧 Release 的包、哈希和验证记录仍有效。本机功能验收由用户完成；故障按[当前回滚说明](<rollback.md>)处理。

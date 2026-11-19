@@ -4,7 +4,7 @@
 
 ## 1. 先确认目标运行时
 
-仅用于 **DSH Desktop `0.2.2-rc.3`**，不是 rc.2。请在 Desktop「关于」确认完整版本；CLI 必须来自同一版本的安装。不要把 rc.3 fork 装进仍在运行的 rc.2，也不要用 npm latest 补包。
+仅用于 **DSH Desktop `0.2.2-rc.3`**。请在 Desktop「关于」确认完整版本；不要把 rc.3 fork 装进其他运行时，也不要用 npm latest 补包。旧 Release 的 Desktop CLI 安装步骤已勘误：按[当前 Desktop 安装手册](<install-desktop.md>)操作。
 
 rc.2 用户保留 [Tasks 0.4.1 七包](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.1>)，按[rc.2 安装说明](<install.md>)处理。本次 rc.3 适配不覆盖或撤回该版本。先完全退出旧 Desktop，按官方方式升级运行时；升级与本插件安装是两件事。
 
@@ -49,41 +49,11 @@ foreach ($asset in $manifest.assets) {
 '七包与 rc.3 启动证据检查通过'
 ```
 
-## 3. 退出、备份与解析策略
+## 3. 按当前 Desktop 手册安装
 
-先完成任务，**手动完全退出 Desktop（含托盘）**。备份自己的 Profile 配置和旧七包；保留其余插件。默认 Profile 是 `~/.dsh/profiles/desktop`，自定义 `DSH_HOME` 使用实际路径。不要上传可能含凭据的备份。
+按[统一安装手册](<install-desktop.md>)核对 Profile、通过隔离启动门禁并备份。保留 `nodeLinker: isolated`、`autoInstallPeers: false` 和六个精确的 hoist 条目。只替换缺失或不匹配的 fork 根依赖；主包走 Desktop 插件管理器。已有六个 fork 全部匹配时，只更新主包。七包核验后再启用新组合；不使用旧 Release 中的批量 Desktop CLI。
 
-在自己的 Profile 中合并以下 `pnpm-workspace.yaml` 设置，保留已有其他配置，不盲目覆盖：
-
-```yaml
-packages:
-  - .
-nodeLinker: isolated
-autoInstallPeers: false
-publicHoistPattern:
-  - '@deepseek-ai/dsh-client-ui-layout'
-  - '@deepseek-ai/dsh-client-ui-workspace'
-  - '@deepseek-ai/dsh-client-ui-user-questions'
-  - '@deepseek-ai/dsh-client-ui-input-trigger'
-  - '@deepseek-ai/dsh-client-ui-commands'
-  - '@deepseek-ai/dsh-client-ui-conversation'
-```
-
-不要 hoist 全部 `@deepseek-ai/*` 核心包，不用关闭安全检查来绕过依赖错误。若此前 linker 不同，先确认绝对 Profile 路径并备份，仅清理其中可重建的依赖目录后重装；不删除 Home、Session 或 ledger。
-
-## 4. 同时安装七包
-
-仍使用刚核验的 `$downloadDir` 和 `$manifest`，通过与 Desktop rc.3 同版本的 CLI 安装：
-
-```powershell
-$specs = @($manifest.assets | ForEach-Object { Join-Path $downloadDir $_.filename })
-dsh plugin --profile desktop add @specs
-if ($LASTEXITCODE -ne 0) { throw '安装失败；保持 Desktop 停止并恢复备份，勿强行启动' }
-```
-
-六个 fork 必须以 Profile 根依赖安装；主包不捆绑 fork。不要手工把 disable 行重复粘进用户 patch；由 bundle 管理替换层。安装失败不代表磁盘字节已回滚，须核对配置、实际依赖和备份；不要绕过 `not-bundle` 或版本拒绝。
-
-## 5. 启动、拖动引用与验收
+## 4. 启动、拖动引用与验收
 
 手动启动同一套 rc.3 Desktop。启动证据仅确认核心 shell/侧栏/Session/Workspace/会话可激活，没有启动错误；**不代替用户功能和外观验收**。
 

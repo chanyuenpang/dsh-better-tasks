@@ -3,8 +3,8 @@
 ## 当前公开组合与 tag 规则
 
 - DSH Desktop：**0.2.2-rc.5**；Better Tasks：**0.4.9**。
-- Git tag / GitHub Release：**`dsh-v0.2.2-rc.5-tasks-v0.4.9`**（Pre-release，仅 GitHub 七包；npm 不更新）。
-- 安装入口：[rc.5 安装说明](<install-rc5.md>)。历史 [rc.3 / 0.4.8](<install-rc3.md>)、[rc.2 / 0.4.1](<install.md>)资产保持不变。
+- Git tag / GitHub Release：**`dsh-v0.2.2-rc.5-tasks-v0.4.9`**（Pre-release，GitHub 提供完整七包）。npm 的 `dsh-0.2.2-rc.5` 指向主包 `0.4.9`，`latest` 仍为 `0.4.8`；npm 不是七包安装入口。
+- 操作入口：[Windows Desktop 安装手册](<install-desktop.md>)；[rc.5](<install-rc5.md>)、[rc.3](<install-rc3.md>)、[rc.2](<install.md>)页面用于选包、验包与旧 Release 勘误。历史资产保持不变。
 
 今后统一使用 `dsh-v<DSH版本>-tasks-v<Tasks版本>`。DSH 版本写完整，保留 rc 后缀；Tasks 版本仍由插件自己的 manifest 管理。同一 Tasks 源码可适配多条 DSH 线，但每条线都要有独立验证的组合 Release。已发布的 tag 与资产 URL 不移动、不覆盖；内容变化应升 Tasks 版本并创建新组合 tag。面向 RC 运行时的本次组合标记为 GitHub Pre-release，不依赖全局 Latest 作为安装入口。
 
@@ -41,7 +41,7 @@
 ## 一次性准备、构建与审计
 
 1. 确认 GitHub 写权限、源码提交和目标运行时。保留用户未提交的工作，仅显式暂存本次发布文件。
-2. 完成全部代码与文档改动，更新 [安装说明](<install.md>)、[回滚说明](<rollback.md>)、兼容矩阵和 lockfile 根版本，然后统一验证。
+2. 完成全部代码与文档改动，更新目标版本的验包页、[Windows Desktop 安装手册](<install-desktop.md>)、[回滚说明](<rollback.md>)、兼容矩阵和 lockfile 根版本，然后统一验证。发行包的 `INSTALL.md` 应链接到本次版本验包页及维护中的 Desktop 操作手册，避免旧资产里的操作命令成为唯一入口。
 3. Node 24+ 下准备测试源码并运行 `npm run test:prepare -- --version 0.2.2-rc.3`、`npm test`、`npm run check`；对目标线运行 `node scripts/check-upstream-contract.mjs --from-tag 0.2.2-rc.3 --to-tag 0.2.2-rc.3 --version 0.2.2-rc.3`。测试源码默认线由 source lock 管理，与发布线必须分别说明。
 4. 使用已审查的目标线六个 fork，检查每个包内客户端与 [fork 构建产物](<../forks-0.2.2-rc.3/>) 的哈希一致。不要误打包 npm 官方未修改模块。只有需要改变 fork 字节时才重建 fork，并重新记录来源。
 5. 在新的 `releases/<组合tag>/` 打包插件本体一次；其余六包复制已验证字节。检查所有 tar 路径和包名、版本、许可、依赖、bundle patch、源码与客户端哈希。公开包仅含代码、文档和许可证，禁止任何 Profile、凭据、Session、日志、备份或工作流状态。

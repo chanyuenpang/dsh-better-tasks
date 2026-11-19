@@ -18,35 +18,19 @@
 
 [rc.3 候选](<install-rc3.md>)必须整体保留主包与六个 rc.3 fork。安装失败时保持 Desktop 退出，恢复安装前 Profile 配置与同一运行时的完整七包；仅把主包降到 rc.2 的 0.4.1 不是合法回滚。若要退回 rc.2，须先恢复相应官方运行时，再恢复原 rc.2 / Tasks 0.4.1 七包，不能跨线混用。以下移除插件与六个 fork 的通用步骤同样适用；不删除任何 Session/Pin/排序/设置数据。
 
-## 当前公开组合：DSH 0.2.2-rc.2 / Tasks 0.4.1
+## Windows Desktop 通用移除与恢复
 
-所有操作先完成正在运行的任务，**手动完全退出 Desktop（含托盘）**，确认旧进程退出，再修改 Profile。不要热替换正在运行的客户端模块。这里不要求删除会话或用户数据。
+旧 Release 的 Desktop CLI 卸载和重装命令不适用；`desktop` Profile 由 Electron 管理。沿用[安装手册](<install-desktop.md>)的分工和门禁。先备份、核对目标组合；若确需停机或重启，先完成任务并由用户确认，不直接热替换正在使用的客户端包。
 
 ### 恢复官方侧栏
 
-使用与该 Desktop 同版本的 DSH CLI，先移除插件，再移除六个 fork 根依赖：
-
-```powershell
-$names = @('@veewo/dsh-better-tasks')
-$names += 'layout','workspace','user-questions','input-trigger','commands','conversation' |
-    ForEach-Object { "@deepseek-ai/dsh-client-ui-$_" }
-foreach ($name in $names) {
-    dsh plugin --profile desktop remove $name
-    if ($LASTEXITCODE -ne 0) { throw "移除失败：$name；先恢复安装前备份，不要继续启动" }
-}
-```
-
-插件 bundle 的可移除 patch 层禁用官方 `ui-layout`、`ui-sidebar`、`ui-workspace`、`ui-user-questions`、`ui-input-trigger`、`ui-commands`、`ui-conversation`，插入六个替换行及 `better-tasks-ui`。移除插件应同时移除该 bundle 层；**六个 fork 依赖也必须移除**，否则原生包名仍可能解析到 fork，而非官方模块。
-
-若以前手工复制过禁用行，只移除属于 Better Tasks 的那部分，保留其他插件配置。核对 Profile 里无残留 Better Tasks bundle/替换行后，再手动启动并验收官方侧栏和主输入框。需要时恢复安装前的 linker 配置；不要为了回滚而覆盖后来无关的插件改动。
-
-本次 conversation 字节与旧版不同；回退需恢复主包及旧 conversation。旧 [0.4.0 七包](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.0>)保持不变。
+先在隔离环境验证计划恢复的原生组合。运行时允许安全热切换时，从 Desktop 插件管理器禁用或移除 Better Tasks 主 bundle；否则安排停机，不强行触发热切换。完全卸载还须经授权移除六个仅由 Better Tasks 使用的 Profile 根依赖，否则同名模块仍可能解析到 fork。它们不是 bundle，不在插件管理器中逐一移除。对于历史手工加入的替换行，只移除已确认属于 Better Tasks 的行，保留其他插件和用户配置。核对原生模块恢复解析、无残留替换行后再由用户验收。
 
 ### 安装失败或切回上一版 Tasks
 
-使用安装前保存在自己机器的配置备份：`package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`、`cordis.yml`、`cordis.patch.yml`，连同当时完整七包恢复原组合。不要保留“新版 manifest + 旧 lock + 混线 fork”的组合；手动核对实际绝对 Profile 路径后，仅清理其中可重建的 `node_modules`，再运行 `dsh plugin --profile desktop install`。若缺旧包或恢复失败，保持 Desktop 停止并报告错误，不用 `--force` 绕过检查。
+先保持新 Better Tasks **不启用**；即使安装工具报失败，也要检查实际依赖字节、manifest 和锁文件，不假定已经回滚。用安装前备份、原始归档和同一运行时恢复最后可启动的组合。受控恢复根依赖时，核对实际 Profile 路径，使用对应 Desktop 随附的 pnpm，按备份锁文件重新安装（`install --ignore-scripts --frozen-lockfile --prefer-offline`）；先确认不会覆盖安装后无关的配置变化。不只复制旧锁文件，也不直接覆盖客户端 JS。恢复后复核根依赖、版本、实际客户端哈希和锁的一致性，才能重新启用或启动。若无法恢复，保持已停止的 Desktop 不启动，或让正在运行的 Desktop 继续保持新组合禁用；报告确切状态，不用 `--force`。
 
-旧版组合 tag 不移动，便于按原 DSH 版本重新下载安装。回退 Tasks 不等于回退 DSH：旧包仍须与当前 DSH 完整运行时版本匹配。升级/回退步骤见[固定版本安装说明](<https://github.com/chanyuenpang/dsh-better-tasks/blob/dsh-v0.2.2-rc.2-tasks-v0.4.1/docs/install.md>)。
+回退 Tasks 不等于回退 DSH：同一运行时内恢复与上一版清单不一致的包；跨运行时回退时一起恢复匹配的运行时与七包，不混线。旧版组合 tag 不移动。
 
 **不要删除** Session、Workspace、原生 Pin、Goal/Todo、ledger、Tasks 排序、`better-tasks-ui` 设置或浏览器展开状态键。Profile 配置备份也可能含敏感信息，只留本机，勿附到 GitHub issue。
 

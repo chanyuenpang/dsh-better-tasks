@@ -1,8 +1,8 @@
 # 安装 Better Tasks：DSH 0.2.2-rc.2 / Tasks 0.4.1
 
-> 本页对应完整 0.4.1 组合。升级必须同步更新主包和本 Release 的 conversation fork；仅重启或仅升级主包不能修复斜杠提交异常。完整命令统一安装本 Release 七包。
+> 本页是 rc.2 / 0.4.1 的版本与验包说明。旧 Release 的 Desktop CLI 安装步骤已勘误，实际安装请用[统一 Desktop 安装手册](<install-desktop.md>)。斜杠提交修复需要 0.4.1 主包和匹配的 Conversation fork；其余已匹配的 fork 不必重装。
 
-**当前公开完整安装入口：** [dsh-v0.2.2-rc.2-tasks-v0.4.1](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.1>)。无需 clone 仓库或编译。
+**rc.2 组合下载入口：** [dsh-v0.2.2-rc.2-tasks-v0.4.1](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/dsh-v0.2.2-rc.2-tasks-v0.4.1>)。无需 clone 仓库或编译。
 
 ## 1. 先选版本
 
@@ -13,7 +13,7 @@
 | `0.2.0-rc.2` | `0.3.1` | [历史发行版](<https://github.com/chanyuenpang/dsh-better-tasks/releases/tag/v0.3.1>) |
 | `0.2.2-rc.1` / `0.2.2-rc.3` / 其他 | — | **不要安装本文七包**；需要该运行时单独验证的发行版 |
 
-在 Desktop「关于」确认完整 DSH 运行时版本；若使用 CLI，再核对 `dsh --version`，确保不是另一套安装。本文针对 Desktop 的 `desktop` Profile，不是旧版 Web Profile。Windows 命令在能执行 `dsh plugin` 的 PowerShell 终端运行；若命令不存在，请先配置与当前 Desktop 同版本的 DSH CLI，勿随意装 npm latest。
+在 Desktop「关于」确认完整 DSH 运行时版本。本文针对 Desktop 的 `desktop` Profile，不是旧版 Web Profile。下方 PowerShell 只负责下载和验包；安装不使用全局 DSH CLI。
 
 今后的 tag 固定为 `dsh-v<DSH版本>-tasks-v<Tasks版本>`。先按 DSH 版本挑 Release，再在该线选择所需 Tasks 版本；不要把“Latest”当作所有 DSH 的兼容保证。插件 peer 区间只表示依赖门槛，不代表六个 fork 可以跨线通用。
 
@@ -63,87 +63,19 @@ foreach ($asset in $manifest.assets) {
 
 校验用于确认下载完整性，清单与安装包应来自同一可信 Release。早期 `better-tasks-forks-0.2.2-rc.2` 的 questions 包不含本次最终输入框回退修复，请勿混用或从 npm 自动替换为官方同名包。
 
-## 3. 完全退出并备份 Profile
+## 3. 按当前 Desktop 手册安装与验收
 
-完成正在运行的任务，手动完全退出 Desktop（包括托盘），确认旧进程已退出。安装和升级都在退出后进行，避免热替换 UI。
+按[统一安装手册](<install-desktop.md>)备份 Profile、完成目标组合的隔离启动门禁并安装。该组合使用 `nodeLinker: isolated`、`autoInstallPeers: false` 和六个精确 hoist 条目。只换缺失或不匹配的 fork 根依赖，主包走 Desktop 插件管理器；七包匹配后再启用。旧 Release 的 Desktop CLI 命令不适用。
 
-默认 Profile 是 `~/.dsh/profiles/desktop`；自定义 `DSH_HOME` 时使用实际路径，不要备份/修改错目录。至少备份 `package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`、`cordis.yml` 和 `cordis.patch.yml`（存在的文件），并保留旧的完整安装包。备份只存自己机器，不要上传 GitHub。
-
-```powershell
-$dshHome = if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $HOME '.dsh' }
-$profileDir = Join-Path $dshHome 'profiles/desktop'
-if (!(Test-Path -LiteralPath $profileDir -PathType Container)) { throw "请确认实际 Profile：$profileDir" }
-$backupDir = "$profileDir.before-better-tasks-$(Get-Date -Format yyyyMMdd-HHmmss)"
-New-Item -ItemType Directory -Path $backupDir | Out-Null
-foreach ($file in 'package.json','pnpm-lock.yaml','pnpm-workspace.yaml','cordis.yml','cordis.patch.yml') {
-    $path = Join-Path $profileDir $file
-    if (Test-Path -LiteralPath $path) { Copy-Item -LiteralPath $path -Destination $backupDir }
-}
-"备份位置：$backupDir"
-```
-
-## 4. 配置 Profile 模块解析（必需）
-
-编辑自己 Profile 的 `pnpm-workspace.yaml`，**合并**以下配置；保留原有其他包、工作区与插件设置，不要盲目覆盖整个文件：
-
-```yaml
-packages:
-  - .
-nodeLinker: isolated
-autoInstallPeers: false
-publicHoistPattern:
-  - '@deepseek-ai/dsh-client-ui-layout'
-  - '@deepseek-ai/dsh-client-ui-workspace'
-  - '@deepseek-ai/dsh-client-ui-user-questions'
-  - '@deepseek-ai/dsh-client-ui-input-trigger'
-  - '@deepseek-ai/dsh-client-ui-commands'
-  - '@deepseek-ai/dsh-client-ui-conversation'
-```
-
-只有这六个原生包名在 Profile 根部解析到 fork，Desktop 才能加载它们。`nodeLinker: hoisted` 可能丢失插件本身的客户端入口；也不要增加会把整个 `@deepseek-ai/*` 核心依赖提升到根部的通配规则。若与现有插件策略冲突，先停下检查，不要用 `--force` 或关闭 pnpm 安全检查。
-
-**仅在此前使用其他 linker 时**：备份后确认 `$profileDir` 为刚才核对的绝对路径，只清理该目录内可重建的 `node_modules`（必要时连同旧 `pnpm-lock.yaml`），再执行下一步。不要删除整个 Profile 或 DSH_HOME；其余用户数据不应动。
-
-## 5. 一起安装七包
-
-沿用上面下载与校验后的 `$downloadDir` 和 `$manifest`：
-
-```powershell
-$specs = @($manifest.assets | ForEach-Object { Join-Path $downloadDir $_.filename })
-dsh plugin --profile desktop add @specs
-if ($LASTEXITCODE -ne 0) { throw '安装失败；不要启动 Desktop，先按回滚说明恢复' }
-```
-
-也可以在插件管理器支持本地 tarball 的环境中选择这七包，但仍须满足前面的 Profile 配置和完整退出条件。不要只安装插件本体：插件的 patch 会接管侧栏，缺 fork 会造成半安装。不要手工把禁用行粘到用户 patch 中；由插件 bundle 管理可移除的 patch 层。
-
-### 已完整安装时，仅升级维护者提供的本地候选
-
-仅限 DSH 完整运行时版本不变、六个 fork 与候选清单哈希全部一致，且现有七包组合已安装完成的情况。维护者必须同时提供候选的 Tasks 版本、适配 DSH 版本与 SHA-256；不要用开发分支源码 ZIP 代替 tarball，也不要从 npm latest 补齐缺失 fork。
-
-完成前面的退出与备份后，将候选 tarball 路径交给同一 CLI：
-
-```powershell
-# 把下面路径替换为实际收到并核验的候选文件；这是占位示例，不是下载地址。
-$mainPackage = (Resolve-Path './veewo-dsh-better-tasks-<候选版本>.tgz').Path
-dsh plugin --profile desktop add $mainPackage
-if ($LASTEXITCODE -ne 0) { throw '升级失败，先恢复备份' }
-```
-
-主包单独升级不适用于全新安装或跨 DSH 版本升级。六个 fork 任一不匹配，就回到完整组合安装。不要手工替换运行中的虚拟存储文件或加载可变源码目录。
-
-## 6. 启动与验收
-
-手动启动同一套 Desktop，检查侧栏、Session、Workspace 和会话界面能正常打开，主输入框存在；再由使用者验收任务卡片、Pin、输入、问答等功能。若设置提示 restart required，应完全退出再打开，而不是只刷新页面。
-
-有源码检出时，可选运行 `./scripts/desktop-probe.ps1 -SourceProfile desktop`，期望 `desktop probe: PASS`，安装的客户端插件均出现在 boot manifest。纯 CLI Host 可启动、或仅 manifest 存在，不等于实际 Desktop UI 验收通过。当前公开发行版的验证范围见同一 Release 的 `validation.json`；本地候选的检查记录应与该候选一起提供，不能拿旧 Release 的结果替代。
+检查侧栏、Session、Workspace 和会话能正常打开，再由用户验收任务卡片、Pin、输入与问答。若提示 `restart-required`，由用户手动完全退出再打开。该 Release 的 `VALIDATION.json` 记录了发行组合的验证范围，不能替代实际候选的启动门禁。
 
 开发版默认强调任务名、项目名为次要信息；已保存的“强调项目名”设置不会被覆盖。若升级后仍显示旧强调方式，在 Tasks 设置中手动选择“强调任务名”。
 
-## 7. 升级、卸载与故障
+## 4. 升级、卸载与故障
 
-升级 DSH 前，先找到与新 DSH 完整版本对应的组合 tag；没有对应发布就先不要带旧 fork 升级。更新同一 DSH 下的 Tasks，也应重新取齐新 Release 七包和校验清单。
+升级 DSH 前，先找到与新 DSH 完整版本对应的组合 tag；没有对应发布就不要带旧 fork 启用 Better Tasks。更新同一 DSH 下的 Tasks，按目标七包清单核对实际差异，不重装已匹配的包。
 
-卸载与恢复步骤见同一 Release 的 `ROLLBACK.md` 或[固定版本回滚说明](<https://github.com/chanyuenpang/dsh-better-tasks/blob/dsh-v0.2.2-rc.2-tasks-v0.4.1/docs/rollback.md>)。卸载时须连同六个 fork 依赖一起移除，否则它们还会遮蔽官方模块。
+卸载与恢复见[当前回滚说明](<rollback.md>)，不执行旧 Release 的 Desktop CLI 步骤。完全卸载时须连同六个 fork 根依赖一起移除，否则它们仍可能遮蔽官方模块。
 
 | 症状 | 优先检查 |
 |---|---|

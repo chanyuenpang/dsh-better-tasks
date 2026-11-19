@@ -15,6 +15,11 @@
 - Do not select or create a skill merely to bypass this restriction, and do not expand a skill-authorized delegation into additional ad hoc work.
 - Do not use multi-agent orchestration as a substitute for direct execution. If delegation outside an applicable skill contract is already running, stop it before taking over its files.
 
+## Desktop installation entry point
+
+- Follow the current [Windows Desktop installation runbook](<docs/install-desktop.md>) before installing, upgrading, or rolling back Better Tasks, even if an old Release asset says otherwise.
+- The Desktop `desktop` profile is Electron-managed. Do not use the Desktop CLI as an installer or present native-named forks to Plugin Manager as bundles. Use Plugin Manager for the Better Tasks main package, and use the explicitly authorized, scoped root-dependency procedure only for missing or mismatched forks. Complete the startup gate and verify the installed seven-package composition before enabling a newly assembled bundle. Do not repeat installation or request additional authorization for packages that already match.
+
 ## Real-machine startup safety gate
 
 Before any change is installed into or tested against the real `dsh web` profile, the exact candidate composition **must cold-start successfully in a sandbox**.
